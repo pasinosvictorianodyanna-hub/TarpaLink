@@ -42,18 +42,18 @@
                     <div class="card" style="padding:22px 24px">
                         <h4 style="font-size:15px;font-weight:600;margin-bottom:14px">Who is picking this up?</h4>
                         <div class="form-grid">
-                            <label class="field">
-                                <span>Full name</span>
-                                <input name="name" value="{{ auth()->user()?->name }}" placeholder="Jomar Mendoza">
+                            <label>
+                                <span class="lbl">Full name</span>
+                                <input class="inp" name="name" value="{{ auth()->user()?->name }}" placeholder="Jomar Mendoza">
                             </label>
-                            <label class="field">
-                                <span>Mobile number</span>
-                                <input name="phone" value="{{ auth()->user()?->phone }}" placeholder="+63 917 000 0000">
+                            <label>
+                                <span class="lbl">Mobile number</span>
+                                <input class="inp" name="phone" value="{{ auth()->user()?->phone }}" placeholder="+63 917 000 0000">
                             </label>
                         </div>
-                        <label class="field" style="margin-top:12px">
-                            <span>Notes for the shop</span>
-                            <textarea name="notes" rows="2" placeholder="e.g. Leave 2 inches of white space at the bottom."></textarea>
+                        <label style="display:block;margin-top:12px">
+                            <span class="lbl">Notes for the shop</span>
+                            <textarea class="inp" name="notes" rows="2" placeholder="e.g. Leave 2 inches of white space at the bottom."></textarea>
                         </label>
                     </div>
 

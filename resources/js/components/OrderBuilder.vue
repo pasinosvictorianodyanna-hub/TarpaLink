@@ -95,6 +95,17 @@ const checkoutHref = computed(() => {
 });
 
 const quickQty = [1, 3, 5, 10, 25];
+
+// The four sizes the counter actually gets asked for, in feet as the customer
+// thinks of them. Inches underneath, because that is what the matrix is in.
+const presets = [
+    { label: '2×3 ft', w: 24, h: 36 },
+    { label: '3×4 ft', w: 36, h: 48 },
+    { label: '4×6 ft', w: 48, h: 72 },
+    { label: '6×8 ft', w: 72, h: 96 },
+];
+
+const isPreset = (p) => Number(width.value) === p.w && Number(height.value) === p.h;
 </script>
 
 <template>
@@ -111,7 +122,8 @@ const quickQty = [1, 3, 5, 10, 25];
                         @click="serviceId = service.id"
                     >
                         {{ service.name }}
-                        <small>{{ service.unit === 'sqft' ? 'per square foot' : 'per piece' }}</small>
+                        <small v-if="service.from">{{ peso(service.from) }} / {{ service.unit === 'sqft' ? 'sq ft' : 'pc' }}</small>
+                        <small v-else>{{ service.unit === 'sqft' ? 'per square foot' : 'per piece' }}</small>
                     </div>
                 </div>
             </div>
@@ -132,6 +144,16 @@ const quickQty = [1, 3, 5, 10, 25];
                     <div style="padding:0 14px;height:42px;display:flex;align-items:center;background:var(--paper);border-radius:9px;font-size:12.5px;font-weight:600">
                         {{ area.toFixed(1) }} sq ft
                     </div>
+                </div>
+
+                <div class="size-presets">
+                    <span
+                        v-for="preset in presets"
+                        :key="preset.label"
+                        class="selpill"
+                        :class="{ on: isPreset(preset) }"
+                        @click="width = preset.w; height = preset.h"
+                    >{{ preset.label }}</span>
                 </div>
             </div>
 

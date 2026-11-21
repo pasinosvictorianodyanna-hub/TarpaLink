@@ -23,9 +23,25 @@ class HomeController extends Controller
                 'subheadline' => 'Find a verified print shop, set your size and quantity — and see the exact price before you order.',
                 'primary_label' => 'Find a print shop',
             ]),
-            'banner' => PageSection::where('key', 'banner')->where('status', 'published')->first()?->content,
+            'banner' => $this->section('banner'),
+            'testimonials' => $this->section('testimonials'),
+            'faq' => $this->section('faq'),
             'featured' => $featured,
             'shopCount' => Shop::active()->count(),
         ]);
+    }
+
+    /**
+     * A section's content, or null when it is missing or not published.
+     *
+     * Null is meaningful: the view omits the block entirely rather than
+     * rendering an empty shell, so deleting a section hides it.
+     */
+    private function section(string $key): ?array
+    {
+        return PageSection::where('key', $key)
+            ->where('status', 'published')
+            ->first()
+            ?->content;
     }
 }

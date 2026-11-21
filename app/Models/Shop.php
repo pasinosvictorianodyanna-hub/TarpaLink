@@ -3,8 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Shop extends Model
 {
@@ -51,6 +53,38 @@ class Shop extends Model
     public function quantityDiscounts(): HasMany
     {
         return $this->hasMany(QuantityDiscount::class);
+    }
+
+    /**
+     * The plan row behind the `plan` code column.
+     *
+     * Deliberately not named `plan()`: `$shop->plan` is the code string, and a
+     * relation with the same name would silently swap the attribute for a model
+     * the moment anything eager-loaded it.
+     */
+    public function planDefinition(): BelongsTo
+    {
+        return $this->belongsTo(Plan::class, 'plan', 'code');
+    }
+
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(Subscription::class)->latest();
+    }
+
+    public function subscription(): HasOne
+    {
+        return $this->hasOne(Subscription::class)->latestOfMany();
+    }
+
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class)->latest();
+    }
+
+    public function currentPlan(): ?Plan
+    {
+        return $this->planDefinition;
     }
 
     public function staff(): BelongsToMany

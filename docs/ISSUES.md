@@ -3,9 +3,9 @@
 Issues for the second developer, plus the two spine tasks that must be done together
 before either half starts.
 
-> **Status:** issues **#1**–**#6** are built. #1 and #2 landed in `51b4ee3`, #3–#6 in the
-> shop-panel commit. They stay here as the reference for what exists — read them, do not
-> rebuild them. **#7 down is still open.**
+> **Status:** issues **#1**, **#2**, **#3**–**#6**, **#10**, **#11** and **#12** are built.
+> They stay here as the reference for what exists — read them, do not rebuild them.
+> **#7, #8 and #9 are still open.**
 
 Labels used: `spine` · `shop-panel` · `admin-panel` · `integration` · `billing` ·
 `p0` (blocks someone) · `p1` (normal)
@@ -213,10 +213,11 @@ shop's price matrix; only an administrator can change `page_sections`.
 
 ---
 
-## 10. CMS — site content resource
+## 10. CMS — site content resource ✅ done
 
 **Labels:** `admin-panel` `p1`
 **Requirement:** C
+**State:** built
 
 Filament resource over `page_sections` and `site_settings`. Six sections: homepage
 hero, announcement banner, featured shops, testimonials, FAQ, footer. Editing copy
@@ -228,9 +229,10 @@ breaking the page.
 
 ---
 
-## 11. PayMongo webhook + payout ledger
+## 11. PayMongo webhook + payout ledger ✅ done
 
 **Labels:** `integration` `p0`
+**State:** built
 
 Checkout creates a payment intent; the webhook is the only thing that may mark a job
 as paid. Idempotent on `payment_intent_id` so a replayed webhook cannot double-credit.
@@ -244,9 +246,10 @@ payout ledger shows gross − the shop's plan rate = net.
 
 ---
 
-## 12. Billing: plans, subscriptions, invoices
+## 12. Billing: plans, subscriptions, invoices ✅ done
 
 **Labels:** `billing` `p1`
+**State:** built
 
 Three tiers — Starter (free, 5%), Growth (₱599, 3%), Pro (₱1,499, 1.5%). Crossover
 points: Growth wins above ₱29,950 monthly GMV, Pro above ₱60,000.

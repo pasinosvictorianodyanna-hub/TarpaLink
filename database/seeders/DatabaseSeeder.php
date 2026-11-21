@@ -19,10 +19,34 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        $this->plans();
+
         $shops = $this->shops();
 
         $this->people($shops);
         $this->content();
+    }
+
+    /** The three subscription tiers. Rates are basis points. */
+    private function plans(): void
+    {
+        $plans = [
+            ['code' => 'starter', 'name' => 'Starter', 'price' => 0, 'commission_rate' => 500, 'sort' => 1,
+                'blurb' => 'Free forever. You pay 5% of each completed job.',
+                'features' => ['Storefront listing', 'Price matrix', 'Proof approval', '5% per completed job']],
+
+            ['code' => 'growth', 'name' => 'Growth', 'price' => 59900, 'commission_rate' => 300, 'sort' => 2,
+                'blurb' => '₱599 a month. The rate drops to 3%.',
+                'features' => ['Everything in Starter', '3% per completed job', 'Payout ledger', 'Reports export']],
+
+            ['code' => 'pro', 'name' => 'Pro', 'price' => 149900, 'commission_rate' => 150, 'sort' => 3,
+                'blurb' => '₱1,499 a month. The rate drops to 1.5%.',
+                'features' => ['Everything in Growth', '1.5% per completed job', 'Priority placement', 'Multi-staff access']],
+        ];
+
+        foreach ($plans as $plan) {
+            \App\Models\Plan::updateOrCreate(['code' => $plan['code']], $plan);
+        }
     }
 
     /** Six shops with deliberately different matrices. */

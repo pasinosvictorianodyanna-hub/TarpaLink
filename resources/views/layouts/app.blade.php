@@ -63,7 +63,9 @@
             </span>
             TarpaLink
           </a>
-          <p>The print marketplace for tarpaulins, stickers, flyers and everything else you need on paper.</p>
+          @if (! empty($footerBlurb))
+            <p>{{ $footerBlurb }}</p>
+          @endif
           <div class="cmyk"><i style="background:#0092E4"></i><i style="background:#E8265E"></i><i style="background:#F5B700"></i><i style="background:#0C0F0E"></i></div>
         </div>
         <div>

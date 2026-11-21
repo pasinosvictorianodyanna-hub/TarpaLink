@@ -23,4 +23,16 @@ final class Money
     {
         return $centavos === null ? '—' : '₱'.number_format($centavos / 100, 2);
     }
+
+    /** Drops the cents when the amount is whole — for thresholds and averages. */
+    public static function short(?int $centavos): string
+    {
+        if ($centavos === null) {
+            return '—';
+        }
+
+        return $centavos % 100 === 0
+            ? '₱'.number_format($centavos / 100, 0)
+            : self::format($centavos);
+    }
 }

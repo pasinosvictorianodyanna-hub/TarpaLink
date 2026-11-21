@@ -1,6 +1,17 @@
 @extends('layouts.app')
 
 @section('content')
+  @if (! empty($banner['text']))
+    <div class="announce">
+      <div class="wrap">
+        <span>{{ $banner['text'] }}</span>
+        @if (! empty($banner['link']))
+          <a href="{{ $banner['link'] }}">{{ $banner['link_label'] ?? 'Learn more' }}</a>
+        @endif
+      </div>
+    </div>
+  @endif
+
   <div class="hero">
     <div class="wrap hero-grid">
       <div>
@@ -225,59 +236,63 @@
     </div>
   </div>
 
-  <!-- testimonials -->
-  <div class="sec">
-    <div class="wrap">
-      <div class="sec-head">
-        <div>
-          <span class="eyebrow">Reviews</span>
-          <h2 class="h2">People who stopped<br>sending "pm sent".</h2>
-        </div>
-      </div>
-      <div class="quotes">
-        <div class="quote">
-          <div class="stars">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
-          </div>
-          <p>"I ordered 3 tarpaulins at 11pm and had a price in ten seconds. That used to take two days of asking around."</p>
-          <div class="who">
-            <span class="av" style="background:#0C0F0E">JM</span>
-            <div><b>Jomar M.</b><span>Small business owner · QC</span></div>
+  @if (! empty($faq['items']))
+    <!-- faq -->
+    <div class="sec">
+      <div class="wrap">
+        <div class="sec-head">
+          <div>
+            <span class="eyebrow">Questions</span>
+            <h2 class="h2">{{ $faq['title'] ?? 'Common questions' }}</h2>
           </div>
         </div>
-        <div class="quote">
-          <div class="stars">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
-          </div>
-          <p>"The proof approval step saved me. They caught a low-res logo before printing 200 flyers."</p>
-          <div class="who">
-            <span class="av" style="background:#E8265E">AR</span>
-            <div><b>Angela R.</b><span>Marketing associate</span></div>
-          </div>
-        </div>
-        <div class="quote">
-          <div class="stars">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
-          </div>
-          <p>"As a shop owner, the price matrix is the whole thing. I set it once and it just answers for me."</p>
-          <div class="who">
-            <span class="av" style="background:#0092E4">KC</span>
-            <div><b>Kevin C.</b><span>Owner, Inkwell Press</span></div>
-          </div>
+        <div class="faq">
+          @foreach ($faq['items'] as $item)
+            <details class="faq-item">
+              <summary>{{ $item['q'] ?? '' }}</summary>
+              <p>{{ $item['a'] ?? '' }}</p>
+            </details>
+          @endforeach
         </div>
       </div>
     </div>
-  </div>
+  @endif
+
+  @if (! empty($testimonials['items']))
+    <!-- testimonials -->
+    <div class="sec">
+      <div class="wrap">
+        <div class="sec-head">
+          <div>
+            <span class="eyebrow">Reviews</span>
+            <h2 class="h2">{{ $testimonials['title'] ?? 'What customers say' }}</h2>
+          </div>
+        </div>
+        <div class="quotes">
+          @foreach ($testimonials['items'] as $item)
+            @php
+              $initials = \Illuminate\Support\Str::of($item['name'] ?? '')
+                  ->explode(' ')->filter()->take(2)
+                  ->map(fn ($p) => mb_strtoupper(mb_substr($p, 0, 1)))->implode('');
+              $tint = ['#0C0F0E', '#E8265E', '#0092E4', '#F5B700'][$loop->index % 4];
+            @endphp
+            <div class="quote">
+              <div class="stars">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
+              </div>
+              <p>"{{ $item['quote'] ?? '' }}"</p>
+              <div class="who">
+                <span class="av" style="background:{{ $tint }}">{{ $initials }}</span>
+                <div><b>{{ $item['name'] ?? '' }}</b><span>{{ $item['role'] ?? '' }}</span></div>
+              </div>
+            </div>
+          @endforeach
+        </div>
+      </div>
+    </div>
+  @endif
 @endsection

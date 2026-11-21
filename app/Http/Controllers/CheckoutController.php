@@ -6,6 +6,7 @@ use App\Exceptions\ServiceUnavailable;
 use App\Models\Job;
 use App\Models\Payment;
 use App\Models\Shop;
+use App\Services\PayMongo;
 use App\Services\PriceCalculator;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -74,16 +75,21 @@ class CheckoutController extends Controller
         }
 
         if ($data['payment_method'] !== 'cod') {
-            // Sandbox: no live charge. The webhook is what would mark this paid.
-            Payment::create([
+            // Sandbox: no live charge. The webhook is the only thing that marks
+            // this paid — nothing in checkout may set status to paid.
+            $payment = Payment::create([
                 'job_id' => $job->id,
                 'provider' => 'paymongo',
-                'intent_id' => 'pi_test_'.$job->reference,
+                'intent_id' => 'pending-'.$job->reference,
                 'amount' => $quote['total'],
                 'processing_fee' => (int) round($quote['total'] * 0.025) + 1500,
-                'commission' => (int) round($quote['total'] * 0.05),
+                'commission' => (int) round($quote['total'] * $shop->commission_rate / 10000),
                 'status' => 'pending',
             ]);
+
+            $intent = app(PayMongo::class)->createIntent($job, $payment);
+
+            $payment->update(['intent_id' => $intent['id']]);
         }
 
         return redirect()

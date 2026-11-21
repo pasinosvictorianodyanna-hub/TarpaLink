@@ -25,6 +25,11 @@ Route::post('/shops/{shop}/checkout', [CheckoutController::class, 'store'])
 Route::get('/jobs/{job}', [JobController::class, 'show'])->name('jobs.show');
 Route::get('/account', [AccountController::class, 'index'])->middleware('auth')->name('account');
 
+// PayMongo calls this directly — no session, no CSRF token, signature instead.
+Route::post('/webhooks/paymongo', \App\Http\Controllers\PayMongoWebhookController::class)
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])
+    ->name('webhooks.paymongo');
+
 Route::get('/login', [LoginController::class, 'show'])->name('login');
 Route::post('/login', [LoginController::class, 'store']);
 Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');

@@ -35,4 +35,17 @@ return [
         ],
     ],
 
+    /*
+    | PayMongo, sandbox only. With no secret key the app runs in simulated mode:
+    | intents are generated locally and the webhook accepts events signed with
+    | the local secret, so the full flow can be demonstrated without live keys.
+    | Simulated mode is refused outside `local` — see PayMongo::verifySignature().
+    */
+    'paymongo' => [
+        'secret' => env('PAYMONGO_SECRET_KEY'),
+        'public' => env('PAYMONGO_PUBLIC_KEY'),
+        'webhook_secret' => env('PAYMONGO_WEBHOOK_SECRET'),
+        'base_url' => env('PAYMONGO_BASE_URL', 'https://api.paymongo.com/v1'),
+    ],
+
 ];

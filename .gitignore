@@ -31,3 +31,4 @@ Thumbs.db
 
 /database/*.sqlite
 /database/*.sqlite-journal
+public/__dump/

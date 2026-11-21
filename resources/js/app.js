@@ -1,6 +1,7 @@
 import { createApp } from 'vue';
 import OrderBuilder from './components/OrderBuilder.vue';
 import ProfileForm from './components/ProfileForm.vue';
+import Account from './pages/Account.vue';
 import Home from './pages/Home.vue';
 
 /**
@@ -17,6 +18,7 @@ import Home from './pages/Home.vue';
  */
 const registry = {
     home: Home,
+    account: Account,
     'order-builder': OrderBuilder,
     'profile-form': ProfileForm,
 };

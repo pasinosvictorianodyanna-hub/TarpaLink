@@ -30,6 +30,11 @@ class ShopPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Stone,
             ])
+            // The design is paper stock and ink: there is no dark version of it.
+            // Without this, Filament follows the operating system and a shop
+            // owner on a dark-mode machine sees a black panel that shares no
+            // visual language with the storefront their customers use.
+            ->darkMode(false)
             ->discoverResources(in: app_path('Filament/Shop/Resources'), for: 'App\Filament\Shop\Resources')
             ->discoverPages(in: app_path('Filament/Shop/Pages'), for: 'App\Filament\Shop\Pages')
             // No `->pages([Dashboard::class])`: the dashboard is discovered from

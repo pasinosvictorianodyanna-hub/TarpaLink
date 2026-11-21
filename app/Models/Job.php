@@ -27,6 +27,7 @@ class Job extends Model
         return [
             'spec' => 'array',
             'due_at' => 'datetime',
+            'collected_at' => 'datetime',
             'total' => 'integer',
             'subtotal' => 'integer',
             'discount' => 'integer',
@@ -94,6 +95,40 @@ class Job extends Model
     public function statusLabel(): string
     {
         return self::STATUS_LABELS[$this->status] ?? ucfirst((string) $this->status);
+    }
+
+    /** "36×48 in" — the size half of the spec, in the units shops actually quote. */
+    public function sizeLabel(): string
+    {
+        return $this->inches($this->spec['width_in'] ?? null)
+            .'×'.$this->inches($this->spec['height_in'] ?? null).' in';
+    }
+
+    /** "8 pcs · Eyelets, Hemming" — quantity plus the finishing the customer chose. */
+    public function specSummary(): string
+    {
+        $parts = [(int) ($this->spec['qty'] ?? 0).' pcs'];
+
+        // Option ids are stored, not names: a shop can rename "Hemming" to
+        // "Hem & stitch" without rewriting every job already on file.
+        $chosen = collect($this->spec['options'] ?? [])
+            ->map(fn (array $option) => $this->service?->options
+                ->firstWhere('id', $option['id'] ?? null)?->name)
+            ->filter()
+            ->values()
+            ->all();
+
+        if ($chosen !== []) {
+            $parts[] = implode(', ', $chosen);
+        }
+
+        return implode(' · ', $parts);
+    }
+
+    /** Whole inches print without the `.0` that a float cast would leave behind. */
+    private function inches(mixed $value): string
+    {
+        return rtrim(rtrim(number_format((float) $value, 1, '.', ''), '0'), '.');
     }
 
     /** @return array<string, string> status => human label, for selects and badges. */

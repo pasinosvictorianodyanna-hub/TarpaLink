@@ -98,4 +98,24 @@ class LandingTest extends TestCase
             $this->assertStringContainsString('id="'.$anchor.'"', $html, "Missing #{$anchor} target.");
         }
     }
+
+    public function test_the_public_nav_points_at_marketing_sections_not_the_directory(): void
+    {
+        $html = $this->get('/')->assertOk()->getContent();
+
+        // The nav block only — the hero CTA and the "Get a quote" button still
+        // lead into /shops, which is where a visitor actually enters.
+        $nav = substr($html, strpos($html, 'mk-links'));
+        $nav = substr($nav, 0, strpos($nav, 'mk-actions'));
+
+        $this->assertStringNotContainsString(
+            route('shops.index'),
+            $nav,
+            'The directory belongs in the signed-in app bar, not the marketing nav.',
+        );
+
+        foreach (['#pricing', '#how', '#owners'] as $anchor) {
+            $this->assertStringContainsString($anchor, $nav, "Nav is missing {$anchor}.");
+        }
+    }
 }

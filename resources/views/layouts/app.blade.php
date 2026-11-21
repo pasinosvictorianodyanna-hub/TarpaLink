@@ -24,6 +24,7 @@
     </a>
     <div class="mk-links">
       <a href="{{ route('shops.index') }}">Print shops</a>
+      <a href="{{ route('home') }}#pricing">Services</a>
       <a href="{{ route('home') }}#how">How it works</a>
       <a href="{{ route('home') }}#owners">For shop owners</a>
       @auth

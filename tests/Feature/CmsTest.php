@@ -39,9 +39,13 @@ class CmsTest extends TestCase
 
         $hero->update(['content' => $content]);
 
+        // The last word is wrapped in the accent stroke, so the headline is two
+        // text nodes in the markup. Asserting the phrase either side of the split
+        // is what "the CMS copy reached the page" actually means here.
         $this->get('/')
             ->assertOk()
-            ->assertSee('Printing priced like a receipt, not a negotiation.');
+            ->assertSee('Printing priced like a receipt, not a')
+            ->assertSee('negotiation.');
     }
 
     public function test_editing_a_testimonial_changes_the_landing_page(): void
@@ -59,6 +63,10 @@ class CmsTest extends TestCase
     /** Issue #10 acceptance: deleting a section hides it instead of breaking the page. */
     public function test_deleting_the_banner_hides_it_without_breaking_the_page(): void
     {
+        // The banner ships as a draft because the design has no announcement bar,
+        // so publish it first — this test is about deletion, not default visibility.
+        $this->section('banner')->update(['status' => 'published']);
+
         $this->get('/')->assertOk()->assertSee('Free proof on every job over');
 
         $this->section('banner')->delete();

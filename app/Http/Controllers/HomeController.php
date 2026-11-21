@@ -10,17 +10,19 @@ class HomeController extends Controller
 {
     public function index(): View
     {
+        // Four, because the row is a four-column grid: three cards left a hole the
+        // width of a shop on the right-hand edge.
         $featured = Shop::active()
-            ->with(['services.tiers'])
+            ->with(['services.tiers', 'quantityDiscounts'])
             ->orderByDesc('rating')
-            ->take(3)
+            ->take(4)
             ->get();
 
         return view('home', [
             'hero' => PageSection::content('hero', [
                 'eyebrow' => 'Print marketplace · Metro Manila',
                 'headline' => "Custom printing,\npriced in seconds.",
-                'subheadline' => 'Find a verified print shop, set your size and quantity — and see the exact price before you order.',
+                'subheadline' => 'Find a verified print shop, set your size, material and quantity — and see the exact price before you order. No group chats. No “pm sent.” No waiting.',
                 'primary_label' => 'Find a print shop',
             ]),
             'banner' => $this->section('banner'),

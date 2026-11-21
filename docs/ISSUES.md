@@ -3,10 +3,11 @@
 Issues for the second developer, plus the two spine tasks that must be done together
 before either half starts.
 
-> **Status:** issues **#1, #2, #3** and **#7 – #12** are built. #4, #5 and #6
-> (price matrix, jobs resource, production board) are still open — the shop panel
-> currently ships Reports, Payouts and Billing only.
-> Read the built ones as the reference for what exists — do not rebuild them.
+> **Status:** all twelve issues are built. #1–#2 landed in `51b4ee3`, #3–#6 in the
+> shop-panel commit (panels, price matrix, jobs, production board), and #7–#12 in
+> the billing/panels commit (reports, payouts, approvals, policies, CMS, webhook,
+> billing). They stay here as the reference for what exists — read them, do not
+> rebuild them.
 
 Labels used: `spine` · `shop-panel` · `admin-panel` · `integration` · `billing` ·
 `p0` (blocks someone) · `p1` (normal)
@@ -86,6 +87,7 @@ the database.
 ## 3. Scaffold Filament: two panels, one guard ✅ done
 
 **Labels:** `shop-panel` `p0`
+**State:** built
 
 `AdminPanelProvider` at `/admin` and `ShopPanelProvider` at `/shop`, both on the
 `web` guard. `User implements FilamentUser`; `canAccessPanel()` checks the panel
@@ -115,9 +117,10 @@ shows all shops.
 
 ---
 
-## 4. Price matrix resource
+## 4. Price matrix resource ✅ done
 
 **Labels:** `shop-panel` `p0`
+**State:** built
 **Unblocks:** Dev A's order builder
 
 The most important task in this backlog. A Filament resource where a shop owner edits
@@ -132,9 +135,10 @@ and the order builder quotes the new price with no deploy and no cache clear.
 
 ---
 
-## 5. Jobs resource + status transitions
+## 5. Jobs resource + status transitions ✅ done
 
 **Labels:** `shop-panel` `p1`
+**State:** built
 
 Filament resource listing this shop's jobs. Read-only on price, editable on status.
 
@@ -154,9 +158,10 @@ validation error and leaves the row untouched.
 
 ---
 
-## 6. Production board
+## 6. Production board ✅ done
 
 **Labels:** `shop-panel` `p1`
+**State:** built
 
 Custom Filament page — a kanban of the shop's active jobs by status. Drag between
 columns writes the same transition rules as task 5. `cancelled` is not a column.

@@ -16,10 +16,14 @@ class User extends Authenticatable implements FilamentUser
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
-    /** Memoised for the request — the shop panel asks on every resource query. */
-    protected ?Shop $activeShopCache = null;
+    /** Resolved once per request; the pivot query is not free. */
+    private ?Shop $resolvedShop = null;
 
-    protected bool $activeShopResolved = false;
+    private bool $shopResolved = false;
+
+    private ?Shop $activeShopCache = null;
+
+    private bool $activeShopResolved = false;
 
     protected $fillable = [
         'name',
@@ -64,10 +68,50 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
-     * The shop this user operates, resolved from the shop_users pivot.
+     * Panel access. Both panels share the single `web` guard, so the only thing
+     * separating an admin from a shop owner is this method — not a second guard,
+     * and not a second users table.
      *
-     * Only active shops count: a pending or suspended shop must not hand its
-     * owner a working panel. See docs/ISSUES.md #3 and #8.
+     * The shop panel additionally requires an *active* shop: a pending or
+     * suspended shop must not hand its owner a working panel. See #3 and #8.
+     */
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return match ($panel->getId()) {
+            'admin' => $this->isAdmin(),
+            'shop' => $this->isShopOwner() && $this->activeShop() !== null,
+            default => false,
+        };
+    }
+
+    /**
+     * The shop this user operates. One owner can be attached to several shops
+     * through the pivot; the panel works on the first one.
+     *
+     * Deliberately status-agnostic — resource scoping uses this. Whether the
+     * owner may be in the panel at all is canAccessPanel()'s question, and that
+     * one is answered by activeShop().
+     */
+    public function currentShop(): ?Shop
+    {
+        if (! $this->shopResolved) {
+            $this->resolvedShop = $this->shops()->orderBy('shops.id')->first();
+            $this->shopResolved = true;
+        }
+
+        return $this->resolvedShop;
+    }
+
+    public function currentShopId(): ?int
+    {
+        return $this->currentShop()?->id;
+    }
+
+    /**
+     * The first shop this user operates that is actually active.
+     *
+     * Null means "no panel for you": pending applications and suspended shops
+     * both land here, which is what makes rejection stick.
      */
     public function activeShop(): ?Shop
     {
@@ -80,21 +124,6 @@ class User extends Authenticatable implements FilamentUser
         return $this->activeShopCache = $this->shops()
             ->where('shops.status', 'active')
             ->first();
-    }
-
-    /**
-     * Panel access is decided here, not by a second guard.
-     *
-     * There is one `web` guard and one users table; a shop owner is an ordinary
-     * user row plus a pivot entry.
-     */
-    public function canAccessPanel(Panel $panel): bool
-    {
-        return match ($panel->getId()) {
-            'admin' => $this->isAdmin(),
-            'shop' => $this->isShopOwner() && $this->activeShop() !== null,
-            default => false,
-        };
     }
 
     public function initials(): string

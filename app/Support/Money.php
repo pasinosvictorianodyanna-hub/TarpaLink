@@ -3,20 +3,28 @@
 namespace App\Support;
 
 /**
- * Money is integer centavos everywhere in this application. Formatting happens
- * once, at the edge — in a view or a table column — never in the middle of a
+ * Money is integer centavos everywhere in this application.
+ *
+ * The panel is the one place a human types pesos, so the conversion lives here
+ * instead of being scattered through form definitions. Formatting happens once,
+ * at the edge — in a view or a table column — never in the middle of a
  * calculation. See docs/CONTRACT.md.
  */
 final class Money
 {
-    public static function format(int $centavos, string $symbol = '₱'): string
+    /** Null is not zero: an unpriced row should read "—", not "₱0.00". */
+    public static function format(?int $centavos, string $symbol = '₱'): string
     {
-        return $symbol.number_format($centavos / 100, 2);
+        return $centavos === null ? '—' : $symbol.number_format($centavos / 100, 2);
     }
 
     /** Compact form for dashboard tiles: ₱12.4k. */
-    public static function compact(int $centavos, string $symbol = '₱'): string
+    public static function compact(?int $centavos, string $symbol = '₱'): string
     {
+        if ($centavos === null) {
+            return '—';
+        }
+
         $pesos = $centavos / 100;
 
         return match (true) {
@@ -24,6 +32,11 @@ final class Money
             abs($pesos) >= 1_000 => $symbol.number_format($pesos / 1_000, 1).'k',
             default => $symbol.number_format($pesos, 0),
         };
+    }
+
+    public static function toPesos(?int $centavos): ?float
+    {
+        return $centavos === null ? null : $centavos / 100;
     }
 
     public static function pesos(int $centavos): float
@@ -37,13 +50,13 @@ final class Money
      * Deliberately string-based: routing a price through a float to get here is
      * how a ₱2,036.80 total becomes 203679. All inputs are non-negative.
      */
-    public static function toCentavos(string|int|float|null $value): int
+    public static function toCentavos(string|int|float|null $pesos): int
     {
-        if ($value === null || $value === '') {
+        if ($pesos === null || $pesos === '') {
             return 0;
         }
 
-        $normalised = preg_replace('/[^0-9.]/', '', (string) $value);
+        $normalised = preg_replace('/[^0-9.]/', '', (string) $pesos);
 
         if ($normalised === '' || $normalised === null) {
             return 0;

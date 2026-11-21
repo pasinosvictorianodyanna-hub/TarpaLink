@@ -2,10 +2,6 @@
 
 namespace App\Providers\Filament;
 
-use App\Filament\Admin\Widgets\FailedPayments;
-use App\Filament\Admin\Widgets\LatestJobs;
-use App\Filament\Admin\Widgets\PendingApprovals;
-use App\Filament\Admin\Widgets\PlatformStats;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -14,6 +10,7 @@ use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\Widgets\AccountWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -26,6 +23,9 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
  *
  * Same `web` guard as the storefront. Who gets in is decided by
  * User::canAccessPanel(), not by a separate guard — see docs/ISSUES.md #3.
+ *
+ * Widgets are discovered rather than listed: each one carries its own $sort, so
+ * adding a dashboard tile does not mean editing this file.
  */
 class AdminPanelProvider extends PanelProvider
 {
@@ -36,7 +36,7 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
-            ->brandName('TarpaLink · Admin')
+            ->brandName('TarpaLink Admin')
             ->colors([
                 'primary' => Color::Gray,
             ])
@@ -45,11 +45,9 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 Dashboard::class,
             ])
+            ->discoverWidgets(in: app_path('Filament/Admin/Widgets'), for: 'App\Filament\Admin\Widgets')
             ->widgets([
-                PlatformStats::class,
-                PendingApprovals::class,
-                FailedPayments::class,
-                LatestJobs::class,
+                AccountWidget::class,
             ])
             ->navigationGroups([
                 'Network',

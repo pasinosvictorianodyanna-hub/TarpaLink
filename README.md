@@ -12,20 +12,20 @@ A job-order platform for the Philippine printing industry. Customers find a prin
 |---|---|---|
 | Landing page | Dev A | done — CMS-driven hero, featured shops from DB |
 | Customer side | Dev A | done — directory, shop profile, builder, checkout, job status, my jobs |
-| Shop panel (Filament) | Dev B | partial — reports, payouts, billing. No price matrix / jobs / production board yet |
-| Admin panel (Filament) | Dev B | done — dashboard, approvals, shops, users, CMS, plans, invoices |
-| Integrations (PayMongo, SMTP, Maps, storage) | split | webhook + payout ledger done, sandbox keys only |
+| Shop panel (Filament) | Dev B | done — #3–#6 panels, price matrix, jobs, production board; #7 reports + payouts; #12 billing |
+| Admin panel (Filament) | Dev B | done — #8 dashboard + approvals, #9 users/policies, #10 CMS, #12 plans + invoices |
+| Integrations (PayMongo, SMTP, Maps, storage) | split | #11 webhook + payout ledger, sandbox keys only |
 
-**Spine (shared, done):** 13 domain tables, models, `PriceCalculator`, seeders with six shops.
+**Spine (shared, done):** 14 domain tables, models, `PriceCalculator`, `JobWorkflow`, seeders with six shops.
 **Added with the panels:** `payouts`, `plans`, `subscriptions`, `invoices`, `payment_webhooks`
-(26 tables total), plus two Filament panels on the single `web` guard.
+— 19 domain tables, 27 in total, and two Filament panels on the single `web` guard.
 
 ## Stack
 
 - **PHP 8.2+ / Laravel 12** — the whole application, one repo, one deploy
 - **Vue 3 (Composition API) + Vite** — the interactive storefront (order builder, checkout, job status, account)
 - **Filament v4 (Livewire 3 + Alpine)** — admin panel and shop panel; this is the CMS
-- **MySQL 8** — 13 domain tables (21 with framework tables)
+- **MySQL 8** — 14 domain tables (22 with framework tables)
 - **PayMongo (sandbox)** — payments, no live charges
 
 The rule that keeps it coherent: **Vue renders, Filament edits, Laravel decides.** Any price the browser shows is recomputed server-side before an order is created. The server always wins.
@@ -35,16 +35,21 @@ The rule that keeps it coherent: **Vue renders, Filament edits, Laravel decides.
 ```
 app/                      Laravel application
   Services/PriceCalculator.php    the only place a price is computed
-  Models/                         13 domain models
+  Services/JobWorkflow.php        the only place status transitions are allowed
+  Models/                         13 models (14 domain tables — shop_users is a pivot)
   Http/Controllers/               home, shops, quote, checkout, jobs, account, auth
+  Filament/Shop/                  shop panel: services, jobs, board, discounts
+  Filament/Admin/                 admin panel resources (issues #8–#12)
+  Providers/Filament/             the two panel providers
 database/
-  migrations/             13 domain tables
+  migrations/             14 domain tables
   seeders/                6 shops, 16 services, 40 price tiers, 21 jobs in every status
 resources/
   css/app.css             design system, extracted from the prototype
   js/app.js               Vue island bootstrap
   js/components/          OrderBuilder.vue
   views/                  Blade layouts and pages
+  views/filament/         custom panel views (production board)
 design/
   prototype.html          interactive design reference — 18 screens, no build step
 docs/
@@ -67,12 +72,17 @@ composer install
 cp .env.example .env          # already present in this checkout
 php artisan key:generate
 php artisan migrate:fresh --seed
+php artisan filament:assets   # published Filament CSS/JS — gitignored, regenerate after clone
 npm install
 npm run build                 # or: npm run dev
 php artisan serve
 ```
 
 Then open <http://127.0.0.1:8000>.
+
+**PHP needs `ext-zip`** enabled for Filament to install (it pulls in openspout for
+exports). If `composer install` fails on `ext-zip`, uncomment `extension=zip` in
+`php.ini`.
 
 ### Seeded accounts (password: `password`)
 
@@ -91,6 +101,39 @@ Filament and both use the same `web` guard — access is decided in
 Shops are seeded on different plans — Inkwell Press and Tinta & Co. on Growth (3%),
 Halftone Hub on Pro (1.5%), the rest on Starter (5%) — so commission math can be
 tested against more than one rate.
+
+## The two panels
+
+Both panels run on the **single `web` guard**. There is no second guard and no second
+user table: a shop owner is a normal `users` row, and which shop they operate comes
+from the `shop_users` pivot. Access is decided in `User::canAccessPanel()`.
+
+| Panel | URL | Who | Contents |
+|---|---|---|---|
+| Shop | `/shop` | `role = shop_owner` | Services + size tiers, finishing options, quantity discounts, jobs, production board |
+| Admin | `/admin` | `role = admin` | Scaffolded; resources arrive with issues #8–#12 |
+
+Sign in at `/shop/login` as `kevin@inkwell.ph`. Every query is scoped to that owner's
+`shop_id`, so a shop owner sees only Inkwell Press — and `/admin` returns 403 for them.
+
+**The shop panel never invents a price.** It edits the matrix; `PriceCalculator` is
+still the only thing that quotes. Change a tier rate and the storefront quotes the new
+price immediately, with no deploy and no cache clear — the matrix fingerprint changes,
+so new jobs get a new `matrix_version` while old jobs keep theirs.
+
+**Status changes go through one place.** `JobWorkflow::TRANSITIONS` is the only
+definition of what is legal. The jobs table and the production board both ask it, and
+it re-checks on save — hiding a button is not a rule.
+
+## Tests
+
+```bash
+php artisan test
+```
+
+16 tests. The shop-panel suite covers the acceptance criteria of issues #3–#6: tenant
+isolation, 403 across panels, illegal status transitions, and the "edit a rate, see a
+new quote" loop.
 
 ## How the Vue half is wired
 

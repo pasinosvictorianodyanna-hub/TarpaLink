@@ -5,20 +5,21 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
+/**
+ * Storefront smoke test. The landing page reads shops and CMS sections from the
+ * database, so it needs a seeded database to be meaningful.
+ */
 class ExampleTest extends TestCase
 {
     use RefreshDatabase;
 
-    /**
-     * The landing page reads its hero copy and featured shops from the database,
-     * so it is only reachable on a migrated, seeded schema.
-     */
-    public function test_the_application_returns_a_successful_response(): void
+    public function test_the_storefront_pages_render(): void
     {
         $this->seed();
 
-        $response = $this->get('/');
-
-        $response->assertStatus(200);
+        $this->get('/')->assertOk();
+        $this->get('/shops')->assertOk();
+        $this->get('/shops/inkwell-press')->assertOk();
+        $this->get('/shops/inkwell-press/build')->assertOk();
     }
 }

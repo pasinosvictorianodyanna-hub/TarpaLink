@@ -2,7 +2,6 @@
 
 namespace App\Providers\Filament;
 
-use App\Filament\Shop\Widgets\ShopStats;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -11,6 +10,7 @@ use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\Widgets\AccountWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -32,7 +32,7 @@ class ShopPanelProvider extends PanelProvider
             ->id('shop')
             ->path('shop')
             ->login()
-            ->brandName(fn () => auth()->user()?->activeShop()?->name ?? 'Shop panel')
+            ->brandName(fn (): string => auth()->user()?->currentShop()?->name ?? 'Shop panel')
             ->colors([
                 'primary' => Color::hex('#0092E4'),
             ])
@@ -41,11 +41,13 @@ class ShopPanelProvider extends PanelProvider
             ->pages([
                 Dashboard::class,
             ])
+            ->discoverWidgets(in: app_path('Filament/Shop/Widgets'), for: 'App\Filament\Shop\Widgets')
             ->widgets([
-                ShopStats::class,
+                AccountWidget::class,
             ])
             ->navigationGroups([
                 'Operations',
+                'Catalogue',
                 'Money',
             ])
             ->middleware([

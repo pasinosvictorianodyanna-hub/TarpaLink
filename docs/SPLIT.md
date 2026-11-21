@@ -89,6 +89,39 @@ week one, get the price matrix.
 - **Seeders are shared.** If you change the schema, update the seeder in the same PR,
   or the other developer's `migrate:fresh --seed` breaks.
 
+## How a change lands
+
+`main` is protected by a **ruleset**, not by good intentions. Direct pushes are
+refused; the only way in is a pull request that passes the checks.
+
+```
+issue → assign yourself → branch → commit → push branch → open PR → review → squash merge
+```
+
+1. **Claim the issue on GitHub first.** `/assign` in a comment. An issue with no
+   assignee is fair game; an issue with one is not. This is the only thing that
+   prevents two people building the same feature — a ruleset cannot see intent.
+2. **Branch off `main`**, named after the issue: `feature/7-reports-payouts`.
+3. **Push the branch** (`git push origin feature/7-reports-payouts`). Branches are
+   always pushable; only `main` is locked.
+4. **Open the PR.** The template asks what it closes — write `Closes #7`. GitHub
+   links the PR to the issue and closes it when the PR merges.
+5. **The checks must be green:** `Tests` (the whole suite on a fresh clone) and
+   `Issue link` (refuses a PR with no issue number). Both are required.
+6. **One approval.** The other developer reviews. A new push dismisses the old
+   approval, so review the final state, not an earlier one.
+7. **Squash merge.** Merge commits and rebase are disabled at the ruleset level, so
+   `main` stays linear: one commit per issue, and `git log` reads like the backlog.
+
+If you push to `main` by mistake, Git answers:
+
+```
+remote: error: GH013: Repository rule violations found for refs/heads/main.
+remote: - Changes must be made through a pull request.
+```
+
+Nothing is lost — `git switch -c feature/whatever` and push the branch instead.
+
 ## Definition of done, per half
 
 **Dev A is done when** a stranger can open the site, find a shop, build a tarpaulin

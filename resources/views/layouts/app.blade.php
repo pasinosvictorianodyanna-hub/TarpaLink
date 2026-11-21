@@ -28,6 +28,7 @@
       <a href="{{ route('home') }}#owners">For shop owners</a>
       @auth
         <a href="{{ route('account') }}">My jobs</a>
+        <a href="{{ route('profile.edit') }}">Profile</a>
       @endauth
     </div>
     <div class="mk-actions">

@@ -11,7 +11,7 @@ A job-order platform for the Philippine printing industry. Customers find a prin
 | Area | Owner | State |
 |---|---|---|
 | Landing page | Dev A | done — CMS-driven hero, featured shops from DB |
-| Customer side | Dev A | done — directory, shop profile, builder, checkout, job status, my jobs |
+| Customer side | Dev A | done — directory, shop profile, builder, checkout, job status, my jobs, profile |
 | Shop panel (Filament) | done | issues #3–#6, #7 — panels, price matrix, jobs, production board, reports |
 | Admin panel (Filament) | done | issues #8–#9, #10 — dashboard, approvals, users & roles, CMS |
 | Integrations | partly done | PayMongo sandbox: intent + signed webhook + retry. SMTP/Maps/storage still open |
@@ -39,7 +39,7 @@ app/                      Laravel application
   Services/PayMongo.php           sandbox intents + webhook signature check
   Models/                         16 models (17 domain tables — shop_users is a pivot)
   Policies/                       16 policies; one per model, no blanket admin bypass
-  Http/Controllers/               home, shops, quote, checkout, jobs, account, auth, CSV export
+  Http/Controllers/               home, shops, quote, checkout, jobs, account, profile, auth, CSV export
   Filament/Shop/                  shop panel: services, jobs, board, reports, billing
   Filament/Admin/                 dashboard widgets, shops, users, CMS
   Providers/Filament/             the two panel providers
@@ -49,7 +49,7 @@ database/
 resources/
   css/app.css             design system, extracted from the prototype
   js/app.js               Vue island bootstrap
-  js/components/          OrderBuilder.vue
+  js/components/          OrderBuilder.vue, ProfileForm.vue
   views/                  Blade layouts and pages
   views/filament/         custom panel views (production board)
 design/
@@ -208,13 +208,14 @@ removes the block from the page instead of leaving a hole.
 php artisan test
 ```
 
-78 tests. They cover the acceptance criteria of the finished issues: tenant isolation and
+135 tests. They cover the acceptance criteria of the finished issues: tenant isolation and
 cross-panel 403s (#3), the edit-a-rate-see-a-new-quote loop (#4), illegal status
 transitions (#5), board drops (#6), the ledger balancing and a plan change leaving
 settled payouts alone (#7), approval and rejection both locking the owner in or out (#8),
 the policy matrix (#9), CMS edits and section deletion (#10), webhook idempotency and
-failure marking (#11), crossover pricing (#12), and every dashboard figure against a
-plain `SUM()`/`COUNT()` over the same rows (#17).
+failure marking (#11), crossover pricing (#12), the profile screen's two endpoints
+(#16), and every dashboard figure against a plain `SUM()`/`COUNT()` over the same rows
+(#17).
 
 The reports and dashboard tests compare against an independent `SUM()` over `payments`
 rather than against the page's own numbers — a test that recomputes the same expression
@@ -243,3 +244,19 @@ line in the registry — not a router, not a bundle per page.
 The order builder posts to `POST /api/quote` on every change. That endpoint calls
 `PriceCalculator` and returns the same line items the server will use to create the
 job, so the number on screen and the number in the database cannot drift.
+
+There are two islands so far, and the rule for admitting a third is the same both
+times: **does the screen need state, or only markup?**
+
+| Island | Why it earns its JavaScript |
+|---|---|
+| `order-builder` | The quote is recomputed on every keystroke and the summary has to track it. |
+| `profile-form` | Both cards save in place, and the save button has to know whether anything actually changed. |
+
+Everything else — the landing page, the directory, the job list, the receipt — is a
+form or a list. Those stay Blade.
+
+One caveat when checking these in a browser: the island is client-rendered, so a
+server-side test can only assert the `data-component` attribute and the props, not the
+markup inside it. `tests/Feature/ProfileTest.php` decodes `data-props` and asserts
+against that instead of looking for a label that will never be in the HTML.

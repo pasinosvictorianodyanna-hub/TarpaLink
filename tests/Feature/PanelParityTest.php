@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Filament\Admin\Pages\Dashboard as AdminDashboard;
+use App\Filament\Admin\Resources\PageSections\Pages\ListPageSections as AdminListSections;
+use App\Filament\Admin\Resources\Shops\Pages\ListShops as AdminListShops;
+use App\Filament\Admin\Resources\Users\Pages\ListUsers as AdminListUsers;
 use App\Filament\Admin\Pages\Integrations;
 use App\Filament\Admin\Widgets\JobsPerDay;
 use App\Filament\Shop\Pages\PriceMatrix;
@@ -272,5 +275,47 @@ class PanelParityTest extends TestCase
 
         $this->assertNotEmpty($offered);
         $this->assertSame([$shopId], $offered->pluck('shop_id')->unique()->values()->all());
+    }
+
+    public function test_the_admin_shops_screen_renders_the_queue_first(): void
+    {
+        $component = Livewire::actingAs($this->admin())
+            ->test(AdminListShops::class)
+            ->assertOk()
+            ->assertSee('Owner')
+            ->assertSee('Services');
+
+        // The default filter is the approval queue, not "all".
+        $this->assertSame('pending', $component->instance()->status);
+    }
+
+    public function test_an_administrator_can_approve_a_pending_shop_from_the_list(): void
+    {
+        $shop = Shop::where('status', 'pending')->firstOrFail();
+
+        Livewire::actingAs($this->admin())
+            ->test(AdminListShops::class)
+            ->call('approve', $shop->id);
+
+        $this->assertSame('active', $shop->fresh()->status);
+    }
+
+    public function test_the_admin_users_screen_renders_and_filters_by_role(): void
+    {
+        Livewire::actingAs($this->admin())
+            ->test(AdminListUsers::class)
+            ->assertOk()
+            ->assertSee('Role')
+            ->set('role', 'admin')
+            ->assertSee('sofia@tarpalink.ph');
+    }
+
+    public function test_the_site_content_screen_renders_the_sections(): void
+    {
+        Livewire::actingAs($this->admin())
+            ->test(AdminListSections::class)
+            ->assertOk()
+            ->assertSee('Key')
+            ->assertSee('hero');
     }
 }

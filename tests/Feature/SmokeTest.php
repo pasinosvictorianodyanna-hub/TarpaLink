@@ -1,0 +1,256 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Job;
+use App\Models\PageSection;
+use App\Models\Plan;
+use App\Models\QuantityDiscount;
+use App\Models\Shop;
+use App\Models\SiteSetting;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+/**
+ * Walks every page of the application as the role that is allowed to see it.
+ *
+ * The assertion is deliberately loose on status (anything under 500) and strict
+ * on failures being collected and reported together — a smoke test that stops at
+ * the first broken page hides the other nine.
+ */
+class SmokeTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed();
+    }
+
+    private function user(string $email): User
+    {
+        return User::where('email', $email)->firstOrFail();
+    }
+
+    /**
+     * Switch identity the way a real browser would.
+     *
+     * The panels run Laravel's AuthenticateSession, which logs the user out when
+     * the session's stored password hash no longer matches. `actingAs()` alone
+     * leaves the previous user's hash behind, so a test that reuses one session
+     * across roles sees a 302 to the login page on the second switch — an
+     * artefact of the harness, not of the app.
+     */
+    private function actAs(User $user): void
+    {
+        $this->app['auth']->forgetGuards();
+        $this->flushSession();
+
+        $this->actingAs($user);
+    }
+
+    /** @param  array<int, string>  $urls */
+    private function assertNoServerErrors(array $urls): void
+    {
+        $failures = [];
+
+        foreach ($urls as $url) {
+            $response = $this->get($url);
+
+            if ($response->status() >= 500) {
+                $failures[] = sprintf('%s -> %d', $url, $response->status());
+            }
+        }
+
+        $this->assertSame([], $failures, "Server errors:\n".implode("\n", $failures));
+    }
+
+    public function test_public_pages_render(): void
+    {
+        $this->assertNoServerErrors([
+            '/',
+            '/shops',
+            '/shops/inkwell-press',
+            '/shops/inkwell-press/build',
+            '/shops/inkwell-press/checkout',
+            '/login',
+            '/admin/login',
+            '/shop/login',
+        ]);
+    }
+
+    public function test_customer_pages_render(): void
+    {
+        $customer = $this->user('jomar@tarpalink.ph');
+        $job = Job::where('user_id', $customer->id)->firstOrFail();
+
+        $this->actingAs($customer);
+
+        $this->assertNoServerErrors([
+            '/account',
+            '/jobs/'.$job->reference,
+        ]);
+    }
+
+    public function test_shop_panel_pages_render(): void
+    {
+        $owner = $this->user('kevin@inkwell.ph');
+        $shop = $owner->activeShop();
+
+        $job = $shop->jobs()->firstOrFail();
+        $service = $shop->services()->firstOrFail();
+        $discount = QuantityDiscount::where('shop_id', $shop->id)->firstOrFail();
+
+        $this->actingAs($owner);
+
+        $this->assertNoServerErrors([
+            '/shop',
+            '/shop/reports',
+            '/shop/payouts',
+            '/shop/billing',
+            '/shop/production-board',
+            '/shop/jobs',
+            '/shop/jobs/'.$job->getRouteKey(),
+            '/shop/services',
+            '/shop/services/create',
+            '/shop/services/'.$service->getRouteKey(),
+            '/shop/services/'.$service->getRouteKey().'/edit',
+            '/shop/quantity-discounts',
+            '/shop/quantity-discounts/create',
+            '/shop/quantity-discounts/'.$discount->getRouteKey().'/edit',
+        ]);
+    }
+
+    public function test_admin_panel_pages_render(): void
+    {
+        $admin = $this->user('sofia@tarpalink.ph');
+        $shop = Shop::firstOrFail();
+        $user = User::where('role', 'customer')->firstOrFail();
+        $section = PageSection::firstOrFail();
+        $setting = SiteSetting::firstOrFail();
+        $plan = Plan::firstOrFail();
+
+        $this->actingAs($admin);
+
+        $this->assertNoServerErrors([
+            '/admin',
+            '/admin/shops',
+            '/admin/shops/create',
+            '/admin/shops/'.$shop->getRouteKey().'/edit',
+            '/admin/users',
+            '/admin/users/create',
+            '/admin/users/'.$user->getRouteKey().'/edit',
+            '/admin/page-sections',
+            '/admin/page-sections/'.$section->getRouteKey().'/edit',
+            '/admin/site-settings',
+            '/admin/site-settings/create',
+            '/admin/site-settings/'.$setting->getRouteKey().'/edit',
+            '/admin/plans',
+            '/admin/plans/'.$plan->getRouteKey().'/edit',
+            '/admin/invoices',
+            '/admin/payouts',
+        ]);
+    }
+
+    public function test_each_role_is_kept_out_of_the_other_panels(): void
+    {
+        $customer = $this->user('jomar@tarpalink.ph');
+        $owner = $this->user('kevin@inkwell.ph');
+        $admin = $this->user('sofia@tarpalink.ph');
+
+        $this->actAs($customer);
+        $this->get('/shop')->assertForbidden();
+        $this->get('/admin')->assertForbidden();
+        $this->get('/account')->assertOk();
+
+        $this->actAs($owner);
+        $this->get('/admin')->assertForbidden();
+        $this->get('/shop')->assertOk();
+
+        $this->actAs($admin);
+        $this->get('/shop')->assertForbidden();
+        $this->get('/admin')->assertOk();
+    }
+
+    public function test_unknown_records_return_404_not_500(): void
+    {
+        $this->actAs($this->user('sofia@tarpalink.ph'));
+
+        $this->get('/admin/shops/999999/edit')->assertNotFound();
+        $this->get('/admin/plans/999999/edit')->assertNotFound();
+
+        $this->actAs($this->user('kevin@inkwell.ph'));
+        $this->get('/shop/services/999999')->assertNotFound();
+    }
+
+    public function test_a_shop_owner_cannot_open_another_shops_service(): void
+    {
+        $owner = $this->user('kevin@inkwell.ph');
+        $foreign = Shop::where('slug', 'halftone-hub')->firstOrFail()->services()->firstOrFail();
+
+        $this->actAs($owner);
+
+        // 404 rather than 403: the record is out of scope, so it does not exist
+        // for this shop. Hiding it is the point.
+        $this->get('/shop/services/'.$foreign->getRouteKey())->assertNotFound();
+    }
+
+    public function test_the_quote_endpoint_rejects_garbage_without_a_500(): void
+    {
+        $response = $this->postJson('/api/quote', [
+            'shop' => 'inkwell-press',
+            'service_id' => 1,
+            'width_in' => 0,
+            'height_in' => 'abc',
+            'qty' => -5,
+        ]);
+
+        $this->assertLessThan(500, $response->status());
+        $response->assertStatus(422);
+    }
+
+    public function test_a_size_outside_every_tier_returns_a_validation_error(): void
+    {
+        $shop = Shop::where('slug', 'halftone-hub')->firstOrFail();
+        $service = $shop->services()->where('slug', 'stickers')->firstOrFail();
+
+        $response = $this->postJson('/api/quote', [
+            'shop' => 'halftone-hub',
+            'service_id' => $service->id,
+            'width_in' => 500,
+            'height_in' => 500,
+            'qty' => 1,
+        ]);
+
+        $response->assertStatus(422);
+    }
+
+    public function test_the_quote_endpoint_refuses_another_shops_service(): void
+    {
+        $foreign = Shop::where('slug', 'halftone-hub')->firstOrFail()->services()->firstOrFail();
+
+        $this->postJson('/api/quote', [
+            'shop' => 'inkwell-press',
+            'service_id' => $foreign->id,
+            'width_in' => 24,
+            'height_in' => 36,
+            'qty' => 1,
+        ])->assertStatus(422);
+    }
+
+    public function test_the_quote_endpoint_refuses_an_inactive_shop(): void
+    {
+        Shop::where('slug', 'inkwell-press')->update(['status' => 'suspended']);
+
+        $this->postJson('/api/quote', [
+            'shop' => 'inkwell-press',
+            'service_id' => 1,
+            'width_in' => 24,
+            'height_in' => 36,
+            'qty' => 1,
+        ])->assertStatus(404);
+    }
+}

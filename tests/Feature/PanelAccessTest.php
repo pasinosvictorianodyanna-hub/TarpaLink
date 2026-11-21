@@ -6,6 +6,7 @@ use App\Filament\Admin\Widgets\LatestJobs;
 use App\Filament\Admin\Widgets\PendingApprovals;
 use App\Filament\Admin\Widgets\PlatformStats;
 use App\Models\User;
+use App\Support\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -79,7 +80,7 @@ class PanelAccessTest extends TestCase
             ->assertSee('Payouts')
             ->assertSee('Gross')
             // The ledger shows real money, formatted once at the edge.
-            ->assertSee(\App\Support\Money::format($payout->net));
+            ->assertSee(Money::format($payout->net));
     }
 
     public function test_reports_page_renders_for_the_owner(): void

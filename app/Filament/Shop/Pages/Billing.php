@@ -3,7 +3,6 @@
 namespace App\Filament\Shop\Pages;
 
 use App\Models\Plan;
-use App\Models\Shop;
 use App\Services\Billing as BillingService;
 use App\Support\Money;
 use App\Support\ShopContext;

@@ -5,11 +5,12 @@ namespace Tests\Feature;
 use App\Filament\Shop\Pages\Billing as BillingPage;
 use App\Models\Invoice;
 use App\Models\Payment;
-use App\Models\Plan;
 use App\Models\Payout;
+use App\Models\Plan;
 use App\Models\Shop;
 use App\Models\User;
 use App\Services\Billing;
+use App\Services\PaymentSettlement;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -108,7 +109,7 @@ class BillingTest extends TestCase
             'status' => 'pending',
         ]);
 
-        app(\App\Services\PaymentSettlement::class)->markPaid($payment);
+        app(PaymentSettlement::class)->markPaid($payment);
 
         $payout = $payment->fresh()->payout;
 

@@ -14,15 +14,28 @@ use Illuminate\Support\Carbon;
 
 class CheckoutController extends Controller
 {
-    public function show(Request $request, Shop $shop, PriceCalculator $calculator): View
+    public function show(Request $request, Shop $shop, PriceCalculator $calculator): View|RedirectResponse
     {
         abort_unless($shop->status === 'active', 404);
         $shop->load(['services.options']);
 
-        $spec = $this->specFromRequest($request, $shop);
-        $quote = $calculator->quote($shop, $spec);
+        // A shop with no catalogue has nothing to check out. Without this the
+        // calculator would be asked to price a null service.
+        abort_if($shop->services->isEmpty(), 404);
 
-        $service = $shop->services->firstWhere('id', $spec['service_id']);
+        $spec = $this->specFromRequest($request, $shop);
+
+        try {
+            $quote = $calculator->quote($shop, $spec);
+        } catch (ServiceUnavailable $e) {
+            // A hand-edited or stale link (?service_id=99999) must not be a 500.
+            // Send them back to the builder with the reason on screen.
+            return redirect()
+                ->route('shops.builder', $shop)
+                ->with('status', $e->getMessage());
+        }
+
+        $service = $shop->services->firstWhere('id', $spec['service_id']) ?? $shop->services->first();
 
         return view('checkout', [
             'shop' => $shop,

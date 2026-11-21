@@ -6,8 +6,8 @@ use App\Models\Invoice;
 use App\Models\Plan;
 use App\Models\Shop;
 use App\Models\Subscription;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**

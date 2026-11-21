@@ -2,7 +2,6 @@
 
 namespace App\Filament\Shop\Widgets;
 
-use App\Models\Payment;
 use App\Support\Money;
 use App\Support\ShopContext;
 use Filament\Widgets\StatsOverviewWidget;

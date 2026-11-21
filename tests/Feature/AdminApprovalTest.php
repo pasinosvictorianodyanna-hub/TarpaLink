@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Filament\Admin\Widgets\PendingApprovals;
+use App\Models\Payment;
 use App\Models\Shop;
 use App\Models\User;
 use Filament\Actions\Testing\TestAction;
@@ -109,8 +110,8 @@ class AdminApprovalTest extends TestCase
 
     public function test_commission_earned_is_the_sum_of_stored_commission_not_a_single_rate(): void
     {
-        $expected = (int) \App\Models\Payment::where('status', 'paid')->sum('commission');
-        $gmv = (int) \App\Models\Payment::where('status', 'paid')->sum('amount');
+        $expected = (int) Payment::where('status', 'paid')->sum('commission');
+        $gmv = (int) Payment::where('status', 'paid')->sum('amount');
 
         // The two are deliberately not equal: shops sit on 5%, 3% and 1.5%.
         $this->assertNotSame((int) round($gmv * 0.05), $expected);

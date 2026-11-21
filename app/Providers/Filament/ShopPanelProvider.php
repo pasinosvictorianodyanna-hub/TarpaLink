@@ -10,7 +10,6 @@ use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -36,11 +35,9 @@ class ShopPanelProvider extends PanelProvider
             // owner on a dark-mode machine sees a black panel that shares no
             // visual language with the storefront their customers use.
             ->darkMode(false)
-            // Shared with the admin panel: one design system, one palette.
-            ->renderHook(
-                PanelsRenderHook::HEAD_END,
-                fn (): string => view('filament.partials.design-tokens')->render(),
-            )
+            // The design system, compiled: paper/ink palette and the serif
+            // display face, re-pointed through Tailwind tokens.
+            ->viteTheme('resources/css/filament/theme.css')
             ->discoverResources(in: app_path('Filament/Shop/Resources'), for: 'App\Filament\Shop\Resources')
             ->discoverPages(in: app_path('Filament/Shop/Pages'), for: 'App\Filament\Shop\Pages')
             // No `->pages([Dashboard::class])`: the dashboard is discovered from

@@ -10,7 +10,6 @@ use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\View\PanelsRenderHook;
 use Filament\Widgets\AccountWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
@@ -35,13 +34,9 @@ class AdminPanelProvider extends PanelProvider
             // Same reason as the shop panel: the design has one theme, and it is
             // not the operating system's.
             ->darkMode(false)
-            // The design system is paper, ink and a serif display face. Filament
-            // ships its own neutral grey; this pulls the chrome back to the
-            // palette the prototype uses without replacing the components.
-            ->renderHook(
-                PanelsRenderHook::HEAD_END,
-                fn (): string => view('filament.partials.design-tokens')->render(),
-            )
+            // The design system, compiled: paper/ink palette and the serif
+            // display face, re-pointed through Tailwind tokens.
+            ->viteTheme('resources/css/filament/theme.css')
             ->discoverResources(in: app_path('Filament/Admin/Resources'), for: 'App\Filament\Admin\Resources')
             ->discoverPages(in: app_path('Filament/Admin/Pages'), for: 'App\Filament\Admin\Pages')
             ->pages([

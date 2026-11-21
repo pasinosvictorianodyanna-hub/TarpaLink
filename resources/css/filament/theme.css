@@ -1,0 +1,111 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@400;500;600;700&display=swap');
+
+@import '../../../vendor/filament/filament/resources/css/theme.css';
+
+@source '../../../app/Filament/**/*.php';
+@source '../../../resources/views/filament/**/*.blade.php';
+
+/*
+ * The panel theme.
+ *
+ * The prototype is one design system across the storefront and the two panels:
+ * paper (#F5F3ED), ink (#0C0F0E), a serif display face over a tight grotesque.
+ * Filament ships Tailwind's default neutral grey and the system sans, which is
+ * why the panels did not look like the design even when the markup was right.
+ *
+ * Re-pointing the palette here rather than restyling components is deliberate:
+ * every `gray-*` utility in Filament reads these tokens, so one block moves the
+ * whole surface, and a Filament upgrade that adds a component picks the palette
+ * up for free. Component overrides are kept to a handful and commented.
+ */
+@theme {
+    --font-sans: 'Inter Tight', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-serif: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+
+    /* Paper → ink. The steps are the ones the storefront already uses. */
+    --color-gray-50: #FAF8F3;
+    --color-gray-100: #F5F3ED;
+    --color-gray-200: #E9E5D9;
+    --color-gray-300: #DAD5C6;
+    --color-gray-400: #B4AFA0;
+    --color-gray-500: #8A8B84;
+    --color-gray-600: #6C736F;
+    --color-gray-700: #4A514D;
+    --color-gray-800: #2C3330;
+    --color-gray-900: #141917;
+    --color-gray-950: #0C0F0E;
+
+    --radius-lg: 0.75rem;
+    --radius-xl: 1rem;
+}
+
+/* The body copy face. Filament sets it on the body element, not via a utility. */
+body,
+.fi-body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Display face on the things that are actually headings. */
+.fi-header-heading,
+.fi-section-header-heading,
+.fi-ta-header-heading,
+.fi-modal-heading,
+.fi-simple-header-heading {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    letter-spacing: -0.01em;
+}
+
+.fi-header-heading {
+    font-size: 1.75rem;
+    line-height: 1.2;
+}
+
+/* Sections read as ruled paper cards rather than floating panels. */
+.fi-section {
+    border-color: var(--color-gray-200);
+    box-shadow: 0 1px 2px rgb(12 15 14 / 0.04);
+}
+
+/* Table headers sit on the second paper tone, as in the prototype. */
+.fi-ta-table > thead {
+    background-color: var(--color-gray-100);
+}
+
+/* The sidebar is a white sheet against paper, not grey-on-grey. */
+.fi-sidebar {
+    background-color: #FFFFFF;
+    border-inline-end-color: var(--color-gray-200);
+}
+
+/* Numerals in tables should line up. */
+.fi-ta-cell,
+.fi-ta-text {
+    font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Declared again as plain custom properties, last in the file.
+ *
+ * `@theme` compiles into a `:root` block near the top, and Filament maps
+ * `--color-gray-*` onto its own `--gray-*` scale further down — which wins on
+ * order alone. Repeating them here, after everything, is what actually takes
+ * effect. Kept in sync with the block above by hand; there are eleven values.
+ */
+:root {
+    --font-sans: 'Inter Tight', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-serif: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+
+    --color-gray-50: #FAF8F3;
+    --color-gray-100: #F5F3ED;
+    --color-gray-200: #E9E5D9;
+    --color-gray-300: #DAD5C6;
+    --color-gray-400: #B4AFA0;
+    --color-gray-500: #8A8B84;
+    --color-gray-600: #6C736F;
+    --color-gray-700: #4A514D;
+    --color-gray-800: #2C3330;
+    --color-gray-900: #141917;
+    --color-gray-950: #0C0F0E;
+}

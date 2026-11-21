@@ -1,5 +1,6 @@
 import { createApp } from 'vue';
 import OrderBuilder from './components/OrderBuilder.vue';
+import ProfileForm from './components/ProfileForm.vue';
 
 /**
  * Vue islands.
@@ -10,6 +11,7 @@ import OrderBuilder from './components/OrderBuilder.vue';
  */
 const registry = {
     'order-builder': OrderBuilder,
+    'profile-form': ProfileForm,
 };
 
 document.querySelectorAll('[data-component]').forEach((el) => {

@@ -91,6 +91,15 @@ h1,h2,h3,h4{margin:0;font-weight:400;letter-spacing:-.02em}
 .btn-block{width:100%}
 .btn-magenta{background:var(--magenta);color:#fff}
 .btn-magenta:hover{background:#D31C52}
+/* Disabled buttons stay legible: a filled black button that silently does
+   nothing reads as a broken button, and a washed-out one reads as broken text.
+   Flat paper stock with muted ink says "not yet" without hiding the label. */
+.btn:disabled{
+  background:var(--paper);color:var(--muted);
+  border:1px solid var(--line);box-shadow:none;cursor:not-allowed;
+}
+.btn:disabled:hover{background:var(--paper);box-shadow:none}
+.btn:disabled:active{transform:none}
 .card{background:#fff;border:1px solid var(--line);border-radius:var(--r-lg)}
 .tag{
   display:inline-flex;align-items:center;gap:5px;
@@ -530,6 +539,18 @@ textarea.inp{height:auto;padding:10px 12px;resize:vertical;line-height:1.5}
 .pay-opt span{font-size:10.5px;color:var(--muted)}
 .pay-opt .radio{margin-left:auto;width:16px;height:16px;border-radius:50%;border:1.5px solid #CFC9BA;flex:none;position:relative}
 .pay-opt.on .radio{border-color:var(--ink);border-width:5px}
+/* profile */
+.pf-page{max-width:560px;margin:0 auto}
+.pf-wrap{display:flex;flex-direction:column;gap:16px}
+.pf-card{overflow:hidden}
+.pf-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.pf-head h4{margin:0;font-size:12.5px;font-weight:650;letter-spacing:.01em}
+.pf-meta{font-size:11px;color:var(--muted)}
+.pf-body{padding:18px}
+.pf-foot{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:0 18px 18px}
+.pf-note{font-size:11.5px;color:var(--muted);margin-right:auto}
+.pf-note.ok{color:var(--green)}
+.pf-note.bad{color:var(--red)}
 /* order status */
 .track-head{background:#fff;border:1px solid var(--line);border-radius:var(--r-lg);padding:22px 24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:20px}
 .track-grid{display:grid;grid-template-columns:1fr 340px;gap:22px;align-items:start}

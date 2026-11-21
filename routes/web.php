@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\JobController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\ShopController;
 use Illuminate\Support\Facades\Route;
@@ -24,6 +25,13 @@ Route::post('/shops/{shop}/checkout', [CheckoutController::class, 'store'])
 
 Route::get('/jobs/{job}', [JobController::class, 'show'])->name('jobs.show');
 Route::get('/account', [AccountController::class, 'index'])->middleware('auth')->name('account');
+
+Route::get('/account/profile', [ProfileController::class, 'edit'])->middleware('auth')->name('profile.edit');
+
+// The two profile writes are JSON: the form is a Vue island and needs field-level
+// errors, not a full page reload that throws away the other half-filled card.
+Route::patch('/api/profile', [ProfileController::class, 'update'])->middleware('auth')->name('api.profile.update');
+Route::put('/api/profile/password', [ProfileController::class, 'password'])->middleware('auth')->name('api.profile.password');
 
 // PayMongo calls this directly — no session, no CSRF token, signature instead.
 Route::post('/webhooks/paymongo', \App\Http\Controllers\PayMongoWebhookController::class)

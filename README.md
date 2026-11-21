@@ -34,7 +34,7 @@ The rule that keeps it coherent: **Vue renders, Filament edits, Laravel decides.
 app/                      Laravel application
   Services/PriceCalculator.php    the only place a price is computed
   Services/JobWorkflow.php        the only place status transitions are allowed
-  Models/                         14 domain models
+  Models/                         13 models (14 domain tables — shop_users is a pivot)
   Http/Controllers/               home, shops, quote, checkout, jobs, account, auth
   Filament/Shop/                  shop panel: services, jobs, board, discounts
   Filament/Admin/                 admin panel resources (issues #8–#12)

@@ -58,6 +58,14 @@ class CheckoutController extends Controller
             'qty' => ['required', 'integer', 'min:1', 'max:100000'],
             'options' => ['nullable', 'string'],
             'payment_method' => ['required', 'in:gcash,maya,card,cod'],
+            // Optional on the wire, always recorded on the job: the form marks
+            // them required, and a client that omits them gets the account's own
+            // details rather than a job with nobody's name on it.
+            'contact_name' => ['nullable', 'string', 'max:120'],
+            'contact_phone' => ['nullable', 'string', 'max:32'],
+            'contact_email' => ['nullable', 'email', 'max:190'],
+            'pickup_person' => ['nullable', 'string', 'max:120'],
+            'fulfillment' => ['nullable', 'in:pickup,delivery'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
@@ -72,6 +80,10 @@ class CheckoutController extends Controller
         $job = Job::create([
             'shop_id' => $shop->id,
             'user_id' => $request->user()->id,
+            'contact_name' => $data['contact_name'] ?? $request->user()->name,
+            'contact_phone' => $data['contact_phone'] ?? $request->user()->phone,
+            'contact_email' => $data['contact_email'] ?? $request->user()->email,
+            'pickup_person' => $data['pickup_person'] ?? null,
             'service_id' => $spec['service_id'],
             'status' => 'quoted',
             'spec' => $spec,
@@ -80,6 +92,7 @@ class CheckoutController extends Controller
             'total' => $quote['total'],
             'matrix_version' => $quote['matrix_version'],
             'pickup_city' => $shop->city,
+            'fulfillment' => $data['fulfillment'] ?? 'pickup',
             'notes' => $data['notes'] ?? null,
             'due_at' => Carbon::now()->addDays(2)->setTime(17, 0),
         ]);

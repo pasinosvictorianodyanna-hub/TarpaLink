@@ -19,4 +19,14 @@ class JobController extends Controller
 
         return view('jobs.show', ['job' => $job]);
     }
+
+    /** The receipt a customer can print or keep — the same view the shop sees. */
+    public function receipt(Job $job): View
+    {
+        abort_unless(Gate::allows('view', $job), 404);
+
+        $job->load(['shop', 'service', 'lines', 'payment', 'user']);
+
+        return view('jobs.receipt', ['job' => $job]);
+    }
 }

@@ -41,6 +41,11 @@ services:
     image: tarpalink:local
     restart: unless-stopped
     command: ["worker"]
+    # The image healthcheck curls /up, which only the web process serves. A
+    # worker running that check reports unhealthy forever while doing its job
+    # perfectly — so it is disabled here, not left to cry wolf.
+    healthcheck:
+      disable: true
     env_file:
       - .env
     environment:

@@ -1,0 +1,112 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Exceptions\ServiceUnavailable;
+use App\Models\Job;
+use App\Models\Payment;
+use App\Models\Shop;
+use App\Services\PriceCalculator;
+use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+
+class CheckoutController extends Controller
+{
+    public function show(Request $request, Shop $shop, PriceCalculator $calculator): View
+    {
+        abort_unless($shop->status === 'active', 404);
+        $shop->load(['services.options']);
+
+        $spec = $this->specFromRequest($request, $shop);
+        $quote = $calculator->quote($shop, $spec);
+
+        $service = $shop->services->firstWhere('id', $spec['service_id']);
+
+        return view('checkout', [
+            'shop' => $shop,
+            'service' => $service,
+            'spec' => $spec,
+            'quote' => $quote,
+        ]);
+    }
+
+    public function store(Request $request, Shop $shop, PriceCalculator $calculator): RedirectResponse
+    {
+        abort_unless($shop->status === 'active', 404);
+
+        $data = $request->validate([
+            'service_id' => ['required', 'integer'],
+            'width_in' => ['required', 'numeric', 'min:1', 'max:1000'],
+            'height_in' => ['required', 'numeric', 'min:1', 'max:1000'],
+            'qty' => ['required', 'integer', 'min:1', 'max:100000'],
+            'options' => ['nullable', 'string'],
+            'payment_method' => ['required', 'in:gcash,maya,card,cod'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $spec = $this->specFromRequest($request, $shop);
+
+        try {
+            $quote = $calculator->quote($shop, $spec);
+        } catch (ServiceUnavailable $e) {
+            return back()->withErrors(['size' => $e->getMessage()])->withInput();
+        }
+
+        $job = Job::create([
+            'shop_id' => $shop->id,
+            'user_id' => $request->user()->id,
+            'service_id' => $spec['service_id'],
+            'status' => 'quoted',
+            'spec' => $spec,
+            'subtotal' => $quote['subtotal'],
+            'discount' => $quote['discount'],
+            'total' => $quote['total'],
+            'matrix_version' => $quote['matrix_version'],
+            'pickup_city' => $shop->city,
+            'notes' => $data['notes'] ?? null,
+            'due_at' => Carbon::now()->addDays(2)->setTime(17, 0),
+        ]);
+
+        foreach ($quote['lines'] as $line) {
+            $job->lines()->create($line);
+        }
+
+        if ($data['payment_method'] !== 'cod') {
+            // Sandbox: no live charge. The webhook is what would mark this paid.
+            Payment::create([
+                'job_id' => $job->id,
+                'provider' => 'paymongo',
+                'intent_id' => 'pi_test_'.$job->reference,
+                'amount' => $quote['total'],
+                'processing_fee' => (int) round($quote['total'] * 0.025) + 1500,
+                'commission' => (int) round($quote['total'] * 0.05),
+                'status' => 'pending',
+            ]);
+        }
+
+        return redirect()
+            ->route('jobs.show', $job)
+            ->with('status', 'Job '.$job->reference.' created. The shop will send a proof before printing.');
+    }
+
+    /** @return array{service_id:int, width_in:float, height_in:float, qty:int, options:array} */
+    private function specFromRequest(Request $request, Shop $shop): array
+    {
+        $options = [];
+
+        foreach (array_filter(explode(',', (string) $request->input('options', ''))) as $pair) {
+            [$id, $qty] = array_pad(explode(':', $pair), 2, 0);
+            $options[] = ['id' => (int) $id, 'qty' => (float) $qty];
+        }
+
+        return [
+            'service_id' => (int) $request->input('service_id', $shop->services->first()?->id),
+            'width_in' => (float) $request->input('width_in', 36),
+            'height_in' => (float) $request->input('height_in', 48),
+            'qty' => max(1, (int) $request->input('qty', 1)),
+            'options' => $options,
+        ];
+    }
+}

@@ -141,6 +141,10 @@ h1,h2,h3,h4{margin:0;font-weight:400;letter-spacing:-.02em}
   border-bottom:1px solid transparent;
   transition:border-color .2s;
 }
+/* In-page nav targets. Without the offset the sticky 70px bar covers the heading
+   the visitor just clicked, which reads as "the link is broken". */
+html{scroll-behavior:smooth}
+#how,#pricing,#owners{scroll-margin-top:94px}
 .mk-nav.stuck{border-bottom-color:var(--line)}
 .mk-nav-in{display:flex;align-items:center;gap:34px;height:70px}
 .logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:16.5px;letter-spacing:-.035em}
@@ -307,6 +311,9 @@ h1,h2,h3,h4{margin:0;font-weight:400;letter-spacing:-.02em}
 .shop-body{padding:14px 15px 15px}
 .shop-name{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;letter-spacing:-.01em}
 .shop-name .vf{width:13px;height:13px;color:var(--cyan);flex:none}
+/* The landing card marks "verified" with a plain blue dot; the directory uses
+   the seal. Same claim, two weights — a seal on every card shouts. */
+.shop-name .vf-dot{width:7px;height:7px}
 .shop-meta{display:flex;align-items:center;gap:7px;margin-top:5px;font-size:11.5px;color:var(--muted)}
 .shop-meta .st{display:inline-flex;align-items:center;gap:3px;color:var(--ink-2);font-weight:600}
 .shop-meta .st svg{width:10px;height:10px;color:var(--yellow)}
@@ -329,6 +336,9 @@ h1,h2,h3,h4{margin:0;font-weight:400;letter-spacing:-.02em}
 /* testimonials */
 .quotes{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
 .quote{background:#fff;border:1px solid var(--line);border-radius:var(--r-lg);padding:24px;display:flex;flex-direction:column;gap:16px}
+/* The one review that speaks for the supply side. Ringed, not filled: it has to
+   read as "also a shop owner", not as the recommended card. */
+.quote.hl{border-color:#8FD3B8;box-shadow:0 0 0 1px rgba(143,211,184,.55), var(--sh-sm)}
 .quote .stars{display:flex;gap:2px;color:var(--yellow)}
 .quote .stars svg{width:13px;height:13px}
 .quote p{margin:0;font-size:14px;line-height:1.6;color:var(--ink-2);flex:1}

@@ -163,6 +163,55 @@ class Shop extends Model
         };
     }
 
+    /**
+     * The point distances are measured from: Quezon City hall.
+     *
+     * The hero's location pill defaults to Quezon City, so "4.2 km" on a card
+     * means "4.2 km from the city you are browsing", not from the customer's GPS.
+     * Until the directory takes a real origin, this is the only defensible one.
+     */
+    public const ORIGIN_LAT = 14.6760;
+
+    public const ORIGIN_LNG = 121.0437;
+
+    /**
+     * Straight-line kilometres from the marketplace origin, or null when the
+     * shop has no coordinates.
+     *
+     * Haversine rather than a flat approximation: at Metro Manila's latitude the
+     * difference is small but it costs one line, and a wrong distance is exactly
+     * the kind of detail a customer notices.
+     */
+    public function distanceKm(): ?float
+    {
+        if ($this->lat === null || $this->lng === null) {
+            return null;
+        }
+
+        $earthKm = 6371.0;
+        $dLat = deg2rad($this->lat - self::ORIGIN_LAT);
+        $dLng = deg2rad($this->lng - self::ORIGIN_LNG);
+
+        $a = sin($dLat / 2) ** 2
+            + cos(deg2rad(self::ORIGIN_LAT)) * cos(deg2rad($this->lat)) * sin($dLng / 2) ** 2;
+
+        return round($earthKm * 2 * asin(min(1.0, sqrt($a))), 1);
+    }
+
+    /** "4.2 km", or the city when there is no coordinate to measure. */
+    public function distanceLabel(): string
+    {
+        $km = $this->distanceKm();
+
+        return $km === null ? $this->city : number_format($km, 1).' km';
+    }
+
+    /** The unit as a person reads it: `sqft` is "sq ft", not "sqft". */
+    public function cheapestUnitLabel(): string
+    {
+        return $this->cheapestUnit() === 'sqft' ? 'sq ft' : 'pc';
+    }
+
     /** "Same day", "24 hours", "2–3 days" — the buckets the filter rail offers. */
     public function turnaroundLabel(): string
     {
@@ -177,6 +226,11 @@ class Shop extends Model
      * The badges on a shop card. Only what the shop actually claims: a badge
      * that is true of every shop is decoration, and decoration lies.
      *
+     * Ordered rarest-claim-first, because the card shows one badge and the first
+     * one has to be the thing that distinguishes this shop from the next. Bulk
+     * pricing sits last: every shop in the catalogue offers a quantity discount,
+     * so leading with it would put the same badge on every card.
+     *
      * @return array<int, array{label: string, tone: string}>
      */
     public function badges(): array
@@ -184,8 +238,8 @@ class Shop extends Model
         return array_values(array_filter([
             $this->accepts_rush ? ['label' => '24h rush', 'tone' => 'g'] : null,
             $this->offers_design ? ['label' => 'Design help', 'tone' => 'm'] : null,
-            $this->quantityDiscounts->isNotEmpty() ? ['label' => 'Bulk orders', 'tone' => 'c'] : null,
             $this->offers_delivery ? ['label' => 'Delivery', 'tone' => 'n'] : null,
+            $this->quantityDiscounts->isNotEmpty() ? ['label' => 'Bulk orders', 'tone' => 'c'] : null,
         ]));
     }
 }

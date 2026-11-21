@@ -3,10 +3,10 @@
 namespace Tests\Feature;
 
 use App\Filament\Admin\Pages\Dashboard as AdminDashboard;
+use App\Filament\Admin\Pages\Integrations;
 use App\Filament\Admin\Resources\PageSections\Pages\ListPageSections as AdminListSections;
 use App\Filament\Admin\Resources\Shops\Pages\ListShops as AdminListShops;
 use App\Filament\Admin\Resources\Users\Pages\ListUsers as AdminListUsers;
-use App\Filament\Admin\Pages\Integrations;
 use App\Filament\Admin\Widgets\JobsPerDay;
 use App\Filament\Shop\Pages\PriceMatrix;
 use App\Filament\Shop\Resources\Jobs\Pages\ListJobs;
@@ -60,6 +60,18 @@ class PanelParityTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('shop'));
 
         $this->actingAs($this->owner());
+    }
+
+    public function test_the_admin_dashboard_renders_in_the_design_system(): void
+    {
+        Livewire::actingAs($this->admin())
+            ->test(AdminDashboard::class)
+            ->assertOk()
+            ->assertSee('Jobs per day')
+            ->assertSee('Waiting for approval')
+            // The design-system wrapper, not Filament's widget grid.
+            ->assertSeeHtml('tl-wrap')
+            ->assertSeeHtml('tl-chart');
     }
 
     public function test_the_admin_dashboard_exports_a_platform_report(): void

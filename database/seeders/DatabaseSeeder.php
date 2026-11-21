@@ -82,7 +82,7 @@ class DatabaseSeeder extends Seeder
             ],
             [
                 'name' => 'Halftone Hub', 'slug' => 'halftone-hub', 'city' => 'Makati',
-                'address' => 'Unit 4B, Chino Roces Ave', 'accent' => 'magenta',
+                'address' => 'Unit 4B, Chino Roces Ave', 'accent' => 'cyan',
                 'plan' => 'pro', 'rate' => 150,
                 'rating' => 4.7, 'jobs_done' => 842, 'phone' => '+63 918 220 1144',
                 'description' => 'Small-format specialists. Stickers, labels and business cards.',
@@ -101,7 +101,7 @@ class DatabaseSeeder extends Seeder
             ],
             [
                 'name' => 'Studio Sampaguita', 'slug' => 'studio-sampaguita', 'city' => 'Pasig',
-                'address' => '12 Meralco Ave, Ortigas', 'accent' => 'cyan',
+                'address' => '12 Meralco Ave, Ortigas', 'accent' => 'magenta',
                 'plan' => 'starter', 'rate' => 500,
                 'rating' => 4.8, 'jobs_done' => 610, 'phone' => '+63 916 771 2030',
                 'description' => 'Design-led print studio. Tarpaulin and large stickers.',
@@ -133,7 +133,7 @@ class DatabaseSeeder extends Seeder
             ],
             [
                 'name' => 'Tinta & Co.', 'slug' => 'tinta-and-co', 'city' => 'Caloocan',
-                'address' => '5 Samson Rd, Monumento', 'accent' => 'ink',
+                'address' => '5 Samson Rd, Monumento', 'accent' => 'yellow',
                 'plan' => 'growth', 'rate' => 300,
                 'rating' => 4.6, 'jobs_done' => 395, 'phone' => '+63 915 662 8890',
                 'description' => 'Apparel-first shop. DTF shirts and heat transfer.',
@@ -187,7 +187,7 @@ class DatabaseSeeder extends Seeder
 
         $created = [];
 
-        foreach ($blueprint as $index => $data) {
+        foreach ($blueprint as $data) {
             $shop = Shop::create([
                 'name' => $data['name'],
                 'slug' => $data['slug'],
@@ -202,8 +202,8 @@ class DatabaseSeeder extends Seeder
                 'commission_rate' => $data['rate'],
                 'rating' => $data['rating'],
                 'jobs_done' => $data['jobs_done'],
-                'lat' => 14.55 + ($index * 0.021),
-                'lng' => 120.98 + ($index * 0.019),
+                'lat' => $this->coordinates()[$data['slug']][0],
+                'lng' => $this->coordinates()[$data['slug']][1],
                 // What the directory filter rail reads. Kept in one map instead of
                 // seven more keys on every blueprint entry, so the shop list stays
                 // readable as a list of shops rather than a list of booleans.
@@ -268,13 +268,35 @@ class DatabaseSeeder extends Seeder
     private function directoryTraits(): array
     {
         return [
-            'inkwell-press' => ['turnaround_hours' => 24, 'offers_delivery' => true, 'offers_design' => true, 'accepts_gcash' => true],
-            'halftone-hub' => ['turnaround_hours' => 48, 'offers_design' => true, 'accepts_gcash' => true],
-            'studio-sampaguita' => ['turnaround_hours' => 24, 'offers_design' => true],
-            'presswork-mnl' => ['turnaround_hours' => 72, 'accepts_gcash' => true],
-            'northline-print' => ['turnaround_hours' => 8, 'offers_delivery' => true, 'accepts_gcash' => true],
-            'tinta-and-co' => ['turnaround_hours' => 48, 'offers_design' => true, 'offers_delivery' => true],
-            'meridian-press' => ['turnaround_hours' => 24],
+            'inkwell-press' => ['turnaround_hours' => 24, 'accepts_rush' => true, 'offers_delivery' => true, 'accepts_gcash' => true],
+            'halftone-hub' => ['turnaround_hours' => 48, 'accepts_rush' => false, 'accepts_gcash' => true],
+            'studio-sampaguita' => ['turnaround_hours' => 24, 'accepts_rush' => false, 'offers_design' => true],
+            'presswork-mnl' => ['turnaround_hours' => 72, 'accepts_rush' => false, 'accepts_gcash' => true],
+            'northline-print' => ['turnaround_hours' => 8, 'accepts_rush' => true, 'offers_delivery' => true, 'accepts_gcash' => true],
+            'tinta-and-co' => ['turnaround_hours' => 48, 'accepts_rush' => false, 'offers_delivery' => true],
+            'meridian-press' => ['turnaround_hours' => 24, 'accepts_rush' => false],
+        ];
+    }
+
+    /**
+     * Where each shop actually is, in decimal degrees.
+     *
+     * These used to be a synthetic diagonal (`14.55 + index * 0.021`) which put a
+     * Quezon City shop 15 km from Quezon City. The card shows a distance, and a
+     * distance nobody can believe is worse than no distance at all, so each shop
+     * now sits on its own city. Offsets are small enough to stay inside the city
+     * and large enough that two shops in the same city never stack on the map.
+     */
+    private function coordinates(): array
+    {
+        return [
+            'inkwell-press' => [14.6400, 121.0550],      // Diliman, Quezon City
+            'halftone-hub' => [14.5547, 121.0244],       // Chino Roces, Makati
+            'studio-sampaguita' => [14.5764, 121.0851],  // Ortigas, Pasig
+            'presswork-mnl' => [14.5995, 120.9842],      // Binondo, Manila
+            'tinta-and-co' => [14.6488, 120.9830],       // Monumento, Caloocan
+            'northline-print' => [14.7011, 120.9830],    // Karuhatan, Valenzuela
+            'meridian-press' => [14.6350, 121.0620],     // Sikatuna, Quezon City
         ];
     }
 
@@ -532,13 +554,15 @@ class DatabaseSeeder extends Seeder
     {
         $sections = [
             ['key' => 'hero', 'label' => 'Homepage hero', 'sort' => 1, 'content' => [
-                'eyebrow' => 'Print, priced before you commit',
-                'headline' => 'Every tarpaulin, sticker and shirt — priced to the peso.',
-                'subheadline' => 'Pick a shop, set your size, see the exact total. No Messenger haggling, no surprise counter price.',
+                'eyebrow' => 'Print marketplace · Metro Manila',
+                'headline' => "Custom printing,\npriced in seconds.",
+                'subheadline' => 'Find a verified print shop, set your size, material and quantity — and see the exact price before you order. No group chats. No “pm sent.” No waiting.',
                 'primary_label' => 'Find a print shop',
                 'primary_link' => '/shops',
             ]],
-            ['key' => 'banner', 'label' => 'Announcement banner', 'sort' => 2, 'content' => [
+            // The design has no announcement bar, so the section ships as a draft:
+            // it exists in the CMS to be switched on, but the homepage is clean.
+            ['key' => 'banner', 'label' => 'Announcement banner', 'sort' => 2, 'status' => 'draft', 'content' => [
                 'text' => 'Free proof on every job over ₱1,500 — approve before we print.',
                 'link_label' => 'How proofs work',
                 'link' => '/shops',
@@ -548,10 +572,13 @@ class DatabaseSeeder extends Seeder
                 'subtitle' => 'Verified, priced and rated by customers who actually picked up.',
             ]],
             ['key' => 'testimonials', 'label' => 'Testimonials', 'sort' => 4, 'content' => [
-                'title' => 'What customers say',
+                'title' => 'People who stopped sending “pm sent”.',
+                // The third card is the shop-owner voice; the design rings it so the
+                // section speaks to both sides of the marketplace, not just buyers.
                 'items' => [
-                    ['quote' => 'I used to send a message and wait half a day for a price. Now I know before I leave the house.', 'name' => 'Marisol Reyes', 'role' => 'Events coordinator, QC'],
-                    ['quote' => 'The proof approval saved me a reprint. Caught a wrong logo before it went on 200 shirts.', 'name' => 'Dennis Lim', 'role' => 'Bar owner, Makati'],
+                    ['quote' => 'I ordered 3 tarpaulins at 11 pm and had a price in ten seconds. That used to take two days of asking around.', 'name' => 'Jomar M.', 'role' => 'Small business owner · QC'],
+                    ['quote' => 'The proof approval step saved me. They caught a low-res logo before printing 200 flyers.', 'name' => 'Angela R.', 'role' => 'Marketing associate'],
+                    ['quote' => 'As a shop owner, the price matrix is the whole thing. I set it once and it just answers for me.', 'name' => 'Kevin C.', 'role' => 'Owner, Inkwell Press', 'highlight' => true],
                 ],
             ]],
             ['key' => 'faq', 'label' => 'FAQ', 'sort' => 5, 'content' => [
@@ -563,7 +590,7 @@ class DatabaseSeeder extends Seeder
                 ],
             ]],
             ['key' => 'footer', 'label' => 'Footer', 'sort' => 6, 'content' => [
-                'blurb' => 'TarpaLink is a print marketplace for the Philippines. Exact prices, approved proofs, pickup at the counter.',
+                'blurb' => 'The print marketplace for tarpaulins, stickers, flyers and everything else you need on paper.',
             ]],
         ];
 

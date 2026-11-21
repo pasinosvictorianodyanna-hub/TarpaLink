@@ -16,7 +16,26 @@
     <div class="wrap hero-grid">
       <div>
         <span class="eyebrow">{{ $hero['eyebrow'] }}</span>
-        <h1 class="display">{!! nl2br(e($hero['headline'])) !!}</h1>
+        @php
+          // The design puts a red brush stroke under the payoff word — always the
+          // last word of the headline — so an editor can rewrite the headline in
+          // the CMS and the accent still lands on the right word.
+          $lines = array_values(array_filter(
+              array_map('trim', explode("\n", (string) ($hero['headline'] ?? ''))),
+              fn ($line) => $line !== ''
+          ));
+          $lastLine = array_pop($lines) ?? '';
+          $words = preg_split('/\s+/', $lastLine, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+          $tail = (string) array_pop($words);
+          $head = implode(' ', $words);
+        @endphp
+        <h1 class="display">
+          @foreach ($lines as $line)
+            {{ $line }}<br>
+          @endforeach
+          @if ($head !== ''){{ $head }} @endif
+          @if ($tail !== '')<span class="mark-under">{{ $tail }}<svg viewBox="0 0 200 40" preserveAspectRatio="none" aria-hidden="true"><path d="M3 27C46 13 148 9 197 19"/></svg></span>@endif
+        </h1>
         <p class="lead">{{ $hero['subheadline'] }}</p>
 
         <form class="quick-quote" method="GET" action="{{ route('shops.index') }}">
@@ -105,7 +124,7 @@
   </div>
 
   <!-- how it works -->
-  <div class="sec">
+  <div class="sec" id="how">
     <div class="wrap">
       <div class="sec-head">
         <div>
@@ -144,7 +163,7 @@
   </div>
 
   <!-- pricing split -->
-  <div class="sec" style="padding-top:0">
+  <div class="sec" id="pricing" style="padding-top:0">
     <div class="wrap split">
       <div>
         <span class="eyebrow">Transparent pricing</span>
@@ -191,7 +210,7 @@
         </div>
         <a class="btn btn-ghost btn-sm" href="{{ route('shops.index') }}">Browse all {{ $shopCount }} shops</a>
       </div>
-            <div class="shops">
+      <div class="shops">
         @foreach ($featured as $shop)
         <article class="shop">
           <a href="{{ route('shops.show', $shop) }}" class="shop-cover" style="background:{{ $shop->coverGradient() }}">
@@ -200,15 +219,17 @@
           </a>
           <div class="shop-body">
             <div class="shop-name">{{ $shop->name }}
-              <svg class="vf" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 2.4 3.3-.6.6 3.3L21 9.5 19.6 12 21 14.5l-2.7 2.4-.6 3.3-3.3-.6L12 22l-2.4-2.4-3.3.6-.6-3.3L3 14.5 4.4 12 3 9.5l2.7-2.4.6-3.3 3.3.6z" opacity=".9"/></svg>
+              <svg class="vf vf-dot" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>
             </div>
             <div class="shop-meta">
               <span class="st"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>{{ number_format($shop->rating, 1) }}</span>
-              <span>({{ $shop->jobs_done }})</span><span>·</span><span>{{ $shop->city }}</span>
+              <span>({{ $shop->jobs_done }})</span><span>·</span><span>{{ $shop->distanceLabel() }}</span>
             </div>
             <div class="shop-foot">
-              <span class="shop-price">from <b>₱{{ number_format($shop->cheapestRate() / 100) }}</b>/{{ $shop->cheapestUnit() }}</span>
-              <span class="tag tag-g">{{ $shop->accepts_rush ? '24h rush' : 'Standard' }}</span>
+              <span class="shop-price">from <b>₱{{ number_format($shop->cheapestRate() / 100) }}</b>/{{ $shop->cheapestUnitLabel() }}</span>
+              @foreach (array_slice($shop->badges(), 0, 1) as $badge)
+                <span class="tag tag-{{ $badge['tone'] }}">{{ $badge['label'] }}</span>
+              @endforeach
             </div>
           </div>
         </article>
@@ -218,7 +239,7 @@
   </div>
 
   <!-- owner cta -->
-  <div class="wrap">
+  <div class="wrap" id="owners">
     <div class="cta-band">
       <div class="grid-paper"></div>
       <div>
@@ -276,7 +297,7 @@
                   ->map(fn ($p) => mb_strtoupper(mb_substr($p, 0, 1)))->implode('');
               $tint = ['#0C0F0E', '#E8265E', '#0092E4', '#F5B700'][$loop->index % 4];
             @endphp
-            <div class="quote">
+            <div class="quote{{ ! empty($item['highlight']) ? ' hl' : '' }}">
               <div class="stars">
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
@@ -284,7 +305,7 @@
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6.5 7 1-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-1z"/></svg>
               </div>
-              <p>"{{ $item['quote'] ?? '' }}"</p>
+              <p>&ldquo;{{ $item['quote'] ?? '' }}&rdquo;</p>
               <div class="who">
                 <span class="av" style="background:{{ $tint }}">{{ $initials }}</span>
                 <div><b>{{ $item['name'] ?? '' }}</b><span>{{ $item['role'] ?? '' }}</span></div>

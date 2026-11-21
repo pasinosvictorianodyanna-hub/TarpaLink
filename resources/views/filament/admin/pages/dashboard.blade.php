@@ -26,26 +26,34 @@
         <div class="tl-card">
             <header>
                 <h3>Jobs per day</h3>
-                <span class="meta">last 14 days</span>
+                {{-- Said plainly rather than silently distorting the shape. --}}
+                <span class="meta">last 14 days · bar height √-scaled</span>
             </header>
 
             <div style="display:flex;gap:14px;padding:0 16px 6px;font-size:11px;color:var(--tl-muted)">
                 <span><span style="display:inline-block;width:8px;height:8px;background:var(--tl-ink);border-radius:2px;margin-right:4px"></span>Placed</span>
                 <span><span style="display:inline-block;width:8px;height:8px;background:var(--tl-good);border-radius:2px;margin-right:4px"></span>Completed</span>
+                <span style="margin-left:auto">peak {{ $chart['max'] }} in a day</span>
             </div>
 
             <div class="tl-chart is-short">
                 @foreach ($chart['labels'] as $i => $label)
                     <div class="tl-col">
                         <div class="tl-track" style="display:flex;align-items:flex-end;gap:2px;justify-content:center">
+                            {{--
+                                Square root, not linear. One day carries most of the
+                                traffic, so a linear scale renders thirteen days as
+                                two-pixel stubs and the chart stops communicating.
+                                The header says so; the tooltip carries the real count.
+                            --}}
                             <div
                                 class="tl-bar"
-                                style="height:{{ max((int) round($chart['placed'][$i] / $chart['max'] * 100), 2) }}%;width:5px"
+                                style="height:{{ max((int) round(sqrt($chart['placed'][$i] / $chart['max']) * 100), 4) }}%;width:5px"
                                 title="{{ $label }}: {{ $chart['placed'][$i] }} placed"
                             ></div>
                             <div
                                 class="tl-bar"
-                                style="height:{{ max((int) round($chart['completed'][$i] / $chart['max'] * 100), 2) }}%;width:5px;background:var(--tl-good)"
+                                style="height:{{ max((int) round(sqrt($chart['completed'][$i] / $chart['max']) * 100), 4) }}%;width:5px;background:var(--tl-good)"
                                 title="{{ $label }}: {{ $chart['completed'][$i] }} collected"
                             ></div>
                         </div>

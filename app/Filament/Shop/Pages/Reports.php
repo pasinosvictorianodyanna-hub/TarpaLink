@@ -2,12 +2,14 @@
 
 namespace App\Filament\Shop\Pages;
 
+use App\Models\Payment;
 use App\Models\Shop;
 use App\Support\Money;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use UnitEnum;
@@ -55,6 +57,21 @@ class Reports extends Page
      *
      * @return array{gross: int, commission: int, net: int, awaiting: int, jobs: int}
      */
+    /**
+     * Payments for one shop, built from Payment rather than `$shop->payments()`.
+     *
+     * HasManyThrough appends the through-key (`jobs.shop_id`) to the select list
+     * at execution time. MySQL rejects that under only_full_group_by (1140/1055)
+     * and SQLite does not implement the rule — so the whole suite passed while
+     * the deployed reports page returned 500.
+     */
+    private function paymentsOf(Shop $shop): Builder
+    {
+        return Payment::query()
+            ->join('jobs', 'jobs.id', '=', 'payments.job_id')
+            ->where('jobs.shop_id', $shop->id);
+    }
+
     public function totals(): array
     {
         $shop = $this->shop();
@@ -63,7 +80,7 @@ class Reports extends Page
             return ['gross' => 0, 'commission' => 0, 'net' => 0, 'awaiting' => 0, 'jobs' => 0];
         }
 
-        $row = $shop->payments()
+        $row = $this->paymentsOf($shop)
             ->where('payments.status', 'paid')
             ->selectRaw('coalesce(sum(payments.amount), 0) as gross, coalesce(sum(payments.commission), 0) as commission, count(payments.id) as jobs')
             ->first();
@@ -75,7 +92,7 @@ class Reports extends Page
             'gross' => $gross,
             'commission' => $commission,
             'net' => $gross - $commission,
-            'awaiting' => (int) $shop->payments()->awaitingPayout()->sum('payments.amount'),
+            'awaiting' => (int) $this->paymentsOf($shop)->awaitingPayout()->sum('payments.amount'),
             'jobs' => (int) ($row->jobs ?? 0),
         ];
     }
@@ -86,7 +103,7 @@ class Reports extends Page
         $shop = $this->shop();
 
         return $shop
-            ? (int) $shop->payments()
+            ? (int) $this->paymentsOf($shop)
                 ->where('payments.status', 'paid')
                 ->whereBetween('payments.paid_at', [now()->startOfMonth(), now()->endOfMonth()])
                 ->sum('payments.amount')
@@ -116,7 +133,7 @@ class Reports extends Page
         $shop = $this->shop();
 
         if ($shop) {
-            $payments = $shop->payments()
+            $payments = $this->paymentsOf($shop)
                 ->where('payments.status', 'paid')
                 ->where('payments.paid_at', '>=', $start)
                 ->get(['payments.paid_at', 'payments.amount']);
@@ -156,11 +173,23 @@ class Reports extends Page
             return collect();
         }
 
-        return $shop->payments()
-            ->where('payments.status', 'paid')
+        /*
+         * Built from Payment, not from `$shop->payments()`.
+         *
+         * HasManyThrough appends the through-key (`jobs.shop_id`) to the select
+         * list when the query runs. Under MySQL's only_full_group_by that is a
+         * fatal 1055 — and SQLite does not implement that rule, so the whole
+         * suite passed while the deployed page returned 500.
+         *
+         * Grouping by id as well as name: two services may share a name.
+         */
+        return Payment::query()
+            ->join('jobs', 'jobs.id', '=', 'payments.job_id')
             ->join('services', 'services.id', '=', 'jobs.service_id')
-            ->selectRaw('services.name as name, count(payments.id) as jobs, sum(payments.amount) as gross, sum(payments.commission) as commission')
-            ->groupBy('services.name')
+            ->where('jobs.shop_id', $shop->id)
+            ->where('payments.status', 'paid')
+            ->selectRaw('services.id as service_id, services.name as name, count(payments.id) as jobs, sum(payments.amount) as gross, sum(payments.commission) as commission')
+            ->groupBy('services.id', 'services.name')
             ->orderByDesc('gross')
             ->limit(5)
             ->get();
@@ -169,7 +198,7 @@ class Reports extends Page
     /**
      * The payout ledger: one row per payment, gross − commission = net.
      *
-     * @return Collection<int, \App\Models\Payment>
+     * @return Collection<int, Payment>
      */
     public function ledger(): Collection
     {
@@ -179,12 +208,12 @@ class Reports extends Page
             return collect();
         }
 
-        return $shop->payments()
+        return $this->paymentsOf($shop)
             ->with('job')
             ->where('payments.status', 'paid')
             ->orderByDesc('payments.paid_at')
             ->limit(40)
-            ->get();
+            ->get(['payments.*']);
     }
 
     public function money(?int $centavos): string

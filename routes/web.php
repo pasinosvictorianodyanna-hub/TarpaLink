@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\JobController;
+use App\Http\Controllers\PageController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\ShopController;
@@ -42,3 +43,9 @@ Route::post('/webhooks/paymongo', \App\Http\Controllers\PayMongoWebhookControlle
 Route::get('/login', [LoginController::class, 'show'])->name('login');
 Route::post('/login', [LoginController::class, 'store']);
 Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
+
+// Footer pages. Declared last and constrained to a known list, so it can never
+// shadow a real route — a bare `/{slug}` would swallow everything.
+Route::get('/{slug}', PageController::class)
+    ->whereIn('slug', PageController::SLUGS)
+    ->name('page');

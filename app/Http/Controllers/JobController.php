@@ -10,9 +10,10 @@ class JobController extends Controller
 {
     public function show(Job $job): View
     {
-        // A job carries the customer's name, phone and payment. The reference is
-        // short and guessable, so possession of the URL is not proof of anything.
-        Gate::authorize('view', $job);
+        // A job carries the customer's name, phone and payment, and the reference
+        // is `TL-` plus five digits — guessable. 404 rather than 403 so the
+        // response does not confirm that the job exists at all.
+        abort_unless(Gate::allows('view', $job), 404);
 
         $job->load(['shop', 'service', 'lines', 'proofs', 'payment']);
 

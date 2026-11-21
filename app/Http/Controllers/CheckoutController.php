@@ -15,13 +15,27 @@ use Illuminate\Support\Carbon;
 
 class CheckoutController extends Controller
 {
-    public function show(Request $request, Shop $shop, PriceCalculator $calculator): View
+    public function show(Request $request, Shop $shop, PriceCalculator $calculator): View|RedirectResponse
     {
         abort_unless($shop->status === 'active', 404);
         $shop->load(['services.options']);
 
+        // A shop with nothing to sell has no checkout to show. Without this the
+        // calculator is asked to price a null service and throws.
+        abort_if($shop->services->isEmpty(), 404);
+
         $spec = $this->specFromRequest($request, $shop);
-        $quote = $calculator->quote($shop, $spec);
+
+        try {
+            $quote = $calculator->quote($shop, $spec);
+        } catch (ServiceUnavailable $e) {
+            // A stale or hand-edited link (bad service id, size outside every
+            // tier) is a user problem, not a 500. Send them back to the builder
+            // with the reason, the same way `store()` already does.
+            return redirect()
+                ->route('shops.builder', $shop)
+                ->with('status', $e->getMessage());
+        }
 
         $service = $shop->services->firstWhere('id', $spec['service_id']);
 

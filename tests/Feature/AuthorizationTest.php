@@ -98,7 +98,7 @@ class AuthorizationTest extends TestCase
 
         $this->actingAs($jomar)
             ->get("/jobs/{$otherJob->reference}")
-            ->assertForbidden();
+            ->assertNotFound();
 
         $ownJob = Job::where('user_id', $jomar->id)->firstOrFail();
         $this->assertTrue($jomar->can('view', $ownJob));
@@ -141,7 +141,7 @@ class AuthorizationTest extends TestCase
         $this->get('/shop')->assertRedirect('/shop/login');
 
         $job = Job::firstOrFail();
-        $this->get("/jobs/{$job->reference}")->assertForbidden();
+        $this->get("/jobs/{$job->reference}")->assertNotFound();
     }
 
     public function test_there_is_no_blanket_administrator_bypass(): void

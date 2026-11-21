@@ -7,6 +7,8 @@ before either half starts.
 > what exists — read them, do not rebuild them.
 > **Next up: the documentation set** (SRS, ER / use case / context / architecture
 > diagrams, schema), which the brief requires and which is still outstanding.
+> **#13**–**#17** are tracked on their own branches; **#16** is recorded below because it
+> added a second Vue island and a schema column worth knowing about.
 
 Labels used: `spine` · `shop-panel` · `admin-panel` · `integration` · `billing` ·
 `p0` (blocks someone) · `p1` (normal)
@@ -320,6 +322,33 @@ immutable.
 
 **Acceptance:** upgrading changes the commission rate applied to the *next* payout,
 the invoice history survives a plan change, and no historical payment row changes.
+
+---
+
+## 16. Profile screen, as the second Vue island ✅ done
+
+**Labels:** `shop-panel` `p1`
+**State:** built
+
+The prototype had a profile screen and the application had none — no route, no view, no
+way to change your own name, number or password. Everything else in the account area
+existed; this was the one hole.
+
+Two cards, both saving without a page reload:
+
+- **Personal details** — name, mobile, email, preferred pickup area. The save button
+  stays disabled until the values actually differ from what the server sent, so retyping
+  the same name is not treated as a change.
+- **Password** — current, new, confirm. `users.password_changed_at` is new; the card
+  shows "Last changed 3 months ago" from it.
+
+The email uniqueness rule ignores the current user (`Rule::unique(...)->ignore($user->id)`),
+otherwise saving your own address would fail as a duplicate. A wrong current password
+returns **422 with a field error**, not a 403 — it is a validation failure, and the form
+should say which box is wrong rather than claim the request was forbidden.
+
+**Acceptance:** both cards save in place, the page is reachable at `/account/profile`
+behind `auth`, and a guest gets neither the page nor either endpoint.
 
 ---
 

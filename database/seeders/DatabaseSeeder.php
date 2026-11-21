@@ -25,6 +25,11 @@ class DatabaseSeeder extends Seeder
 
         $this->people($shops);
         $this->content();
+
+        // Everyone in the seed set their password when the account was created.
+        // Leaving it null would make every profile screen read "Never changed",
+        // which looks like a bug in the demo rather than a fact about the data.
+        User::query()->update(['password_changed_at' => now()->subMonths(3)]);
     }
 
     /** The three subscription tiers. Rates are basis points. */

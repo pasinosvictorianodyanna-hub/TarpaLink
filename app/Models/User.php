@@ -126,6 +126,18 @@ class User extends Authenticatable implements FilamentUser
             ->first();
     }
 
+    /**
+     * Does this user operate the given shop?
+     *
+     * Used by policies that hold a shop id but not a Shop instance — proofs,
+     * job lines, activity rows. Deliberately status-aware: a suspended shop is
+     * not somewhere you still have authority.
+     */
+    public function belongsToShop(?int $shopId): bool
+    {
+        return $shopId !== null && $this->activeShop()?->id === $shopId;
+    }
+
     public function initials(): string
     {
         return collect(explode(' ', $this->name))

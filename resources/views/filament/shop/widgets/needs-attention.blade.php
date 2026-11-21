@@ -29,10 +29,18 @@
                                 <td>{{ $row['issue'] }}</td>
                                 <td style="color:var(--tl-wait);font-variant-numeric:tabular-nums">{{ $row['waiting'] }}</td>
                                 <td class="num">
-                                    <a
-                                        href="{{ $row['url'] }}"
-                                        style="font-size:11.5px;font-weight:600;color:var(--tl-ink);text-decoration:underline;text-underline-offset:2px;white-space:nowrap"
-                                    >Open job</a>
+                                    <div style="display:flex;align-items:center;gap:10px;justify-content:flex-end;">
+                                        <button
+                                            type="button"
+                                            wire:click="nudge({{ $row['job']->id }})"
+                                            wire:loading.attr="disabled"
+                                            style="font-size:11.5px;font-weight:600;color:var(--tl-ink);background:none;border:1px solid var(--tl-rule);border-radius:999px;padding:3px 10px;cursor:pointer;white-space:nowrap"
+                                        >Nudge customer</button>
+                                        <a
+                                            href="{{ $row['url'] }}"
+                                            style="font-size:11.5px;font-weight:600;color:var(--tl-ink);text-decoration:underline;text-underline-offset:2px;white-space:nowrap"
+                                        >Open job</a>
+                                    </div>
                                 </td>
                             </tr>
                         @endforeach

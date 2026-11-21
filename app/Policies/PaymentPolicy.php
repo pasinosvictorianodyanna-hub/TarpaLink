@@ -40,6 +40,19 @@ class PaymentPolicy
         return false;
     }
 
+    /**
+     * Release a shop's money.
+     *
+     * `update` is false for everyone because the amount, commission and status
+     * are the webhook's to write. Settling is the one field an administrator
+     * owns — it records that the platform paid the shop, which is a fact about
+     * the platform, not about the payment.
+     */
+    public function settle(User $user, Payment $payment): bool
+    {
+        return $user->isAdmin();
+    }
+
     public function delete(User $user, Payment $payment): bool
     {
         return $user->isAdmin();

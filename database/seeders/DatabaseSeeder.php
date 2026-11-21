@@ -26,6 +26,10 @@ class DatabaseSeeder extends Seeder
         $this->people($shops);
         $this->content();
 
+        // Kept as its own seeder because it is idempotent: the footer copy can be
+        // refreshed on a live database without rebuilding jobs and payments.
+        $this->call(\Database\Seeders\PageContentSeeder::class);
+
         // Everyone in the seed set their password when the account was created.
         // Leaving it null would make every profile screen read "Never changed",
         // which looks like a bug in the demo rather than a fact about the data.

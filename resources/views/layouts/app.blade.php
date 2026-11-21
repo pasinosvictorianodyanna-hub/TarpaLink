@@ -102,7 +102,7 @@
     <div class="wrap">
       <div class="foot-grid">
         <div class="foot-brand">
-          <a class="logo" href="#">
+          <a class="logo" href="{{ route('home') }}">
             <span class="logo-mark">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/><path d="M9.5 12h5"/></svg>
             </span>
@@ -115,15 +115,28 @@
         </div>
         <div>
           <h5>Customers</h5>
-          <a href="#">Browse shops</a><a href="#">Price calculator</a><a href="#">Job status</a><a href="#">Help center</a>
+          <a href="{{ route('shops.index') }}">Browse shops</a>
+          <a href="{{ route('home') }}#pricing">Price calculator</a>
+          {{-- /account sits behind `auth`, so a guest is bounced to the login and
+               returned here afterwards — better than linking straight at the form. --}}
+          <a href="{{ route('account') }}">Job status</a>
+          <a href="{{ route('page', 'help') }}">Help center</a>
         </div>
         <div>
           <h5>Shop owners</h5>
-          <a href="#">Open a shop</a><a href="#">Pricing &amp; fees</a><a href="#">Shop console</a><a href="#">Partner guidelines</a>
+          <a href="{{ route('page', 'open-a-shop') }}">Open a shop</a>
+          <a href="{{ route('page', 'pricing') }}">Pricing &amp; fees</a>
+          {{-- The Filament panel owns its own login, so this is the console's
+               front door for owners and a sign-in wall for everyone else. --}}
+          <a href="{{ url('/shop') }}">Shop console</a>
+          <a href="{{ route('page', 'partners') }}">Partner guidelines</a>
         </div>
         <div>
           <h5>Company</h5>
-          <a href="#">About</a><a href="#">Contact</a><a href="#">Privacy</a><a href="#">Terms</a>
+          <a href="{{ route('page', 'about') }}">About</a>
+          <a href="{{ route('page', 'contact') }}">Contact</a>
+          <a href="{{ route('page', 'privacy') }}">Privacy</a>
+          <a href="{{ route('page', 'terms') }}">Terms</a>
         </div>
       </div>
       <div class="foot-bot">

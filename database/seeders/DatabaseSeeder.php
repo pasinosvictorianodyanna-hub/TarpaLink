@@ -204,6 +204,10 @@ class DatabaseSeeder extends Seeder
                 'jobs_done' => $data['jobs_done'],
                 'lat' => 14.55 + ($index * 0.021),
                 'lng' => 120.98 + ($index * 0.019),
+                // What the directory filter rail reads. Kept in one map instead of
+                // seven more keys on every blueprint entry, so the shop list stays
+                // readable as a list of shops rather than a list of booleans.
+                ...($this->directoryTraits()[$data['slug']] ?? []),
             ]);
 
             foreach ($data['discounts'] as [$minQty, $percent]) {
@@ -250,6 +254,28 @@ class DatabaseSeeder extends Seeder
         }
 
         return $created;
+    }
+
+    /**
+     * Turnaround and service options, per shop.
+     *
+     * The values are deliberately spread so every filter in the rail has a
+     * non-empty result — a filter that can only ever return nothing is a
+     * filter nobody can test.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function directoryTraits(): array
+    {
+        return [
+            'inkwell-press' => ['turnaround_hours' => 24, 'offers_delivery' => true, 'offers_design' => true, 'accepts_gcash' => true],
+            'halftone-hub' => ['turnaround_hours' => 48, 'offers_design' => true, 'accepts_gcash' => true],
+            'studio-sampaguita' => ['turnaround_hours' => 24, 'offers_design' => true],
+            'presswork-mnl' => ['turnaround_hours' => 72, 'accepts_gcash' => true],
+            'northline-print' => ['turnaround_hours' => 8, 'offers_delivery' => true, 'accepts_gcash' => true],
+            'tinta-and-co' => ['turnaround_hours' => 48, 'offers_design' => true, 'offers_delivery' => true],
+            'meridian-press' => ['turnaround_hours' => 24],
+        ];
     }
 
     private function people(array $shops): void

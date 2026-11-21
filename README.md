@@ -208,14 +208,14 @@ removes the block from the page instead of leaving a hole.
 php artisan test
 ```
 
-135 tests. They cover the acceptance criteria of the finished issues: tenant isolation and
+145 tests. They cover the acceptance criteria of the finished issues: tenant isolation and
 cross-panel 403s (#3), the edit-a-rate-see-a-new-quote loop (#4), illegal status
 transitions (#5), board drops (#6), the ledger balancing and a plan change leaving
 settled payouts alone (#7), approval and rejection both locking the owner in or out (#8),
 the policy matrix (#9), CMS edits and section deletion (#10), webhook idempotency and
 failure marking (#11), crossover pricing (#12), the profile screen's two endpoints
-(#16), and every dashboard figure against a plain `SUM()`/`COUNT()` over the same rows
-(#17).
+(#16), every dashboard figure against a plain `SUM()`/`COUNT()` over the same rows
+(#17), and the directory's filter rail against the data it filters (#24).
 
 The reports and dashboard tests compare against an independent `SUM()` over `payments`
 rather than against the page's own numbers — a test that recomputes the same expression

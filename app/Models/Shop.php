@@ -20,6 +20,10 @@ class Shop extends Model
             'lat' => 'float',
             'lng' => 'float',
             'accepts_rush' => 'boolean',
+            'offers_delivery' => 'boolean',
+            'offers_design' => 'boolean',
+            'accepts_gcash' => 'boolean',
+            'turnaround_hours' => 'integer',
             'commission_rate' => 'integer',
             'approved_at' => 'datetime',
         ];
@@ -157,5 +161,31 @@ class Shop extends Model
             'yellow' => 'linear-gradient(140deg,#E09B00,#7C5200)',
             default => 'linear-gradient(140deg,#0C0F0E,#2C3A36)',
         };
+    }
+
+    /** "Same day", "24 hours", "2–3 days" — the buckets the filter rail offers. */
+    public function turnaroundLabel(): string
+    {
+        return match (true) {
+            $this->turnaround_hours <= 8 => 'Same day',
+            $this->turnaround_hours <= 24 => '24 hours',
+            default => '2–3 days',
+        };
+    }
+
+    /**
+     * The badges on a shop card. Only what the shop actually claims: a badge
+     * that is true of every shop is decoration, and decoration lies.
+     *
+     * @return array<int, array{label: string, tone: string}>
+     */
+    public function badges(): array
+    {
+        return array_values(array_filter([
+            $this->accepts_rush ? ['label' => '24h rush', 'tone' => 'g'] : null,
+            $this->offers_design ? ['label' => 'Design help', 'tone' => 'm'] : null,
+            $this->quantityDiscounts->isNotEmpty() ? ['label' => 'Bulk orders', 'tone' => 'c'] : null,
+            $this->offers_delivery ? ['label' => 'Delivery', 'tone' => 'n'] : null,
+        ]));
     }
 }

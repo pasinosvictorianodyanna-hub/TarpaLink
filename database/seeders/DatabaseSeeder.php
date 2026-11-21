@@ -2,8 +2,11 @@
 
 namespace Database\Seeders;
 
+use App\Models\Invoice;
 use App\Models\Job;
 use App\Models\PageSection;
+use App\Models\Payout;
+use App\Models\Plan;
 use App\Models\PriceOption;
 use App\Models\PriceTier;
 use App\Models\QuantityDiscount;
@@ -11,6 +14,7 @@ use App\Models\Service;
 use App\Models\Shop;
 use App\Models\SiteSetting;
 use App\Models\User;
+use App\Services\PayoutLedger;
 use App\Services\PriceCalculator;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
@@ -22,7 +26,45 @@ class DatabaseSeeder extends Seeder
         $shops = $this->shops();
 
         $this->people($shops);
+        $this->pendingApplication();
+        $this->billing($shops);
+        $this->ledger($shops);
         $this->content();
+    }
+
+    /**
+     * One shop waiting for approval, with an owner who cannot log in yet.
+     *
+     * Without this the admin approval queue is empty on a fresh clone and the
+     * access rule in docs/ISSUES.md #8 is impossible to see working.
+     */
+    private function pendingApplication(): void
+    {
+        $shop = Shop::create([
+            'name' => 'Karatula Print',
+            'slug' => 'karatula-print',
+            'city' => 'Marikina',
+            'address' => '17 J.P. Rizal St, Sta. Elena',
+            'phone' => '+63 917 884 2201',
+            'description' => 'New shop. Tarpaulin and stickers, applying to join the platform.',
+            'accent' => 'magenta',
+            'status' => 'pending',
+            'plan' => 'starter',
+            'commission_rate' => 500,
+            'rating' => 0,
+            'jobs_done' => 0,
+        ]);
+
+        $owner = User::create([
+            'name' => 'Nina Bautista',
+            'email' => 'nina@karatula.ph',
+            'phone' => '0917 884 2201',
+            'city' => 'Marikina',
+            'role' => 'shop_owner',
+            'password' => bcrypt('password'),
+        ]);
+
+        $shop->staff()->attach($owner->id, ['role' => 'owner']);
     }
 
     /** Six shops with deliberately different matrices. */
@@ -366,6 +408,83 @@ class DatabaseSeeder extends Seeder
                 ]);
             }
         }
+    }
+
+    /**
+     * Plans, the subscription each shop is on, and a few months of invoices for
+     * the paid tiers — so the billing screen has history, not just a current row.
+     */
+    private function billing(array $shops): void
+    {
+        $plans = [
+            ['key' => 'starter', 'name' => 'Starter', 'tagline' => 'Pay as you print. No monthly fee.', 'monthly_fee' => 0, 'commission_rate' => 500, 'sort' => 1],
+            ['key' => 'growth', 'name' => 'Growth', 'tagline' => 'Lower take rate for steady volume.', 'monthly_fee' => 59900, 'commission_rate' => 300, 'sort' => 2],
+            ['key' => 'pro', 'name' => 'Pro', 'tagline' => 'The lowest rate we offer.', 'monthly_fee' => 149900, 'commission_rate' => 150, 'sort' => 3],
+        ];
+
+        foreach ($plans as $plan) {
+            Plan::create($plan);
+        }
+
+        $byKey = Plan::all()->keyBy('key');
+
+        foreach ($shops as $shop) {
+            $plan = $byKey[$shop->plan] ?? $byKey['starter'];
+            $startedAt = Carbon::now()->subMonths(3)->startOfMonth();
+
+            $subscription = $shop->subscriptions()->create([
+                'plan_id' => $plan->id,
+                'status' => 'active',
+                'starts_at' => $startedAt,
+            ]);
+
+            if ($plan->monthly_fee === 0) {
+                continue;
+            }
+
+            // Three closed months, all paid, so "invoice history survives a plan
+            // change" is something you can actually see in the panel.
+            for ($i = 3; $i >= 1; $i--) {
+                $period = Carbon::now()->subMonths($i);
+
+                Invoice::create([
+                    'number' => 'INV-'.$period->format('Ym').'-'.str_pad((string) $shop->id, 4, '0', STR_PAD_LEFT),
+                    'shop_id' => $shop->id,
+                    'subscription_id' => $subscription->id,
+                    'amount' => $plan->monthly_fee,
+                    'status' => 'paid',
+                    'period_start' => $period->copy()->startOfMonth(),
+                    'period_end' => $period->copy()->endOfMonth(),
+                    'issued_at' => $period->copy()->startOfMonth(),
+                    'paid_at' => $period->copy()->startOfMonth()->addDays(3),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Write the commission split for every payment already seeded, then close out
+     * the older ones so the payout ledger shows a mix of paid and pending.
+     */
+    private function ledger(array $shops): void
+    {
+        $ledger = app(PayoutLedger::class);
+
+        foreach ($shops as $shop) {
+            $ledger->backfillForShop($shop);
+        }
+
+        Payout::orderBy('id')->get()->each(function (Payout $payout, int $index) {
+            // Older rows are settled; the most recent handful are still pending.
+            if ($index % 3 === 0) {
+                return;
+            }
+
+            $payout->update([
+                'status' => $index % 3 === 1 ? 'paid' : 'scheduled',
+                'payout_date' => now()->subDays(7 + $index)->toDateString(),
+            ]);
+        });
     }
 
     private function content(): void

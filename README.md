@@ -12,11 +12,13 @@ A job-order platform for the Philippine printing industry. Customers find a prin
 |---|---|---|
 | Landing page | Dev A | done — CMS-driven hero, featured shops from DB |
 | Customer side | Dev A | done — directory, shop profile, builder, checkout, job status, my jobs |
-| Shop panel (Filament) | Dev B | not started |
-| Admin panel (Filament) | Dev B | not started |
-| Integrations (PayMongo, SMTP, Maps, storage) | split | PayMongo sandbox intent only |
+| Shop panel (Filament) | Dev B | partial — reports, payouts, billing. No price matrix / jobs / production board yet |
+| Admin panel (Filament) | Dev B | done — dashboard, approvals, shops, users, CMS, plans, invoices |
+| Integrations (PayMongo, SMTP, Maps, storage) | split | webhook + payout ledger done, sandbox keys only |
 
 **Spine (shared, done):** 13 domain tables, models, `PriceCalculator`, seeders with six shops.
+**Added with the panels:** `payouts`, `plans`, `subscriptions`, `invoices`, `payment_webhooks`
+(26 tables total), plus two Filament panels on the single `web` guard.
 
 ## Stack
 
@@ -79,7 +81,12 @@ Then open <http://127.0.0.1:8000>.
 | Customer | `jomar@tarpalink.ph` |
 | Customer | `marisol@example.com` |
 | Shop owner | `kevin@inkwell.ph` (Inkwell Press, Growth plan) |
+| Shop owner | `nina@karatula.ph` (Karatula Print — **pending**, cannot log in until approved) |
 | Admin | `sofia@tarpalink.ph` |
+
+Panels: **`/admin`** for administrators, **`/shop`** for shop owners. Both are
+Filament and both use the same `web` guard — access is decided in
+`User::canAccessPanel()`, so a customer who logs in at `/shop` gets a 403.
 
 Shops are seeded on different plans — Inkwell Press and Tinta & Co. on Growth (3%),
 Halftone Hub on Pro (1.5%), the rest on Starter (5%) — so commission math can be
@@ -101,3 +108,26 @@ line in the registry — not a router, not a bundle per page.
 The order builder posts to `POST /api/quote` on every change. That endpoint calls
 `PriceCalculator` and returns the same line items the server will use to create the
 job, so the number on screen and the number in the database cannot drift.
+
+## Panels and money
+
+Two Filament panels, one guard. `app/Filament/Admin/` and `app/Filament/Shop/`
+are discovered separately, so an admin resource can never appear in a shop's
+navigation.
+
+The money path, in order:
+
+1. Checkout creates a `payments` row with `status = pending` and the shop's rate.
+2. `POST /webhooks/paymongo` verifies the HMAC signature, then settles it.
+3. `PaymentSettlement` recomputes commission at the rate in force **when the money
+   lands**, marks the payment paid, and calls `PayoutLedger`.
+4. `PayoutLedger` writes one `payouts` row. `payouts.payment_id` is unique, so a
+   replayed callback cannot credit twice.
+
+Commission is always read from `shops.commission_rate` (basis points), never a
+literal. Every payout stores the rate it was written with, which is why a plan
+change is safe: it moves the shop's rate and issues a new invoice, and nothing
+that already happened changes.
+
+Without `PAYMONGO_WEBHOOK_SECRET` the webhook endpoint only accepts traffic
+outside production — a missing env var fails closed, not open.

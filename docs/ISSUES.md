@@ -3,9 +3,10 @@
 Issues for the second developer, plus the two spine tasks that must be done together
 before either half starts.
 
-> **Status:** issues **#1** and **#2** are already built and committed (`51b4ee3`).
-> They stay here as the reference for what exists — read them, do not rebuild them.
-> Everything from #3 down is still open.
+> **Status:** issues **#1, #2, #3** and **#7 – #12** are built. #4, #5 and #6
+> (price matrix, jobs resource, production board) are still open — the shop panel
+> currently ships Reports, Payouts and Billing only.
+> Read the built ones as the reference for what exists — do not rebuild them.
 
 Labels used: `spine` · `shop-panel` · `admin-panel` · `integration` · `billing` ·
 `p0` (blocks someone) · `p1` (normal)
@@ -82,9 +83,14 @@ the database.
 
 ---
 
-## 3. Scaffold Filament: two panels, one guard
+## 3. Scaffold Filament: two panels, one guard ✅ done
 
 **Labels:** `shop-panel` `p0`
+
+`AdminPanelProvider` at `/admin` and `ShopPanelProvider` at `/shop`, both on the
+`web` guard. `User implements FilamentUser`; `canAccessPanel()` checks the panel
+id, and the shop panel additionally requires an **active** shop, so a suspended
+or pending shop locks its owner out even with the right role.
 
 Two separate Filament panels in one app, both on the **single `web` guard**:
 
@@ -160,9 +166,13 @@ customer sees it on the job status page, and dropping into an illegal column sna
 
 ---
 
-## 7. Reports + payouts
+## 7. Reports + payouts ✅ done
 
 **Labels:** `shop-panel` `p1`
+
+`/shop/reports` (revenue by week, top services, two CSV exports) and
+`/shop/payouts` (the ledger, filterable, CSV export). Both read `payouts`, whose
+rows are written by settlement — never recomputed at render time.
 
 Revenue by week, top services by revenue, and a payout ledger: gross, platform
 commission, net, status, payout date. Export to CSV.
@@ -178,9 +188,14 @@ alter any existing payout row.
 
 ---
 
-## 8. Admin dashboard + shop approvals
+## 8. Admin dashboard + shop approvals ✅ done
 
 **Labels:** `admin-panel` `p1`
+
+Four dashboard widgets (`PlatformStats`, `PendingApprovals`, `FailedPayments`,
+`LatestJobs`) plus the `ShopResource` table, which carries the same approve
+action. A seeded pending shop (`karatula-print`, owner `nina@karatula.ph`) makes
+the queue non-empty on a fresh clone.
 
 Platform GMV, jobs, active shops, commission earned. A pending-approvals queue where
 an admin approves or rejects a new shop (rejected shops cannot log in to the shop
@@ -195,9 +210,13 @@ leaves them locked out with a reason.
 
 ---
 
-## 9. Users, roles, policies
+## 9. Users, roles, policies ✅ done
 
 **Labels:** `admin-panel` `p1`
+
+`app/Policies/` holds a policy per model over a shared `BasePolicy`
+(`isAdmin` / `belongsToShop` / `managesShop`). Auto-discovery maps
+`App\Models\X` to `App\Policies\XPolicy`; no registration needed.
 
 Four roles: Guest, Customer, Shop Owner, Administrator. `users.role` holds
 `customer|shop_owner|admin`; the `shop_users` pivot carries the per-shop
@@ -209,10 +228,15 @@ shop's price matrix; only an administrator can change `page_sections`.
 
 ---
 
-## 10. CMS — site content resource
+## 10. CMS — site content resource ✅ done
 
 **Labels:** `admin-panel` `p1`
 **Requirement:** C
+
+`PageSectionResource` binds the `content` JSON column to a `Group` with
+`statePath('content')`, and shows only the fields that belong to the section's
+key. There is no create and no delete: hiding a section sets `status = hidden`,
+which makes `PageSection::content()` fall back to the Blade defaults.
 
 Filament resource over `page_sections` and `site_settings`. Six sections: homepage
 hero, announcement banner, featured shops, testimonials, FAQ, footer. Editing copy
@@ -224,9 +248,16 @@ breaking the page.
 
 ---
 
-## 11. PayMongo webhook + payout ledger
+## 11. PayMongo webhook + payout ledger ✅ done
 
 **Labels:** `integration` `p0`
+
+`POST /webhooks/paymongo` → `PayMongoWebhookController` (HMAC signature check,
+open only outside production when no secret is set) → `PayMongoWebhookHandler`.
+Two idempotency layers: `payment_webhooks.event_id` unique, and
+`payouts.payment_id` unique. Failures are recorded, retried by
+`RetryPaymentWebhook` after 1 and 5 minutes, and surfaced by the
+`FailedPayments` widget once three attempts have failed.
 
 Checkout creates a payment intent; the webhook is the only thing that may mark a job
 as paid. Idempotent on `payment_intent_id` so a replayed webhook cannot double-credit.
@@ -240,9 +271,14 @@ payout ledger shows gross − the shop's plan rate = net.
 
 ---
 
-## 12. Billing: plans, subscriptions, invoices
+## 12. Billing: plans, subscriptions, invoices ✅ done
 
 **Labels:** `billing` `p1`
+
+`plans` / `subscriptions` / `invoices` tables, `Billing` service, an admin
+`PlanResource` + `InvoiceResource`, and `/shop/billing` for the owner. Crossover
+points are computed from the fee and rate, not typed in — the tests assert
+₱29,950 and ₱60,000, which is where the documented numbers come from.
 
 Three tiers — Starter (free, 5%), Growth (₱599, 3%), Pro (₱1,499, 1.5%). Crossover
 points: Growth wins above ₱29,950 monthly GMV, Pro above ₱60,000.

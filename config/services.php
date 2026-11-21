@@ -35,4 +35,15 @@ return [
         ],
     ],
 
+    /*
+     * PayMongo sandbox. Keys stay in .env; nothing here is a live credential.
+     * The webhook secret is what makes a callback trustworthy — without it the
+     * endpoint only accepts traffic in local/testing.
+     */
+    'paymongo' => [
+        'public_key' => env('PAYMONGO_PUBLIC_KEY'),
+        'secret_key' => env('PAYMONGO_SECRET_KEY'),
+        'webhook_secret' => env('PAYMONGO_WEBHOOK_SECRET'),
+    ],
+
 ];

@@ -11,7 +11,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Payment providers cannot send a CSRF token; the signature header is
+        // what authenticates these requests instead.
+        $middleware->validateCsrfTokens(except: [
+            'webhooks/paymongo',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

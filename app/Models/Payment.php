@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Payment extends Model
 {
@@ -22,5 +23,10 @@ class Payment extends Model
     public function job(): BelongsTo
     {
         return $this->belongsTo(Job::class);
+    }
+
+    public function payout(): HasOne
+    {
+        return $this->hasOne(Payout::class);
     }
 }

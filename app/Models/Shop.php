@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Shop extends Model
 {
@@ -51,6 +52,31 @@ class Shop extends Model
     public function quantityDiscounts(): HasMany
     {
         return $this->hasMany(QuantityDiscount::class);
+    }
+
+    public function payments(): HasManyThrough
+    {
+        return $this->hasManyThrough(Payment::class, Job::class);
+    }
+
+    public function payouts(): HasMany
+    {
+        return $this->hasMany(Payout::class);
+    }
+
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(Subscription::class)->latest('starts_at');
+    }
+
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class)->latest('issued_at');
+    }
+
+    public function currentSubscription(): ?Subscription
+    {
+        return $this->subscriptions()->where('status', 'active')->first();
     }
 
     public function staff(): BelongsToMany

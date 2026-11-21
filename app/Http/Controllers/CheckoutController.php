@@ -81,7 +81,9 @@ class CheckoutController extends Controller
                 'intent_id' => 'pi_test_'.$job->reference,
                 'amount' => $quote['total'],
                 'processing_fee' => (int) round($quote['total'] * 0.025) + 1500,
-                'commission' => (int) round($quote['total'] * 0.05),
+                // Provisional split at the shop's own rate. Settlement recomputes
+                // it against the rate in force when the money actually lands.
+                'commission' => (int) round($quote['total'] * $shop->commission_rate / 10000),
                 'status' => 'pending',
             ]);
         }

@@ -17,7 +17,20 @@ class Shop extends Model
             'lat' => 'float',
             'lng' => 'float',
             'accepts_rush' => 'boolean',
+            'commission_rate' => 'integer',
         ];
+    }
+
+    /** Take rate as a percentage: 300 bp → 3.0. */
+    public function commissionPct(): float
+    {
+        return $this->commission_rate / 100;
+    }
+
+    /** Human label for the panel: 300 → "3%", 150 → "1.5%". */
+    public function commissionLabel(): string
+    {
+        return rtrim(rtrim(number_format($this->commissionPct(), 2, '.', ''), '0'), '.').'%';
     }
 
     public function getRouteKeyName(): string

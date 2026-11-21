@@ -1,50 +1,80 @@
 # Backlog
 
 Issues for the second developer, plus the two spine tasks that must be done together
-before either half starts. Copy each block into a GitHub issue, or bulk-create them
-with `gh` (see the bottom of this file).
+before either half starts.
+
+> **Status:** issues **#1** and **#2** are already built and committed (`51b4ee3`).
+> They stay here as the reference for what exists — read them, do not rebuild them.
+> Everything from #3 down is still open.
 
 Labels used: `spine` · `shop-panel` · `admin-panel` · `integration` · `billing` ·
 `p0` (blocks someone) · `p1` (normal)
 
 ---
 
-## 1. Schema: 12 tables, models and relationships
+## 1. Schema: 13 domain tables, models and relationships ✅ done
 
 **Labels:** `spine` `p0`
 **Blocks:** everything
+**State:** built in `51b4ee3`
 
 The whole database in one migration set, so neither half invents its own version.
 
-Tables: `users`, `shops`, `shop_users`, `services`, `price_tiers`, `price_options`,
-`jobs`, `job_lines`, `proofs`, `payments`, `page_sections`, `site_settings`.
+**Domain tables (13):** `users`, `shops`, `shop_users`, `services`, `price_tiers`,
+`price_options`, `quantity_discounts`, `jobs`, `job_lines`, `proofs`, `payments`,
+`page_sections`, `site_settings`.
+
+`php artisan migrate:fresh` creates **21** tables in total — the 13 above plus 8
+framework tables (`migrations`, `sessions`, `cache`, `cache_locks`, `queue_jobs`,
+`job_batches`, `failed_jobs`, `password_reset_tokens`). The queue table is named
+`queue_jobs`, not `jobs`, because `jobs` is the domain table.
 
 Rules that are not negotiable:
 
-- Every shop-scoped table carries `shop_id`. Multi-tenancy is enforced by a global
-  scope on the model, not by remembering to add `where` in every query.
+- Every shop-scoped table carries `shop_id`. Scoping is done through the relationship
+  (`$shop->jobs()`, `$shop->services()`) or an explicit `where`, **not** by a global
+  scope — there is no ambient "current shop" yet, and a global scope without one
+  silently returns nothing. The scope belongs with the panel work (#3, #9), where the
+  authenticated shop is actually known.
 - Money columns are `unsignedBigInteger` in centavos. Never `decimal`, never `float`.
-- `job_lines` stores `unit_price`, `qty` and `matrix_version` — a snapshot, so a
-  historical job never changes when the shop edits its matrix.
+- `job_lines` stores `label`, `qty`, `unit_price`, `amount` — the snapshot of the
+  priced lines.
+- `jobs` stores `matrix_version` **on the job**, not on each line. One matrix version
+  priced the whole job, so one field is enough.
 - `proofs` is versioned: `job_id`, `version`, `file_path`, `status`, `approved_at`.
+- `shops` carries `plan` and `commission_rate` (basis points) — see #12.
 
 **Acceptance:** `php artisan migrate:fresh --seed` runs clean on a fresh clone, and
-`SHOW TABLES` returns exactly 12.
+`SHOW TABLES` returns 21 (13 domain + 8 framework).
 
 ---
 
-## 2. PriceCalculator + seeders
+## 2. PriceCalculator + seeders ✅ done
 
 **Labels:** `spine` `p0`
 **Blocks:** order builder (Dev A), price matrix (Dev B)
+**State:** built in `51b4ee3`
 
 One service class matching `docs/CONTRACT.md` exactly. No controller computes prices
 inline; everything goes through this.
 
-Seeders must produce **six shops** with believable, *different* matrices — one cheap
-tarpaulin shop, one premium, one that only does stickers, etc. Plus ~8 customers,
-~15 jobs spread across every status, and a few proofs. The seed data is what lets the
-customer side be built before the shop panel exists.
+Seeders produce:
+
+| Thing | Count |
+|---|---|
+| Shops (each with a different matrix) | 6 |
+| Services | 16 |
+| Price tiers | 40 |
+| Quantity-discount bands | 14 |
+| Users (1 admin, 1 shop owner, 5 customers) | 7 |
+| Jobs, spread across every status | 21 |
+| Payments (approved and later) | 15 |
+| Proofs | 5 |
+| CMS page sections | 6 |
+
+Every shop gets at least 2 jobs so the production board has something to drag, and
+collected jobs carry past dates so reports have history. Shops are seeded on different
+plans (Starter 5%, Growth 3%, Pro 1.5%) so the payout ledger is not all one rate.
 
 **Acceptance:** a tinker session calling `PriceCalculator::quote()` on a seeded shop
 returns the numbers in `CONTRACT.md`; the order builder can be built without touching
@@ -52,21 +82,30 @@ the database.
 
 ---
 
-## 3. Scaffold Filament: two panels, two guards
+## 3. Scaffold Filament: two panels, one guard
 
 **Labels:** `shop-panel` `p0`
 
-Two separate Filament panels in one app:
+Two separate Filament panels in one app, both on the **single `web` guard**:
 
-- `AdminPanel` at `/admin` — guard `web`, global scope
-- `ShopPanel` at `/shop` — guard `shop`, scoped to the logged-in user's `shop_id`
+- `AdminPanel` at `/admin` — for `users.role = 'admin'`
+- `ShopPanel` at `/shop` — for `users.role = 'shop_owner'`
 
-Separate login pages, separate branding (admin = neutral, shop = shop's own name in
-the top bar). A shop owner must not be able to reach `/admin`, and an admin must not
-be silently dropped into a shop's scope.
+There is no second guard and no second user table. A shop owner is a normal `users`
+row; which shop they belong to comes from the `shop_users` pivot (`shop_id`,
+`user_id`, `role` = `owner|staff`). Access is decided in `canAccessPanel()`, not by
+the guard.
 
-**Acceptance:** logging in at `/shop` as a seeded shop owner shows only that shop's
-records; hitting `/admin` returns 403.
+- Separate login pages, separate branding (admin = neutral, shop = the shop's own name
+  in the top bar).
+- The shop panel resolves the active shop from the pivot and scopes every resource to
+  it. This is where a `scopeForShop()` / global scope finally makes sense.
+- A shop owner must not reach `/admin`; an admin must not be silently dropped into a
+  shop's scope.
+
+**Acceptance:** logging in at `/shop` as `kevin@inkwell.ph` shows only Inkwell Press
+records; hitting `/admin` returns 403. Logging in at `/admin` as `sofia@tarpalink.ph`
+shows all shops.
 
 ---
 
@@ -79,7 +118,8 @@ The most important task in this backlog. A Filament resource where a shop owner 
 their own prices: size tiers per service, per-unit rates, finishing options (eyelets,
 hemming, lamination), quantity discount bands, and minimum order value.
 
-Saving must bump `matrix_version` so old jobs keep their snapshot.
+Editing tiers changes the matrix fingerprint, so the next quote returns a new
+`matrix_version` while old jobs keep theirs.
 
 **Acceptance:** change the tarpaulin tier-B rate in the panel, reload the storefront,
 and the order builder quotes the new price with no deploy and no cache clear.
@@ -91,8 +131,14 @@ and the order builder quotes the new price with no deploy and no cache clear.
 **Labels:** `shop-panel` `p1`
 
 Filament resource listing this shop's jobs. Read-only on price, editable on status.
-Allowed transitions: `quoted → awaiting_proof → approved → in_production → ready →
-collected`, plus `cancelled` from any pre-production state.
+
+The seven statuses already exist in the `jobs` enum and in `Job::statusLabel()`:
+`quoted`, `awaiting_proof`, `approved`, `in_production`, `ready`, `collected`,
+`cancelled`. The forward path is
+`quoted → awaiting_proof → approved → in_production → ready → collected`;
+`cancelled` is reachable from any pre-production state and is terminal — it is not a
+step in `Job::timeline()`, which already returns the six forward steps for the
+customer's status page.
 
 Illegal transitions are rejected server-side, not just hidden in the UI. Each change
 writes to an activity log and fires the customer notification.
@@ -107,7 +153,7 @@ validation error and leaves the row untouched.
 **Labels:** `shop-panel` `p1`
 
 Custom Filament page — a kanban of the shop's active jobs by status. Drag between
-columns writes the same transition rules as task 5.
+columns writes the same transition rules as task 5. `cancelled` is not a column.
 
 **Acceptance:** dragging a job from *On press* to *Finishing* updates the status, the
 customer sees it on the job status page, and dropping into an illegal column snaps back.
@@ -121,8 +167,14 @@ customer sees it on the job status page, and dropping into an illegal column sna
 Revenue by week, top services by revenue, and a payout ledger: gross, platform
 commission, net, status, payout date. Export to CSV.
 
+The commission rate is **not** a constant. Read it from `shops.commission_rate`
+(basis points) via `$shop->commissionLabel()`; `payments.commission` already holds the
+absolute centavo amount, snapshotted at the time of payment. Inkwell Press seeds at 3%
+(Growth), Halftone Hub at 1.5% (Pro), the rest at 5% (Starter).
+
 **Acceptance:** the ledger sums to gross − commission = net for every row, and the
-month total matches a manual `SUM()` on `payments`.
+month total matches a manual `SUM()` on `payments`. Changing a shop's plan does not
+alter any existing payout row.
 
 ---
 
@@ -134,6 +186,10 @@ Platform GMV, jobs, active shops, commission earned. A pending-approvals queue w
 an admin approves or rejects a new shop (rejected shops cannot log in to the shop
 panel). A live feed of the latest jobs across all shops.
 
+Approval is `shops.status` — `pending → active`, or `suspended`. Commission earned is
+the sum of `payments.commission`, not GMV × one rate, because shops sit on different
+plans.
+
 **Acceptance:** approving a seeded pending shop lets that owner log in; rejecting
 leaves them locked out with a reason.
 
@@ -143,9 +199,10 @@ leaves them locked out with a reason.
 
 **Labels:** `admin-panel` `p1`
 
-Four roles: Guest, Customer, Shop Owner, Administrator. Policies on every model so a
-shop owner can only touch their own records, and only an administrator can approve
-shops or edit site content.
+Four roles: Guest, Customer, Shop Owner, Administrator. `users.role` holds
+`customer|shop_owner|admin`; the `shop_users` pivot carries the per-shop
+`owner|staff` role. Policies on every model so a shop owner can only touch their own
+records, and only an administrator can approve shops or edit site content.
 
 **Acceptance:** a customer cannot open `/shop`; a shop owner cannot edit another
 shop's price matrix; only an administrator can change `page_sections`.
@@ -159,7 +216,7 @@ shop's price matrix; only an administrator can change `page_sections`.
 
 Filament resource over `page_sections` and `site_settings`. Six sections: homepage
 hero, announcement banner, featured shops, testimonials, FAQ, footer. Editing copy
-and display order only — layout stays in Blade.
+and display order only — layout stays in Blade and Vue.
 
 **Acceptance:** editing the hero headline in the panel changes the landing page after
 a refresh, with no deploy. Deleting a section hides it from the site rather than
@@ -173,13 +230,13 @@ breaking the page.
 
 Checkout creates a payment intent; the webhook is the only thing that may mark a job
 as paid. Idempotent on `payment_intent_id` so a replayed webhook cannot double-credit.
-Writes the commission split to the payout ledger.
+Writes the commission split to the payout ledger, using the shop's own rate.
 
 Sandbox keys only. A failed webhook must not leave a job stuck in `pending` — retry
 with backoff, and surface it on the admin dashboard if it fails three times.
 
 **Acceptance:** replaying the same webhook twice creates one payment row, and the
-payout ledger shows gross − 5% commission = net.
+payout ledger shows gross − the shop's plan rate = net.
 
 ---
 
@@ -187,24 +244,22 @@ payout ledger shows gross − 5% commission = net.
 
 **Labels:** `billing` `p1`
 
-Three tiers — Starter (free, 5%), Growth (₱599, 3%), Pro (₱1,499, 1.5%). Adds
-`plans`, `subscriptions`, `invoices`. A shop panel page showing the current plan, the
-crossover math, and an upgrade path.
+Three tiers — Starter (free, 5%), Growth (₱599, 3%), Pro (₱1,499, 1.5%). Crossover
+points: Growth wins above ₱29,950 monthly GMV, Pro above ₱60,000.
 
-**Acceptance:** upgrading changes the commission rate applied to the next payout, and
-the invoice history survives a plan change.
+`shops.plan` and `shops.commission_rate` already exist, so this task adds `plans`,
+`subscriptions` and `invoices` and a panel page showing the current plan, the
+crossover math, and an upgrade path. Upgrading updates `shops.plan` and
+`shops.commission_rate` and nothing else — past `payments.commission` rows are
+immutable.
+
+**Acceptance:** upgrading changes the commission rate applied to the *next* payout,
+the invoice history survives a plan change, and no historical payment row changes.
 
 ---
 
 ## Creating these on GitHub
 
-With `gh` installed and authenticated:
-
-```bash
-gh auth login
-# then paste each issue body as it is written above, or drive it from a loop
-```
-
-Without `gh`, create them by hand at
-`https://github.com/<you>/<repo>/issues/new` — the headings above are the titles, and
-the `Labels:` line maps to a label you create once under *Issues → Labels*.
+All twelve are already on GitHub at
+`https://github.com/pasinosvictorianodyanna-hub/TarpaLink/issues` with their labels.
+This file is the source of truth; if you edit an issue there, edit it here too.

@@ -32,6 +32,7 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Inkwell Press', 'slug' => 'inkwell-press', 'city' => 'Quezon City',
                 'address' => '24 Sct. Borromeo St, Diliman', 'accent' => 'ink',
+                'plan' => 'growth', 'rate' => 300,
                 'rating' => 4.9, 'jobs_done' => 1284, 'phone' => '+63 917 442 8891',
                 'description' => 'Offset and large-format since 2009. Tarpaulin, stickers, flyers and DTF shirts.',
                 'discounts' => [[3, 5], [10, 10], [50, 15]],
@@ -53,6 +54,7 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Halftone Hub', 'slug' => 'halftone-hub', 'city' => 'Makati',
                 'address' => 'Unit 4B, Chino Roces Ave', 'accent' => 'magenta',
+                'plan' => 'pro', 'rate' => 150,
                 'rating' => 4.7, 'jobs_done' => 842, 'phone' => '+63 918 220 1144',
                 'description' => 'Small-format specialists. Stickers, labels and business cards.',
                 'discounts' => [[5, 8], [20, 12]],
@@ -71,6 +73,7 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Studio Sampaguita', 'slug' => 'studio-sampaguita', 'city' => 'Pasig',
                 'address' => '12 Meralco Ave, Ortigas', 'accent' => 'cyan',
+                'plan' => 'starter', 'rate' => 500,
                 'rating' => 4.8, 'jobs_done' => 610, 'phone' => '+63 916 771 2030',
                 'description' => 'Design-led print studio. Tarpaulin and large stickers.',
                 'discounts' => [[3, 5], [25, 12]],
@@ -86,6 +89,7 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Presswork MNL', 'slug' => 'presswork-mnl', 'city' => 'Manila',
                 'address' => '88 CM Recto Ave, Binondo', 'accent' => 'yellow',
+                'plan' => 'starter', 'rate' => 500,
                 'rating' => 4.4, 'jobs_done' => 2107, 'phone' => '+63 920 118 4477',
                 'description' => 'Volume printer. Cheapest tarpaulin in the district, cash on pickup.',
                 'discounts' => [[10, 10], [50, 20], [100, 25]],
@@ -101,6 +105,7 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Tinta & Co.', 'slug' => 'tinta-and-co', 'city' => 'Caloocan',
                 'address' => '5 Samson Rd, Monumento', 'accent' => 'ink',
+                'plan' => 'growth', 'rate' => 300,
                 'rating' => 4.6, 'jobs_done' => 395, 'phone' => '+63 915 662 8890',
                 'description' => 'Apparel-first shop. DTF shirts and heat transfer.',
                 'discounts' => [[6, 8], [24, 15]],
@@ -116,6 +121,7 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'Northline Print', 'slug' => 'northline-print', 'city' => 'Valenzuela',
                 'address' => '31 MacArthur Hwy, Karuhatan', 'accent' => 'cyan',
+                'plan' => 'starter', 'rate' => 500,
                 'rating' => 4.3, 'jobs_done' => 508, 'phone' => '+63 917 335 6612',
                 'description' => 'Neighbourhood print shop. Tarpaulin, flyers and shirts.',
                 'discounts' => [[5, 6], [30, 12]],
@@ -145,6 +151,8 @@ class DatabaseSeeder extends Seeder
                 'description' => $data['description'],
                 'accent' => $data['accent'],
                 'status' => 'active',
+                'plan' => $data['plan'],
+                'commission_rate' => $data['rate'],
                 'rating' => $data['rating'],
                 'jobs_done' => $data['jobs_done'],
                 'lat' => 14.55 + ($index * 0.021),
@@ -199,7 +207,7 @@ class DatabaseSeeder extends Seeder
 
     private function people(array $shops): void
     {
-        $customer = User::create([
+        $jomar = User::create([
             'name' => 'Jomar Mendoza',
             'email' => 'jomar@tarpalink.ph',
             'phone' => '+63 917 442 8891',
@@ -235,15 +243,71 @@ class DatabaseSeeder extends Seeder
             'password' => bcrypt('password'),
         ]);
 
+        $marisol = User::create([
+            'name' => 'Marisol Reyes',
+            'email' => 'marisol@example.com',
+            'phone' => '0917 553 0088',
+            'city' => 'Pasig',
+            'role' => 'customer',
+            'password' => bcrypt('password'),
+        ]);
+
+        $dennis = User::create([
+            'name' => 'Dennis Lim',
+            'email' => 'dennis@example.com',
+            'phone' => '0920 771 4412',
+            'city' => 'Manila',
+            'role' => 'customer',
+            'password' => bcrypt('password'),
+        ]);
+
+        $aira = User::create([
+            'name' => 'Aira Villanueva',
+            'email' => 'aira@example.com',
+            'phone' => '0916 208 9931',
+            'city' => 'Quezon City',
+            'role' => 'customer',
+            'password' => bcrypt('password'),
+        ]);
+
         $calculator = app(PriceCalculator::class);
 
+        // Every shop gets jobs across several statuses, so the production board
+        // has something to drag on a fresh clone. Collected jobs carry past dates
+        // so the reports and payout ledger have history to sum.
         $jobs = [
-            ['shop' => 0, 'service' => 0, 'w' => 48, 'h' => 96, 'qty' => 3, 'status' => 'ready', 'user' => $customer, 'due' => '+2 days', 'options' => [[0, 8], [1, 16]]],
-            ['shop' => 0, 'service' => 1, 'w' => 3, 'h' => 3, 'qty' => 250, 'status' => 'in_production', 'user' => $customer, 'due' => '+4 days', 'options' => [[0, 250]]],
-            ['shop' => 1, 'service' => 0, 'w' => 4, 'h' => 4, 'qty' => 500, 'status' => 'awaiting_proof', 'user' => $customer, 'due' => '+5 days', 'options' => []],
-            ['shop' => 3, 'service' => 0, 'w' => 24, 'h' => 36, 'qty' => 2, 'status' => 'approved', 'user' => $customer, 'due' => '+3 days', 'options' => [[0, 10]]],
-            ['shop' => 4, 'service' => 0, 'w' => 12, 'h' => 12, 'qty' => 12, 'status' => 'collected', 'user' => $customer, 'due' => '-6 days', 'options' => [[0, 12]]],
+            // Inkwell Press — the shop panel demo account.
+            ['shop' => 0, 'service' => 0, 'w' => 36, 'h' => 72, 'qty' => 1, 'status' => 'quoted', 'user' => $jomar, 'due' => '+6 days', 'options' => [[0, 6], [1, 12]]],
+            ['shop' => 0, 'service' => 3, 'w' => 12, 'h' => 12, 'qty' => 24, 'status' => 'awaiting_proof', 'user' => $renz, 'due' => '+5 days', 'options' => []],
+            ['shop' => 0, 'service' => 0, 'w' => 48, 'h' => 96, 'qty' => 3, 'status' => 'approved', 'user' => $jomar, 'due' => '+3 days', 'options' => [[0, 8], [1, 16]]],
+            ['shop' => 0, 'service' => 1, 'w' => 3, 'h' => 3, 'qty' => 250, 'status' => 'in_production', 'user' => $marisol, 'due' => '+4 days', 'options' => [[0, 250]]],
+            ['shop' => 0, 'service' => 0, 'w' => 48, 'h' => 96, 'qty' => 2, 'status' => 'ready', 'user' => $dennis, 'due' => '+2 days', 'options' => [[0, 8]]],
+            ['shop' => 0, 'service' => 2, 'w' => 8.3, 'h' => 11.7, 'qty' => 500, 'status' => 'collected', 'user' => $jomar, 'due' => '-6 days', 'options' => [[0, 500]]],
+            ['shop' => 0, 'service' => 0, 'w' => 24, 'h' => 36, 'qty' => 4, 'status' => 'collected', 'user' => $aira, 'due' => '-13 days', 'options' => [[0, 10], [1, 24]]],
+
+            // Halftone Hub — pro plan, so a 1.5% take rate on its payouts.
+            ['shop' => 1, 'service' => 0, 'w' => 4, 'h' => 4, 'qty' => 500, 'status' => 'awaiting_proof', 'user' => $marisol, 'due' => '+4 days', 'options' => []],
+            ['shop' => 1, 'service' => 1, 'w' => 3.5, 'h' => 2, 'qty' => 1000, 'status' => 'collected', 'user' => $dennis, 'due' => '-9 days', 'options' => [[0, 1000]]],
+            ['shop' => 1, 'service' => 2, 'w' => 8.3, 'h' => 11.7, 'qty' => 300, 'status' => 'in_production', 'user' => $aira, 'due' => '+3 days', 'options' => [[0, 300]]],
+
+            // Studio Sampaguita
             ['shop' => 2, 'service' => 0, 'w' => 36, 'h' => 72, 'qty' => 1, 'status' => 'quoted', 'user' => $renz, 'due' => '+6 days', 'options' => [[0, 6], [1, 12]]],
+            ['shop' => 2, 'service' => 1, 'w' => 3, 'h' => 3, 'qty' => 120, 'status' => 'ready', 'user' => $marisol, 'due' => '+1 days', 'options' => [[0, 120]]],
+            ['shop' => 2, 'service' => 0, 'w' => 16, 'h' => 24, 'qty' => 2, 'status' => 'collected', 'user' => $dennis, 'due' => '-18 days', 'options' => [[0, 6]]],
+
+            // Presswork MNL — volume printer, big quantity discounts.
+            ['shop' => 3, 'service' => 0, 'w' => 24, 'h' => 36, 'qty' => 2, 'status' => 'approved', 'user' => $jomar, 'due' => '+3 days', 'options' => [[0, 10]]],
+            ['shop' => 3, 'service' => 0, 'w' => 48, 'h' => 96, 'qty' => 6, 'status' => 'collected', 'user' => $aira, 'due' => '-11 days', 'options' => [[0, 20], [1, 48]]],
+            ['shop' => 3, 'service' => 1, 'w' => 8.3, 'h' => 11.7, 'qty' => 1000, 'status' => 'collected', 'user' => $dennis, 'due' => '-20 days', 'options' => []],
+            ['shop' => 3, 'service' => 1, 'w' => 8.3, 'h' => 11.7, 'qty' => 200, 'status' => 'cancelled', 'user' => $marisol, 'due' => '-4 days', 'options' => []],
+
+            // Tinta & Co. — apparel.
+            ['shop' => 4, 'service' => 0, 'w' => 12, 'h' => 12, 'qty' => 12, 'status' => 'collected', 'user' => $renz, 'due' => '-6 days', 'options' => [[0, 12]]],
+            ['shop' => 4, 'service' => 0, 'w' => 12, 'h' => 24, 'qty' => 30, 'status' => 'in_production', 'user' => $aira, 'due' => '+5 days', 'options' => [[0, 30], [1, 30]]],
+
+            // Northline Print
+            ['shop' => 5, 'service' => 0, 'w' => 48, 'h' => 96, 'qty' => 1, 'status' => 'quoted', 'user' => $jomar, 'due' => '+7 days', 'options' => [[0, 8]]],
+            ['shop' => 5, 'service' => 2, 'w' => 12, 'h' => 12, 'qty' => 20, 'status' => 'collected', 'user' => $dennis, 'due' => '-15 days', 'options' => [[0, 20]]],
         ];
 
         foreach ($jobs as $data) {
@@ -296,7 +360,7 @@ class DatabaseSeeder extends Seeder
                     'intent_id' => 'pi_test_'.$job->reference,
                     'amount' => $quote['total'],
                     'processing_fee' => (int) round($quote['total'] * 0.025) + 1500,
-                    'commission' => (int) round($quote['total'] * 0.05),
+                    'commission' => (int) round($quote['total'] * $shop->commission_rate / 10000),
                     'status' => 'paid',
                     'paid_at' => Carbon::now()->subDays(2),
                 ]);

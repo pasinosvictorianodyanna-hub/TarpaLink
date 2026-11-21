@@ -16,14 +16,14 @@ A job-order platform for the Philippine printing industry. Customers find a prin
 | Admin panel (Filament) | Dev B | not started |
 | Integrations (PayMongo, SMTP, Maps, storage) | split | PayMongo sandbox intent only |
 
-**Spine (shared, done):** 12 tables, models, `PriceCalculator`, seeders with six shops.
+**Spine (shared, done):** 13 domain tables, models, `PriceCalculator`, seeders with six shops.
 
 ## Stack
 
 - **PHP 8.2+ / Laravel 12** — the whole application, one repo, one deploy
 - **Vue 3 (Composition API) + Vite** — the interactive storefront (order builder, checkout, job status, account)
 - **Filament v4 (Livewire 3 + Alpine)** — admin panel and shop panel; this is the CMS
-- **MySQL 8** — 12 tables
+- **MySQL 8** — 13 domain tables (21 with framework tables)
 - **PayMongo (sandbox)** — payments, no live charges
 
 The rule that keeps it coherent: **Vue renders, Filament edits, Laravel decides.** Any price the browser shows is recomputed server-side before an order is created. The server always wins.
@@ -33,11 +33,11 @@ The rule that keeps it coherent: **Vue renders, Filament edits, Laravel decides.
 ```
 app/                      Laravel application
   Services/PriceCalculator.php    the only place a price is computed
-  Models/                         12 domain models
+  Models/                         13 domain models
   Http/Controllers/               home, shops, quote, checkout, jobs, account, auth
 database/
-  migrations/             12 tables
-  seeders/                6 shops, 18 services, 40 price tiers, jobs in every status
+  migrations/             13 domain tables
+  seeders/                6 shops, 16 services, 40 price tiers, 21 jobs in every status
 resources/
   css/app.css             design system, extracted from the prototype
   js/app.js               Vue island bootstrap
@@ -77,8 +77,13 @@ Then open <http://127.0.0.1:8000>.
 | Role | Email |
 |---|---|
 | Customer | `jomar@tarpalink.ph` |
-| Shop owner | `kevin@inkwell.ph` |
+| Customer | `marisol@example.com` |
+| Shop owner | `kevin@inkwell.ph` (Inkwell Press, Growth plan) |
 | Admin | `sofia@tarpalink.ph` |
+
+Shops are seeded on different plans — Inkwell Press and Tinta & Co. on Growth (3%),
+Halftone Hub on Pro (1.5%), the rest on Starter (5%) — so commission math can be
+tested against more than one rate.
 
 ## How the Vue half is wired
 

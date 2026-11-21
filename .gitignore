@@ -1,0 +1,24 @@
+/vendor
+/node_modules
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/logs/*
+.env
+.env.backend
+.env.local
+.phpunit.result.cache
+/.idea
+/.vscode
+*.log
+npm-debug.log
+yarn-error.log
+.DS_Store
+Thumbs.db
+
+# agent workspace
+.workbuddy-ai/

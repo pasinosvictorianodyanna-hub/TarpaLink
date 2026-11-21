@@ -8,6 +8,11 @@ cd /var/www/html
 
 echo "[entrypoint] starting as: ${1:-web}"
 
+# Composer ran with --no-scripts during the build (artisan cannot boot without
+# an environment), so package discovery is done here instead. Without it the
+# Filament and Livewire providers are never registered.
+php artisan package:discover --ansi
+
 # Filament publishes its CSS, JS and fonts into public/ during install. Those
 # paths are gitignored, so an image built from source has to regenerate them.
 php artisan filament:upgrade >/dev/null 2>&1 || echo "[entrypoint] filament:upgrade skipped"

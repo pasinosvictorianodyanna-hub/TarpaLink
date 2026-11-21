@@ -51,8 +51,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      # healthy, not started: the app runs migrations on boot, and a worker that
+      # starts first dies on "Table 'queue_jobs' doesn't exist" and crash-loops
+      # until the schema catches up.
       app:
-        condition: service_started
+        condition: service_healthy
 
   db:
     image: mysql:8.4

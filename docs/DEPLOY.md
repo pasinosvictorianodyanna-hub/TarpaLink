@@ -3,9 +3,9 @@
 The repository ships a `Dockerfile` and a `docker-compose.yml` that run the whole
 application: nginx, php-fpm, MySQL 8, and the queue worker.
 
-Nothing here has been executed against a running Docker daemon in this
-environment — see [Verification status](#verification-status) before you trust
-it blindly.
+This stack has been built and run end to end once — see
+[Verification status](#verification-status) for exactly what was and was not
+exercised.
 
 ---
 
@@ -170,21 +170,44 @@ unreachable except through the proxy.
 
 ## Verification status
 
-The Docker files in this repository have **not been built or run**. Docker
-Desktop was installed on the development machine but its daemon was not running,
-so `docker build` was never executed.
+Built and run on Docker Desktop (Windows, engine 29.9.3), from a clean volume:
 
-What *was* verified, on the host:
+| Check | Result |
+|---|---|
+| `docker compose build` | image built (assets → runtime, php:8.3-fpm-alpine) |
+| `docker compose up -d` | db healthy → app healthy → worker started, in that order |
+| Migrations on MySQL 8.4 | all applied on first boot |
+| `GET /up` | 200 |
+| `/`, `/shops`, `/admin/login`, `/shop/login` | 200 |
+| Vite CSS from `public/build` | 200 |
+| `ProductionSeeder` | 3 plans, 6 sections, 1 admin |
+| Admin credentials | password verifies, `canAccessPanel` allows |
+| Signed webhook → queue → settlement | 200, worker `DONE` in 84ms, payment `paid` |
 
-- `php artisan test` — 142 tests passing
-- `php artisan config:cache`, `route:cache`, `view:cache` — all succeed
-- `/up` returns 200
-- No SQLite-specific code; migrations are portable to MySQL
+One bug was found this way and fixed: the worker originally declared
+`depends_on: app: service_started`, so it booted before migrations had created
+`queue_jobs` and crash-looped until the schema caught up. It now waits for
+`service_healthy`. If you copy this compose file anywhere, keep that condition —
+`service_started` is not enough when the app migrates on boot.
 
-What remains unverified until someone runs it:
+Still unverified:
 
-- the image builds (PHP extension set, composer flags, asset stage)
-- nginx serves the app through php-fpm
-- the worker consumes the queue and settles a payment end to end
+- behaviour behind a real TLS proxy (`TRUSTED_PROXIES` is untested in situ)
+- object storage (`FILESYSTEM_DISK=s3`) — only `local` has been exercised
+- a live PayMongo account; everything here is sandbox and signed by hand
 
-Treat the first `docker compose up --build` as a test, not a deploy.
+---
+
+## If you also develop locally
+
+The compose file reads `.env`, which is also the file `php artisan serve` reads.
+They want different values — SQLite and `127.0.0.1` locally, MySQL and `db` in
+the containers — so keep them apart:
+
+```bash
+cp .env .env.local        # your local settings
+cp .env.docker.example .env   # for compose
+# ...before running the app locally again:
+cp .env.local .env
+```
+

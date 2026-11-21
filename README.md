@@ -110,7 +110,7 @@ from the `shop_users` pivot. Access is decided in `User::canAccessPanel()`.
 
 | Panel | URL | Who | Contents |
 |---|---|---|---|
-| Shop | `/shop` | `role = shop_owner`, shop `active` | Services + size tiers, finishing options, quantity discounts, jobs, production board, reports & payout ledger, plan & billing |
+| Shop | `/shop` | `role = shop_owner`, shop `active` | Dashboard (revenue today, queue, due today, 7-day takings, stuck jobs), services + size tiers, finishing options, quantity discounts, jobs, production board, reports & payout ledger, plan & billing |
 | Admin | `/admin` | `role = admin` | Dashboard (GMV, commission, approvals, latest jobs), shops & approvals, users & roles, site content (CMS), site settings |
 
 Sign in at `/shop/login` as `kevin@inkwell.ph`. Every query is scoped to that owner's
@@ -128,7 +128,23 @@ so new jobs get a new `matrix_version` while old jobs keep theirs.
 
 **Status changes go through one place.** `JobWorkflow::TRANSITIONS` is the only
 definition of what is legal. The jobs table and the production board both ask it, and
-it re-checks on save — hiding a button is not a rule.
+it re-checks on save — hiding a button is not a rule. Collecting a job stamps
+`jobs.collected_at` there too, so the dashboard's on-time rate has a column it can
+trust instead of reading the activity log.
+
+**The dashboard counts; it does not cache.** `/shop` is four cards, today's queue, the
+last seven days and a "needs attention" list, each computed from this shop's rows on
+every request. The cards are not decoration: revenue today is a `SUM()` over `payments`
+paid today, and on-time rate is collected jobs whose `collected_at` is not later than
+`due_at`. `Needs attention` only lists jobs where the next move is somebody else's —
+a proof unapproved for 6 hours, a quote unconfirmed for 24, a finished job uncollected
+for 48 — plus anything already past its pickup date, which outranks all of them. The
+thresholds are deliberately conservative: chasing a two-hour-old quote trains the owner
+to ignore the list.
+
+**There is no "New job" button.** A job is a priced snapshot the storefront produces;
+`JobResource` has no create page, because a hand-keyed job would have to invent a price
+outside `PriceCalculator`. The dashboard's only action is the payouts export.
 
 ## Who may do what
 
@@ -192,16 +208,24 @@ removes the block from the page instead of leaving a hole.
 php artisan test
 ```
 
-62 tests. They cover the acceptance criteria of the finished issues: tenant isolation and
+78 tests. They cover the acceptance criteria of the finished issues: tenant isolation and
 cross-panel 403s (#3), the edit-a-rate-see-a-new-quote loop (#4), illegal status
 transitions (#5), board drops (#6), the ledger balancing and a plan change leaving
 settled payouts alone (#7), approval and rejection both locking the owner in or out (#8),
 the policy matrix (#9), CMS edits and section deletion (#10), webhook idempotency and
-failure marking (#11), and crossover pricing (#12).
+failure marking (#11), crossover pricing (#12), and every dashboard figure against a
+plain `SUM()`/`COUNT()` over the same rows (#17).
 
-The reports tests compare against an independent `SUM()` over `payments` rather than
-against the page's own numbers — a test that recomputes the same expression the code
-computes proves nothing.
+The reports and dashboard tests compare against an independent `SUM()` over `payments`
+rather than against the page's own numbers — a test that recomputes the same expression
+the code computes proves nothing.
+
+**One caveat when rendering a page to a file for a screenshot.** Livewire emits its
+`<script>` tag once per application instance, and the test client reuses one instance
+across requests inside a single test. Dumping two pages in the same test method gives
+you a second document with no JavaScript — which renders as an empty panel, because
+Filament's layout starts the main column at `opacity: 0` and Alpine is what lifts it.
+One page per test method, or the "bug" is your own harness.
 
 ## How the Vue half is wired
 

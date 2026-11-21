@@ -60,6 +60,13 @@ final class JobWorkflow
         $from = $job->status;
 
         $job->status = $to;
+
+        // Stamped here, in the only place a transition can happen, so a job can
+        // never be `collected` without a timestamp for the on-time rate.
+        if ($to === 'collected') {
+            $job->collected_at = now();
+        }
+
         $job->save();
 
         $job->activities()->create([

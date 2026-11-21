@@ -340,6 +340,22 @@ class DatabaseSeeder extends Seeder
             ['shop' => 0, 'service' => 2, 'w' => 8.3, 'h' => 11.7, 'qty' => 500, 'status' => 'collected', 'user' => $jomar, 'due' => '-6 days', 'options' => [[0, 500]]],
             ['shop' => 0, 'service' => 0, 'w' => 24, 'h' => 36, 'qty' => 4, 'status' => 'collected', 'user' => $aira, 'due' => '-13 days', 'options' => [[0, 10], [1, 24]]],
 
+            // Collected earlier this week. Without them the seven-day chart is
+            // one bar and six zeroes, which reads as a broken chart rather than
+            // a quiet week — and the seed exists to show the screen working.
+            // `paid` is set explicitly so the bars land on different days
+            // instead of all clustering two days before their pickup date.
+            ['shop' => 0, 'service' => 0, 'w' => 36, 'h' => 48, 'qty' => 1, 'status' => 'collected', 'user' => $marisol, 'due' => '-2 days', 'options' => [[0, 6]], 'paid' => '-3 days'],
+            ['shop' => 0, 'service' => 3, 'w' => 12, 'h' => 12, 'qty' => 50, 'status' => 'collected', 'user' => $dennis, 'due' => '-3 days', 'options' => [], 'paid' => '-4 days'],
+            ['shop' => 0, 'service' => 0, 'w' => 24, 'h' => 36, 'qty' => 2, 'status' => 'collected', 'user' => $jomar, 'due' => '-5 days', 'options' => [[0, 10]], 'paid' => '-6 days'],
+
+            // Two jobs on the counter today, so the dashboard's "Due today" card
+            // and its subheading have something true to say on a fresh clone.
+            // The ready one was paid this morning — that is what makes "Revenue
+            // today" non-zero without inventing money from nowhere.
+            ['shop' => 0, 'service' => 0, 'w' => 24, 'h' => 36, 'qty' => 2, 'status' => 'in_production', 'user' => $jomar, 'due' => 'today', 'options' => [[0, 6]]],
+            ['shop' => 0, 'service' => 1, 'w' => 3, 'h' => 3, 'qty' => 100, 'status' => 'ready', 'user' => $renz, 'due' => 'today', 'options' => [], 'paid' => 'today'],
+
             // Halftone Hub — pro plan, so a 1.5% take rate on its payouts.
             ['shop' => 1, 'service' => 0, 'w' => 4, 'h' => 4, 'qty' => 500, 'status' => 'awaiting_proof', 'user' => $marisol, 'due' => '+4 days', 'options' => []],
             ['shop' => 1, 'service' => 1, 'w' => 3.5, 'h' => 2, 'qty' => 1000, 'status' => 'collected', 'user' => $dennis, 'due' => '-9 days', 'options' => [[0, 1000]]],
@@ -398,6 +414,19 @@ class DatabaseSeeder extends Seeder
 
             $quote = $calculator->quote($shop, $spec);
 
+            // "today" is stamped at the end of the day, not at 17:00: a seeded
+            // database opened after five in the afternoon must not show its own
+            // "due today" work as already overdue.
+            $dueAt = $data['due'] === 'today'
+                ? Carbon::today()->endOfDay()
+                : Carbon::now()->modify($data['due'])->setTime(17, 0);
+
+            // Placed two days before the work is due, but never in the future.
+            // The dashboard measures "waiting" from these stamps, so they have
+            // to be plausible rather than "everything happened a second ago".
+            $placedAt = $dueAt->copy()->subDays(2)->min(Carbon::now()->subDays(2));
+            $touchedAt = $placedAt->copy()->addHours(6)->min(Carbon::now());
+
             $job = Job::create([
                 'shop_id' => $shop->id,
                 'user_id' => $data['user']->id,
@@ -409,7 +438,14 @@ class DatabaseSeeder extends Seeder
                 'total' => $quote['total'],
                 'matrix_version' => $quote['matrix_version'],
                 'pickup_city' => $shop->city,
-                'due_at' => Carbon::now()->modify($data['due'])->setTime(17, 0),
+                'due_at' => $dueAt,
+                'created_at' => $placedAt,
+                'updated_at' => $touchedAt,
+                // Stamped by JobWorkflow in real use; set here so the dashboard's
+                // "collected" figures are not all zero in the seeded database.
+                'collected_at' => $data['status'] === 'collected'
+                    ? $dueAt->copy()->setTime(16, 0)
+                    : null,
             ]);
 
             foreach ($quote['lines'] as $line) {
@@ -422,14 +458,23 @@ class DatabaseSeeder extends Seeder
                     'file_path' => 'proofs/sample.pdf',
                     'status' => $data['status'] === 'awaiting_proof' ? 'sent' : 'approved',
                     'approved_at' => $data['status'] === 'awaiting_proof' ? null : Carbon::now()->subDay(),
+                    // Backdated to when the job was placed: a proof that appears
+                    // to have been sent this second makes the dashboard's
+                    // "customer hasn't approved" rule impossible to see.
+                    'created_at' => $placedAt,
+                    'updated_at' => $placedAt,
                 ]);
             }
 
             if (in_array($data['status'], ['approved', 'in_production', 'ready', 'collected'], true)) {
                 // Paid when the proof was approved, two days before the pickup
-                // date. Anything older than ten days has already been released
-                // to the shop, so the ledger shows both settled and open rows.
-                $paidAt = $job->due_at->copy()->subDays(2);
+                // date — unless the row names a day, which the job paid today
+                // does so "Revenue today" has a figure on a fresh clone.
+                // Anything older than ten days has already been released to the
+                // shop, so the ledger shows both settled and open rows.
+                $paidAt = isset($data['paid'])
+                    ? Carbon::now()->modify($data['paid'])
+                    : $job->due_at->copy()->subDays(2);
 
                 if ($paidAt->isFuture()) {
                     $paidAt = Carbon::now()->subDay();

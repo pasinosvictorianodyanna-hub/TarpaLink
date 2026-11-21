@@ -11,6 +11,17 @@ class Job extends Model
 {
     protected $guarded = [];
 
+    /** Every status the enum allows, in workflow order. */
+    public const STATUS_LABELS = [
+        'quoted' => 'Quoted',
+        'awaiting_proof' => 'Proof sent',
+        'approved' => 'Approved',
+        'in_production' => 'In production',
+        'ready' => 'Ready for pickup',
+        'collected' => 'Collected',
+        'cancelled' => 'Cancelled',
+    ];
+
     protected function casts(): array
     {
         return [
@@ -70,6 +81,11 @@ class Job extends Model
         return $this->hasOne(Payment::class);
     }
 
+    public function activities(): HasMany
+    {
+        return $this->hasMany(JobActivity::class)->latest();
+    }
+
     public function latestProof(): ?Proof
     {
         return $this->proofs->first();
@@ -77,16 +93,13 @@ class Job extends Model
 
     public function statusLabel(): string
     {
-        return match ($this->status) {
-            'quoted' => 'Quoted',
-            'awaiting_proof' => 'Proof sent',
-            'approved' => 'Approved',
-            'in_production' => 'In production',
-            'ready' => 'Ready for pickup',
-            'collected' => 'Collected',
-            'cancelled' => 'Cancelled',
-            default => ucfirst($this->status),
-        };
+        return self::STATUS_LABELS[$this->status] ?? ucfirst((string) $this->status);
+    }
+
+    /** @return array<string, string> status => human label, for selects and badges. */
+    public static function statusOptions(): array
+    {
+        return self::STATUS_LABELS;
     }
 
     public function statusTone(): string

@@ -62,6 +62,22 @@
         @if ($waiting > 0)<i class="dot"></i>@endif
       </a>
       <a class="avatar" href="{{ route('profile.edit') }}" title="{{ $me->name }}">{{ $initials }}</a>
+
+      {{--
+          Sign out belongs in the header, not only on the profile screen.
+          Filament answers 403 (not a redirect) to an authenticated user who is
+          not allowed into a panel, so someone signed in as a customer who opens
+          /admin is stuck unless they can find a way out. The profile page was
+          the only one offering it.
+      --}}
+      <form method="POST" action="{{ route('logout') }}" style="display:inline-flex;margin:0">
+        @csrf
+        <button type="submit" class="icon-btn" aria-label="Sign out" title="Sign out" style="padding:0;cursor:pointer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>
+          </svg>
+        </button>
+      </form>
     </div>
   </nav>
 @else

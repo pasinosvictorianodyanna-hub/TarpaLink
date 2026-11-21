@@ -174,7 +174,7 @@
           <li><span class="ck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg></span>Quantity tiers apply automatically, not on request.</li>
           <li><span class="ck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg></span>Compare the same job across shops in one table.</li>
         </ul>
-        <a class="btn btn-primary" style="margin-top:26px" href="#">Try the calculator</a>
+        <a class="btn btn-primary" style="margin-top:26px" href="{{ route('shops.index') }}">Try the calculator</a>
       </div>
       <div class="matrix-card">
         <div class="matrix-head">
@@ -246,7 +246,7 @@
         <span class="eyebrow" style="color:#8C9691">For shop owners</span>
         <h2 class="h2" style="margin-top:14px">Stop quoting<br>on Messenger.</h2>
         <p>Publish your price matrix once. Let the platform quote, collect payment, and hand you a production-ready job order.</p>
-        <a class="btn btn-lg" style="background:#fff;color:#0C0F0E" href="#">Open a shop account</a>
+        <a class="btn btn-lg" style="background:#fff;color:#0C0F0E" href="{{ route('page', 'open-a-shop') }}">Open a shop account</a>
       </div>
       <div class="cta-stats">
         <div><div class="n">−72%</div><div class="l">time spent quoting</div></div>

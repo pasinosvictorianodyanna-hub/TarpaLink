@@ -168,7 +168,7 @@ class ShopController extends Controller
         ]);
     }
 
-    public function builder(Shop $shop): View
+    public function builder(Request $request, Shop $shop): View
     {
         abort_unless($shop->status === 'active', 404);
 
@@ -176,9 +176,18 @@ class ShopController extends Controller
 
         abort_if($shop->services->isEmpty(), 404);
 
+        // `?service_id=` comes from "Reorder" and "Edit" on a past job, so the
+        // builder opens on what the customer had rather than the shop's first
+        // service at the default size.
+        $wanted = (int) $request->query('service_id');
+
         return view('shops.builder', [
             'shop' => $shop,
             'payload' => [
+                'initialServiceId' => $shop->services->firstWhere('id', $wanted)?->id,
+                'initialWidth' => $request->query('width_in') !== null ? (float) $request->query('width_in') : null,
+                'initialHeight' => $request->query('height_in') !== null ? (float) $request->query('height_in') : null,
+                'initialQty' => $request->query('qty') !== null ? (int) $request->query('qty') : null,
                 'shop' => [
                     'slug' => $shop->slug,
                     'name' => $shop->name,

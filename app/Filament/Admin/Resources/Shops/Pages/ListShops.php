@@ -3,6 +3,7 @@
 namespace App\Filament\Admin\Resources\Shops\Pages;
 
 use App\Filament\Admin\Resources\Shops\ShopResource;
+use App\Models\Shop;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
@@ -36,6 +37,6 @@ class ListShops extends ListRecords
 
     private function pendingCount(): int
     {
-        return \App\Models\Shop::where('status', 'pending')->count();
+        return Shop::where('status', 'pending')->count();
     }
 }

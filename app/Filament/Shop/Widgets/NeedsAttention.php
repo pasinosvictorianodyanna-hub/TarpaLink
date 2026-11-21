@@ -5,8 +5,11 @@ namespace App\Filament\Shop\Widgets;
 use App\Filament\Shop\Concerns\ScopesToShop;
 use App\Filament\Shop\Resources\Jobs\JobResource;
 use App\Models\Job;
+use Filament\Notifications\Notification;
 use Filament\Widgets\Widget;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Mail;
+use Throwable;
 
 /**
  * Jobs that are stuck, and for how long.
@@ -142,5 +145,54 @@ class NeedsAttention extends Widget
         $days = (int) $since->diffInDays(now());
 
         return $days.' '.($days === 1 ? 'day' : 'days');
+    }
+
+    /**
+     * Chase the customer about a stuck job.
+     *
+     * Two things happen, and the order matters: the nudge is written to the
+     * job's activity trail first, so it is recorded even if the mail server is
+     * down. The email is best-effort — with MAIL_MAILER=log it lands in the log,
+     * and the owner is told that plainly rather than being told it was sent.
+     */
+    public function nudge(int $jobId): void
+    {
+        $shop = $this->shop();
+
+        abort_if($shop === null, 403);
+
+        $job = $shop->jobs()->with('user')->findOrFail($jobId);
+
+        $job->activities()->create([
+            'user_id' => auth()->id(),
+            'from_status' => $job->status,
+            'to_status' => $job->status,
+            'note' => 'Shop nudged the customer',
+        ]);
+
+        $sent = false;
+
+        if (filled($job->user?->email)) {
+            try {
+                Mail::raw(
+                    "Hi {$job->user->name},\n\n"
+                    ."Your job {$job->reference} is waiting on you at {$shop->name}.\n\n"
+                    .'Open it here: '.route('jobs.show', $job)."\n",
+                    fn ($message) => $message
+                        ->to($job->user->email)
+                        ->subject("About your job {$job->reference}"),
+                );
+
+                $sent = true;
+            } catch (Throwable $e) {
+                report($e);
+            }
+        }
+
+        Notification::make()
+            ->title($sent ? 'Nudge emailed to '.$job->user->name : 'Nudge recorded on '.$job->reference)
+            ->body($sent ? null : 'Mail is not configured on this deployment, so nothing was sent — the job now shows the nudge instead.')
+            ->status($sent ? 'success' : 'warning')
+            ->send();
     }
 }

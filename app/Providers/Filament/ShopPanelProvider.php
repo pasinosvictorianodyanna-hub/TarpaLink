@@ -35,6 +35,9 @@ class ShopPanelProvider extends PanelProvider
             // owner on a dark-mode machine sees a black panel that shares no
             // visual language with the storefront their customers use.
             ->darkMode(false)
+            // The design system, compiled: paper/ink palette and the serif
+            // display face, re-pointed through Tailwind tokens.
+            ->viteTheme('resources/css/filament/theme.css')
             ->discoverResources(in: app_path('Filament/Shop/Resources'), for: 'App\Filament\Shop\Resources')
             ->discoverPages(in: app_path('Filament/Shop/Pages'), for: 'App\Filament\Shop\Pages')
             // No `->pages([Dashboard::class])`: the dashboard is discovered from

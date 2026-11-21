@@ -174,7 +174,7 @@ Built and run on Docker Desktop (Windows, engine 29.9.3), from a clean volume:
 
 | Check | Result |
 |---|---|
-| `docker compose build` | image built (assets → runtime, php:8.3-fpm-alpine) |
+| `docker compose build` | image built — `phpbase` → `vendor` → `assets` → `runtime` |
 | `docker compose up -d` | db healthy → app healthy → worker started, in that order |
 | Migrations on MySQL 8.4 | all applied on first boot |
 | `GET /up` | 200 |
@@ -189,6 +189,11 @@ One bug was found this way and fixed: the worker originally declared
 `queue_jobs` and crash-looped until the schema caught up. It now waits for
 `service_healthy`. If you copy this compose file anywhere, keep that condition —
 `service_started` is not enough when the app migrates on boot.
+
+The build stage order matters for the same reason: `assets` runs **after**
+`vendor`, because the panel theme imports Filament's `theme.css` out of
+`vendor/`. Building CSS first fails with "Unable to resolve @import" and no
+amount of retrying helps.
 
 Still unverified:
 

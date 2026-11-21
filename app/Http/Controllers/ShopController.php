@@ -69,6 +69,9 @@ class ShopController extends Controller
                     'name' => $service->name,
                     'unit' => $service->unit,
                     'blurb' => $service->blurb,
+                    // Cheapest tier, so the card can say "from ₱45 / sq ft" the way
+                    // the directory does. The exact price still comes from /api/quote.
+                    'from' => $service->tiers->min('unit_price'),
                     'options' => $service->options->map(fn ($o) => [
                         'id' => $o->id,
                         'name' => $o->name,

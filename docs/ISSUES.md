@@ -5,8 +5,9 @@ before either half starts.
 
 > **Status:** every issue **#1**–**#12** is built. They stay here as the reference for
 > what exists — read them, do not rebuild them.
-> **Next up: the documentation set** (SRS, ER / use case / context / architecture
-> diagrams, schema), which the brief requires and which is still outstanding.
+> **The documentation set is written:** [SRS](SRS.md) (requirements and traceability),
+> [ARCHITECTURE](ARCHITECTURE.md) (context, containers, sequences, decisions) and
+> [SCHEMA](SCHEMA.md) (ER diagram, dictionary, invariants).
 > **#13**–**#17** are tracked on their own branches; **#16** is recorded below because it
 > added a second Vue island and a schema column worth knowing about.
 

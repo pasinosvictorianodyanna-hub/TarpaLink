@@ -108,10 +108,12 @@ class FooterLinksTest extends TestCase
 
     public function test_the_landing_page_calls_to_action_point_somewhere(): void
     {
-        $html = $this->get('/')->assertOk()->getContent();
+        $props = $this->get('/')->assertOk()->viewData('props');
 
         // "Try the calculator" and "Open a shop account" were both `href="#"`.
-        $this->assertStringContainsString('href="'.route('shops.index').'">Try the calculator', $html);
-        $this->assertStringContainsString('href="'.route('page', 'open-a-shop').'">Open a shop account', $html);
+        // The page is a Vue component, so the destinations arrive as props and
+        // the template binds them; a null here would render href="null".
+        $this->assertSame(route('shops.index'), $props['routes']['shops']);
+        $this->assertSame(route('page', 'open-a-shop'), $props['routes']['openShop']);
     }
 }

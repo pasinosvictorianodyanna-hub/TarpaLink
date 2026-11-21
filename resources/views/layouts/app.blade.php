@@ -76,7 +76,10 @@
         TarpaLink
       </a>
       <div class="mk-links">
-        <a href="{{ route('shops.index') }}">Print shops</a>
+        {{-- The directory is a signed-in destination: the app bar carries
+             "Shops" once there is a customer to show it to. The public nav
+             points at the marketing sections and lets the "Get a quote" button
+             carry the one route into /shops. --}}
         <a href="{{ route('home') }}#pricing">Services</a>
         <a href="{{ route('home') }}#how">How it works</a>
         <a href="{{ route('home') }}#owners">For shop owners</a>

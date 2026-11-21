@@ -5,12 +5,17 @@ const props = defineProps({
     shop: { type: Object, required: true },
     services: { type: Array, required: true },
     quoteUrl: { type: String, required: true },
+    // Set by "Reorder" and "Edit" on a past job; null when opened cold.
+    initialServiceId: { type: Number, default: null },
+    initialWidth: { type: Number, default: null },
+    initialHeight: { type: Number, default: null },
+    initialQty: { type: Number, default: null },
 });
 
-const serviceId = ref(props.services[0]?.id ?? null);
-const width = ref(36);
-const height = ref(48);
-const qty = ref(1);
+const serviceId = ref(props.initialServiceId ?? props.services[0]?.id ?? null);
+const width = ref(props.initialWidth ?? 36);
+const height = ref(props.initialHeight ?? 48);
+const qty = ref(props.initialQty ?? 1);
 const chosen = ref({});
 const quote = ref(null);
 const error = ref('');

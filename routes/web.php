@@ -24,6 +24,7 @@ Route::post('/shops/{shop}/checkout', [CheckoutController::class, 'store'])
     ->name('checkout.store');
 
 Route::get('/jobs/{job}', [JobController::class, 'show'])->name('jobs.show');
+Route::get('/jobs/{job}/receipt', [JobController::class, 'receipt'])->name('jobs.receipt');
 Route::get('/account', [AccountController::class, 'index'])->middleware('auth')->name('account');
 
 Route::get('/account/profile', [ProfileController::class, 'edit'])->middleware('auth')->name('profile.edit');

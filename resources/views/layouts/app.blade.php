@@ -12,8 +12,35 @@
 </head>
 <body>
 
-<nav class="mk-nav" id="mkNav">
-  <div class="wrap mk-nav-in">
+@auth
+  @php
+    $me = auth()->user();
+    $initials = \Illuminate\Support\Str::of($me->name)
+        ->explode(' ')->filter(fn ($p) => preg_match('/^\p{L}/u', $p))->take(2)
+        ->map(fn ($p) => mb_strtoupper(mb_substr($p, 0, 1)))->implode('');
+    $waiting = $me->jobs()->where('status', 'awaiting_proof')->count();
+
+    // The design trims the bar down on the two screens that are steps in one
+    // flow rather than places you navigate to: checkout is a leg of the builder,
+    // and the builder itself replaces "Profile" with the draft it belongs to.
+    if (request()->routeIs('checkout.*')) {
+        $barLinks = [['Shops', route('shops.index'), request()->routeIs('shops.*')]];
+    } elseif (request()->routeIs('shops.builder')) {
+        $barLinks = [
+            ['Shops', route('shops.index'), false],
+            ['New order', route('shops.builder', request()->route('shop')), true],
+            ['My jobs', route('account'), false],
+        ];
+    } else {
+        $barLinks = [
+            ['Shops', route('shops.index'), request()->routeIs('shops.*')],
+            ['My jobs', route('account'), request()->routeIs('account') || request()->routeIs('jobs.*')],
+            ['Profile', route('profile.edit'), request()->routeIs('profile.*')],
+        ];
+    }
+  @endphp
+
+  <nav class="appbar">
     <a class="logo" href="{{ route('home') }}">
       <span class="logo-mark">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
@@ -22,30 +49,45 @@
       </span>
       TarpaLink
     </a>
-    <div class="mk-links">
-      <a href="{{ route('shops.index') }}">Print shops</a>
-      <a href="{{ route('home') }}#pricing">Services</a>
-      <a href="{{ route('home') }}#how">How it works</a>
-      <a href="{{ route('home') }}#owners">For shop owners</a>
-      @auth
-        <a href="{{ route('account') }}">My jobs</a>
-        <a href="{{ route('profile.edit') }}">Profile</a>
-      @endauth
+    <div class="appbar-links">
+      @foreach ($barLinks as [$label, $href, $on])
+        <a href="{{ $href }}" class="{{ $on ? 'on' : '' }}">{{ $label }}</a>
+      @endforeach
     </div>
-    <div class="mk-actions">
-      @auth
-        <span class="small" style="color:var(--muted)">{{ auth()->user()->name }}</span>
-        <form method="POST" action="{{ route('logout') }}" style="display:inline">
-          @csrf
-          <button class="btn btn-ghost btn-sm" type="submit">Sign out</button>
-        </form>
-      @else
+    <div class="appbar-right">
+      <a class="icon-btn" href="{{ route('account') }}" aria-label="Jobs waiting on you" title="{{ $waiting }} job(s) waiting on you">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+          <path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/>
+        </svg>
+        @if ($waiting > 0)<i class="dot"></i>@endif
+      </a>
+      <a class="avatar" href="{{ route('profile.edit') }}" title="{{ $me->name }}">{{ $initials }}</a>
+    </div>
+  </nav>
+@else
+  <nav class="mk-nav" id="mkNav">
+    <div class="wrap mk-nav-in">
+      <a class="logo" href="{{ route('home') }}">
+        <span class="logo-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+            <path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/><path d="M9.5 12h5"/>
+          </svg>
+        </span>
+        TarpaLink
+      </a>
+      <div class="mk-links">
+        <a href="{{ route('shops.index') }}">Print shops</a>
+        <a href="{{ route('home') }}#pricing">Services</a>
+        <a href="{{ route('home') }}#how">How it works</a>
+        <a href="{{ route('home') }}#owners">For shop owners</a>
+      </div>
+      <div class="mk-actions">
         <a class="btn btn-ghost btn-sm" href="{{ route('login') }}">Sign in</a>
-      @endauth
-      <a class="btn btn-primary btn-sm" href="{{ route('shops.index') }}">Get a quote</a>
+        <a class="btn btn-primary btn-sm" href="{{ route('shops.index') }}">Get a quote</a>
+      </div>
     </div>
-  </div>
-</nav>
+  </nav>
+@endauth
 
 @if (session('status'))
   <div class="wrap" style="padding-top:14px">
@@ -55,6 +97,7 @@
 
 @yield('content')
 
+@guest
 <footer class="footer">
     <div class="wrap">
       <div class="foot-grid">
@@ -89,6 +132,7 @@
       </div>
     </div>
   </footer>
+@endguest
 
 </body>
 </html>

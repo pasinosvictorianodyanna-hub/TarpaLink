@@ -26,6 +26,16 @@
                     Loading your details…
                 </div>
             </div>
+
+            {{-- The app bar carries the identity, not the actions, so signing out
+                 lives here — otherwise there is no way out of the session at all. --}}
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)">
+                <span class="tiny">Signed in as {{ auth()->user()->email }}</span>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button class="btn btn-ghost btn-sm" type="submit">Sign out</button>
+                </form>
+            </div>
         </div>
     </div>
 </div>

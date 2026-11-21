@@ -67,7 +67,7 @@ class AdminApprovalTest extends TestCase
         $this->actingAs($owner->fresh())->get('/shop')->assertOk();
     }
 
-    public function test_rejecting_keeps_the_owner_locked_out(): void
+    public function test_rejecting_records_a_reason_and_keeps_the_owner_locked_out(): void
     {
         [$shop, $owner] = $this->pendingShop();
         $admin = User::where('email', 'sofia@tarpalink.ph')->firstOrFail();
@@ -75,10 +75,36 @@ class AdminApprovalTest extends TestCase
         $this->actingAs($admin);
 
         Livewire::test(PendingApprovals::class)
-            ->callAction(TestAction::make('reject')->table($shop));
+            ->callAction(
+                TestAction::make('reject')->table($shop),
+                data: ['reason' => 'Business permit does not match the shop address.'],
+            );
 
-        $this->assertSame('suspended', $shop->fresh()->status);
+        $shop->refresh();
+
+        $this->assertSame('suspended', $shop->status);
+        $this->assertSame('Business permit does not match the shop address.', $shop->status_note);
+
         $this->actingAs($owner->fresh())->get('/shop')->assertForbidden();
+    }
+
+    public function test_approving_clears_an_earlier_rejection_reason(): void
+    {
+        [$shop] = $this->pendingShop();
+
+        // A re-application that still carries the note from the first rejection.
+        $shop->update(['status' => 'pending', 'status_note' => 'Missing DTI registration.']);
+
+        $admin = User::where('email', 'sofia@tarpalink.ph')->firstOrFail();
+        $this->actingAs($admin);
+
+        Livewire::test(PendingApprovals::class)
+            ->callAction(TestAction::make('approve')->table($shop));
+
+        $shop->refresh();
+
+        $this->assertSame('active', $shop->status);
+        $this->assertNull($shop->status_note);
     }
 
     public function test_commission_earned_is_the_sum_of_stored_commission_not_a_single_rate(): void

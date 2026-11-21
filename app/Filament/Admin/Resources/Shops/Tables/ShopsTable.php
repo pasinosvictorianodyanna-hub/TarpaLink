@@ -2,11 +2,10 @@
 
 namespace App\Filament\Admin\Resources\Shops\Tables;
 
+use App\Filament\Admin\Actions\ShopApprovalActions;
 use App\Models\Shop;
-use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\EditAction;
-use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -33,6 +32,11 @@ class ShopsTable
                         'suspended' => 'danger',
                         default => 'gray',
                     }),
+                TextColumn::make('status_note')
+                    ->label('Reason')
+                    ->limit(40)
+                    ->placeholder('—')
+                    ->toggleable(),
                 TextColumn::make('plan')
                     ->badge()
                     ->color('gray')
@@ -60,16 +64,8 @@ class ShopsTable
                     ]),
             ])
             ->recordActions([
-                Action::make('approve')
-                    ->icon('heroicon-m-check')
-                    ->color('success')
-                    ->visible(fn (Shop $record) => $record->status === 'pending')
-                    ->requiresConfirmation()
-                    ->action(function (Shop $record): void {
-                        $record->update(['status' => 'active']);
-
-                        Notification::make()->title($record->name.' approved')->success()->send();
-                    }),
+                ShopApprovalActions::approve(),
+                ShopApprovalActions::reject(),
                 EditAction::make(),
             ])
             ->toolbarActions([

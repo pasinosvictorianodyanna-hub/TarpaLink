@@ -171,8 +171,10 @@ customer sees it on the job status page, and dropping into an illegal column sna
 **Labels:** `shop-panel` `p1`
 
 `/shop/reports` (revenue by week, top services, two CSV exports) and
-`/shop/payouts` (the ledger, filterable, CSV export). Both read `payouts`, whose
-rows are written by settlement — never recomputed at render time.
+`/shop/payouts` (month totals, the ledger, filterable, CSV export). Both read
+`payouts`, whose rows are written by settlement — never recomputed at render time.
+Admins move rows from pending to scheduled to paid on `/admin/payouts`; the
+ledger amounts themselves are never editable.
 
 Revenue by week, top services by revenue, and a payout ledger: gross, platform
 commission, net, status, payout date. Export to CSV.
@@ -193,9 +195,11 @@ alter any existing payout row.
 **Labels:** `admin-panel` `p1`
 
 Four dashboard widgets (`PlatformStats`, `PendingApprovals`, `FailedPayments`,
-`LatestJobs`) plus the `ShopResource` table, which carries the same approve
-action. A seeded pending shop (`karatula-print`, owner `nina@karatula.ph`) makes
-the queue non-empty on a fresh clone.
+`LatestJobs`) plus the `ShopResource` table, which carries the same approve and
+reject actions — both defined once in `ShopApprovalActions`. Rejection requires a
+reason, stored on `shops.status_note` and cleared on approval. A seeded pending
+shop (`karatula-print`, owner `nina@karatula.ph`) makes the queue non-empty on a
+fresh clone.
 
 Platform GMV, jobs, active shops, commission earned. A pending-approvals queue where
 an admin approves or rejects a new shop (rejected shops cannot log in to the shop
@@ -217,6 +221,10 @@ leaves them locked out with a reason.
 `app/Policies/` holds a policy per model over a shared `BasePolicy`
 (`isAdmin` / `belongsToShop` / `managesShop`). Auto-discovery maps
 `App\Models\X` to `App\Policies\XPolicy`; no registration needed.
+
+The user form can attach a shop to a `shop_owner` through the `shop_users` pivot
+(role `owner`). Without that row the panel refuses them — which is correct, and
+is why the field exists.
 
 Four roles: Guest, Customer, Shop Owner, Administrator. `users.role` holds
 `customer|shop_owner|admin`; the `shop_users` pivot carries the per-shop

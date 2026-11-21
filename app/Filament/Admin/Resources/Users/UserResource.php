@@ -11,6 +11,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -70,6 +71,18 @@ class UserResource extends Resource
                         ->helperText(fn (string $operation) => $operation === 'edit'
                             ? 'Leave blank to keep the current password.'
                             : null),
+                ]),
+
+            Section::make('Shop membership')
+                ->visible(fn (Get $get) => $get('role') === 'shop_owner')
+                ->schema([
+                    Select::make('shops')
+                        ->label('Shops this person runs')
+                        ->multiple()
+                        ->relationship('shops', 'name')
+                        ->pivotData(['role' => 'owner'])
+                        ->preload()
+                        ->helperText('Without at least one active shop here, a shop owner cannot open /shop. Assigning a shop makes them its owner.'),
                 ]),
         ]);
     }

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Shop\Pages;
 
+use App\Models\Payment;
 use App\Models\Payout;
 use App\Support\CsvExport;
 use App\Support\Money;
@@ -44,9 +45,38 @@ class Payouts extends Page implements HasActions, HasSchemas, HasTable
 
     protected string $view = 'filament.shop.pages.payouts';
 
+    /** Captured this calendar month, straight from payments — the ledger must agree. */
+    public int $monthGross = 0;
+
+    public int $monthCommission = 0;
+
+    public int $monthNet = 0;
+
+    /** Everything earned but not yet paid out. */
+    public int $pendingNet = 0;
+
+    public string $monthLabel = '';
+
     public function mount(): void
     {
-        abort_if(app(ShopContext::class)->shop() === null, 403);
+        $shop = app(ShopContext::class)->shop();
+
+        abort_if($shop === null, 403);
+
+        $this->monthLabel = now()->format('F Y');
+
+        $paid = Payment::query()
+            ->whereHas('job', fn ($q) => $q->where('shop_id', $shop->id))
+            ->where('status', 'paid')
+            ->whereBetween('paid_at', [now()->startOfMonth(), now()->endOfMonth()]);
+
+        $this->monthGross = (int) (clone $paid)->sum('amount');
+        $this->monthCommission = (int) (clone $paid)->sum('commission');
+        $this->monthNet = $this->monthGross - $this->monthCommission;
+
+        $this->pendingNet = (int) $shop->payouts()
+            ->whereIn('status', ['pending', 'scheduled'])
+            ->sum('net');
     }
 
     public function table(Table $table): Table

@@ -52,6 +52,11 @@ class ShopForm
                         TextInput::make('rating')->numeric()->minValue(0)->maxValue(5)->step(0.1)->default(0),
                         TextInput::make('jobs_done')->numeric()->minValue(0)->default(0),
                         Toggle::make('accepts_rush')->default(true),
+                        TextInput::make('status_note')
+                            ->label('Status reason')
+                            ->maxLength(255)
+                            ->columnSpanFull()
+                            ->helperText('Shown to the owner when the shop is not active. Cleared automatically on approval.'),
                     ]),
 
                 Section::make('Commercial')

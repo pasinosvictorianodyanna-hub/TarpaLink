@@ -33,6 +33,12 @@ class ProductionSeeder extends Seeder
         $this->content();
         $this->settings();
         $this->administrator();
+
+        // The footer pages are page_sections rows (`page.about`, `page.pricing`
+        // …) served by PageController. Without them every footer link is a 404,
+        // and the site looks broken in a way nothing in the UI explains. This
+        // seeder is updateOrCreate throughout, so it is safe to re-run.
+        $this->call(PageContentSeeder::class);
     }
 
     private function plans(): void

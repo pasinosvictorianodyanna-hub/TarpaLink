@@ -3,13 +3,14 @@
 Issues for the second developer, plus the two spine tasks that must be done together
 before either half starts.
 
-> **Status:** every issue **#1**–**#12** is built. They stay here as the reference for
-> what exists — read them, do not rebuild them.
+> **Status:** every issue **#1**–**#12** is built, plus **#14** (design fidelity),
+> **#16** (the profile screen) and **#17** (shop dashboard). They stay here as the
+> reference for what exists — read them, do not rebuild them.
 > **The documentation set is written:** [SRS](SRS.md) (requirements and traceability),
 > [ARCHITECTURE](ARCHITECTURE.md) (context, containers, sequences, decisions) and
 > [SCHEMA](SCHEMA.md) (ER diagram, dictionary, invariants).
-> **#13**–**#17** are tracked on their own branches; **#16** is recorded below because it
-> added a second Vue island and a schema column worth knowing about.
+> **Next up:** **#13** — reconcile `main` with `feature/reports-payouts-policies`,
+> which independently implements #7–#9.
 
 Labels used: `spine` · `shop-panel` · `admin-panel` · `integration` · `billing` ·
 `p0` (blocks someone) · `p1` (normal)
@@ -326,6 +327,44 @@ the invoice history survives a plan change, and no historical payment row change
 
 ---
 
+## 17. Shop dashboard: stats, due today, last 7 days, needs attention ✅ done
+
+**Labels:** `shop-panel` `p0`
+**State:** built
+
+The shop panel's front door. `/shop` was Filament's stock dashboard with a single
+"Welcome, Kevin Cruz" card — the one screen from the prototype that did not exist at
+all. Four cards, then today's queue beside the week's takings, then everything stuck.
+
+| Card | Source |
+|---|---|
+| Revenue today | `SUM(payments.amount)` where `paid_at` is today, against yesterday |
+| Open jobs | `COUNT(jobs)` where status is not `collected`/`cancelled`, plus how many are due today |
+| Avg. job value | `AVG(jobs.total)` over the last 30 days, cancelled excluded |
+| On-time rate | collected jobs where `collected_at <= due_at` over all collected |
+| Due today | jobs due inside today's calendar day, unfinished, oldest first |
+| Last 7 days | one `SUM()` per day, bucketed in PHP, today's bar emphasised |
+| Needs attention | proof unapproved > 6h, quote unconfirmed > 24h, ready > 48h, or past `due_at` |
+
+`jobs.collected_at` did not exist and `job_activities` is a log, not a fact about the
+job — so the migration adds the column and `JobWorkflow::transition()` stamps it, in
+the only place a status change can happen.
+
+Two decisions worth arguing about later:
+
+- **No "New job" button.** A job is a priced snapshot the storefront produces; a
+  hand-keyed job would have to invent a price outside `PriceCalculator`.
+- **No `AccountWidget`.** It rendered a full-width "Welcome" card on a screen made of
+  figures, and the identity is already in the topbar user menu.
+
+**Acceptance:** every figure equals a plain `SUM()`/`COUNT()` over the same rows; only
+this shop's jobs appear; a proof sent an hour ago is not chased; a late collection
+lowers the on-time rate and an on-time one raises it.
+
+**Proven by:** `tests/Feature/ShopDashboardTest.php` (12 tests).
+
+---
+
 ## 16. Profile screen, as the second Vue island ✅ done
 
 **Labels:** `shop-panel` `p1`
@@ -355,6 +394,6 @@ behind `auth`, and a guest gets neither the page nor either endpoint.
 
 ## Creating these on GitHub
 
-All twelve are already on GitHub at
+All of these are on GitHub at
 `https://github.com/pasinosvictorianodyanna-hub/TarpaLink/issues` with their labels.
 This file is the source of truth; if you edit an issue there, edit it here too.

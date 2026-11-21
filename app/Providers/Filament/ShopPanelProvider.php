@@ -7,11 +7,9 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Widgets\AccountWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -34,12 +32,20 @@ class ShopPanelProvider extends PanelProvider
             ])
             ->discoverResources(in: app_path('Filament/Shop/Resources'), for: 'App\Filament\Shop\Resources')
             ->discoverPages(in: app_path('Filament/Shop/Pages'), for: 'App\Filament\Shop\Pages')
-            ->pages([
-                Dashboard::class,
-            ])
+            // No `->pages([Dashboard::class])`: the dashboard is discovered from
+            // App\Filament\Shop\Pages\Dashboard, which extends the stock page but
+            // adds the shop's own subheading. Registering both would put two
+            // pages on `/shop` and let registration order decide which wins.
             ->discoverWidgets(in: app_path('Filament/Shop/Widgets'), for: 'App\Filament\Shop\Widgets')
-            ->widgets([
-                AccountWidget::class,
+            // No AccountWidget: it renders a "Welcome, Kevin Cruz" card across
+            // the top of the dashboard, and the same identity is already in the
+            // topbar user menu. On a screen made of figures it is just noise.
+            ->widgets([])
+            // Work before money: the order the shop's day actually runs in.
+            ->navigationGroups([
+                'Work',
+                'Catalogue',
+                'Money',
             ])
             ->middleware([
                 EncryptCookies::class,

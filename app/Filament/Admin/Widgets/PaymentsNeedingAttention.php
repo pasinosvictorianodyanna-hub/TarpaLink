@@ -19,6 +19,11 @@ class PaymentsNeedingAttention extends TableWidget
 {
     protected static ?string $heading = 'Payments needing attention';
 
+    /** First thing on the dashboard when it exists: money that did not land. */
+    protected static ?int $sort = 0;
+
+    protected static ?bool $isLazyLoaded = false;
+
     protected int|string|array $columnSpan = 'full';
 
     public static function canView(): bool

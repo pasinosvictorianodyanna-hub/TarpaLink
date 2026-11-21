@@ -4,6 +4,9 @@ Two developers, one Laravel application. The split is by **surface**, not by fea
 one person owns everything the customer sees, the other owns everything the shop and
 the platform see.
 
+> **Status:** every task in both tables below is built. This document stays as the
+> record of how the work was divided and why the spine had to come first.
+
 | | Dev A | Dev B |
 |---|---|---|
 | Surface | Landing + customer storefront | Shop panel + admin panel |
@@ -34,7 +37,7 @@ together, in one sitting, and then split.
    until this is merged. It is one commit and it unblocks everything.
 2. **`PriceCalculator`** — one service class, one public method, documented in
    `CONTRACT.md`. Both halves call this. Neither reimplements it.
-3. **Seeders** — six fake shops with real-looking matrices, a handful of customers,
+3. **Seeders** — seven fake shops with real-looking matrices, a handful of customers,
    a few jobs in different states. This is what lets Dev A build the entire customer
    side before the shop panel exists.
 
@@ -61,7 +64,7 @@ if a panel asks for progress in week one.
 
 | # | Task | Depends on |
 |---|---|---|
-| 1 | Filament install, two panels, two guards | spine |
+| 1 | Filament install, two panels, one guard | spine |
 | 2 | Price matrix resource (feeds Dev A's builder) | spine |
 | 3 | Jobs resource + status transitions | matrix |
 | 4 | Production board (custom Filament page) | jobs |

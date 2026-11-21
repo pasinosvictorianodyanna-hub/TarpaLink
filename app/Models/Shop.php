@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Shop extends Model
@@ -20,7 +21,23 @@ class Shop extends Model
             'lng' => 'float',
             'accepts_rush' => 'boolean',
             'commission_rate' => 'integer',
+            'approved_at' => 'datetime',
         ];
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
+    }
+
+    public function isPending(): bool
+    {
+        return $this->status === 'pending';
+    }
+
+    public function isSuspended(): bool
+    {
+        return $this->status === 'suspended';
     }
 
     /** Take rate as a percentage: 300 bp → 3.0. */
@@ -48,6 +65,17 @@ class Shop extends Model
     public function jobs(): HasMany
     {
         return $this->hasMany(Job::class);
+    }
+
+    /**
+     * Every payment this shop has taken, reached through its jobs.
+     *
+     * Reports and the payout ledger both need this, and neither should have to
+     * remember to join jobs and filter by shop_id by hand.
+     */
+    public function payments(): HasManyThrough
+    {
+        return $this->hasManyThrough(Payment::class, Job::class);
     }
 
     public function quantityDiscounts(): HasMany
@@ -90,6 +118,12 @@ class Shop extends Model
     public function staff(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'shop_users')->withPivot('role');
+    }
+
+    /** The administrator who let this shop in — kept for the audit trail. */
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 
     public function scopeActive($query)

@@ -12,11 +12,11 @@ A job-order platform for the Philippine printing industry. Customers find a prin
 |---|---|---|
 | Landing page | Dev A | done — CMS-driven hero, featured shops from DB |
 | Customer side | Dev A | done — directory, shop profile, builder, checkout, job status, my jobs |
-| Shop panel (Filament) | done | issues #3–#6 — panels, price matrix, jobs, production board |
-| Admin panel (Filament) | partly done | `/admin` with CMS + failed-payment widget; dashboard/approvals are #8–#9 |
+| Shop panel (Filament) | done | issues #3–#6, #7 — panels, price matrix, jobs, production board, reports |
+| Admin panel (Filament) | done | issues #8–#9, #10 — dashboard, approvals, users & roles, CMS |
 | Integrations | partly done | PayMongo sandbox: intent + signed webhook + retry. SMTP/Maps/storage still open |
 
-**Spine (shared, done):** 17 domain tables, models, `PriceCalculator`, `JobWorkflow`, `Billing`, seeders with six shops.
+**Spine (shared, done):** 17 domain tables, models, `PriceCalculator`, `JobWorkflow`, `Billing`, `ShopApproval`, seeders with seven shops.
 
 ## Stack
 
@@ -35,15 +35,17 @@ app/                      Laravel application
   Services/PriceCalculator.php    the only place a price is computed
   Services/JobWorkflow.php        the only place status transitions are allowed
   Services/Billing.php            plan changes; never rewrites settled payouts
+  Services/ShopApproval.php       approve / reject / suspend a shop, in one place
   Services/PayMongo.php           sandbox intents + webhook signature check
   Models/                         16 models (17 domain tables — shop_users is a pivot)
-  Http/Controllers/               home, shops, quote, checkout, jobs, account, auth
-  Filament/Shop/                  shop panel: services, jobs, board, discounts
-  Filament/Admin/                 CMS resources + failed-payment widget
+  Policies/                       16 policies; one per model, no blanket admin bypass
+  Http/Controllers/               home, shops, quote, checkout, jobs, account, auth, CSV export
+  Filament/Shop/                  shop panel: services, jobs, board, reports, billing
+  Filament/Admin/                 dashboard widgets, shops, users, CMS
   Providers/Filament/             the two panel providers
 database/
   migrations/             17 domain tables
-  seeders/                6 shops, 16 services, 40 price tiers, 21 jobs in every status
+  seeders/                7 shops, 17 services, 43 price tiers, 33 jobs in every status
 resources/
   css/app.css             design system, extracted from the prototype
   js/app.js               Vue island bootstrap
@@ -91,11 +93,14 @@ exports). If `composer install` fails on `ext-zip`, uncomment `extension=zip` in
 | Customer | `jomar@tarpalink.ph` |
 | Customer | `marisol@example.com` |
 | Shop owner | `kevin@inkwell.ph` (Inkwell Press, Growth plan) |
+| Shop owner | `lia@meridian.ph` (Meridian Press — **pending**, cannot sign in to `/shop`) |
 | Admin | `sofia@tarpalink.ph` |
 
 Shops are seeded on different plans — Inkwell Press and Tinta & Co. on Growth (3%),
 Halftone Hub on Pro (1.5%), the rest on Starter (5%) — so commission math can be
-tested against more than one rate.
+tested against more than one rate. Meridian Press exists so the approval queue has
+something in it on a fresh clone: approve it as `sofia@tarpalink.ph` and `lia@meridian.ph`
+can sign in; reject it and she stays locked out.
 
 ## The two panels
 
@@ -105,11 +110,16 @@ from the `shop_users` pivot. Access is decided in `User::canAccessPanel()`.
 
 | Panel | URL | Who | Contents |
 |---|---|---|---|
-| Shop | `/shop` | `role = shop_owner` | Services + size tiers, finishing options, quantity discounts, jobs, production board, plan & billing |
-| Admin | `/admin` | `role = admin` | Site content (CMS), site settings, payments needing attention |
+| Shop | `/shop` | `role = shop_owner`, shop `active` | Services + size tiers, finishing options, quantity discounts, jobs, production board, reports & payout ledger, plan & billing |
+| Admin | `/admin` | `role = admin` | Dashboard (GMV, commission, approvals, latest jobs), shops & approvals, users & roles, site content (CMS), site settings |
 
 Sign in at `/shop/login` as `kevin@inkwell.ph`. Every query is scoped to that owner's
 `shop_id`, so a shop owner sees only Inkwell Press — and `/admin` returns 403 for them.
+
+**A shop that has not been approved has no panel.** `User::canAccessPanel()` requires
+the shop to be `active`, so a `pending` or `suspended` owner is refused at the door —
+there is no page to forget the check on. Approving from `/admin` opens it immediately;
+rejecting stores the reason on the shop and keeps it closed.
 
 **The shop panel never invents a price.** It edits the matrix; `PriceCalculator` is
 still the only thing that quotes. Change a tier rate and the storefront quotes the new
@@ -119,6 +129,30 @@ so new jobs get a new `matrix_version` while old jobs keep theirs.
 **Status changes go through one place.** `JobWorkflow::TRANSITIONS` is the only
 definition of what is legal. The jobs table and the production board both ask it, and
 it re-checks on save — hiding a button is not a rule.
+
+## Who may do what
+
+Four roles — Guest, Customer, Shop owner, Administrator — but only three live on
+`users.role`. The fourth distinction, **owner vs staff within one shop**, lives on the
+`shop_users` pivot, because a person can be an owner of one shop and staff at another.
+
+Sixteen policies, one per model, registered explicitly in `AppServiceProvider`. There is
+**no `Gate::before` administrator bypass**, and that is deliberate: a blanket "admin can
+do anything" makes rules like *nobody may edit the status trail* or *an admin may not
+delete their own account* impossible to express, because the bypass wins before the
+policy is ever consulted. Every grant is written out where it belongs.
+
+| Rule | Where it is enforced |
+|---|---|
+| A customer cannot open `/shop` | `User::canAccessPanel()` → 403 |
+| A shop owner cannot touch another shop's matrix | `ServicePolicy`, `PriceTierPolicy`, `PriceOptionPolicy` |
+| A customer cannot read another customer's job | `JobPolicy::view` + `Gate::authorize` in `JobController` |
+| Only an admin may approve a shop | `ShopPolicy::approve` |
+| Only an admin may change `page_sections` | `PageSectionPolicy` |
+
+Query scoping in the panel (`getEloquentQuery()->where('shop_id', …)`) and the policies
+are two different jobs: the scope stops accidental leaks and turns a direct URL into a
+404, the policy is what actually says no. Both are needed.
 
 ## Money that leaves the building
 
@@ -134,6 +168,12 @@ leaving a job quietly stuck in pending.
 centavo amount captured at settlement, using the shop's rate at that moment. The
 payout ledger is that table — gross, commission and net on one row, so it cannot
 disagree with the payment it describes.
+
+**Settlement is a second lifecycle.** `payments.status` says whether the *customer*
+paid; `payments.payout_status` says whether *we* have paid the shop. One column for both
+would lose the difference between money in and money still owed out. `/shop/reports`
+shows the split — held vs released — and `GET /shop/reports/export` streams the same rows
+as CSV.
 
 **A plan change only moves the rate forward.** `Billing::subscribe()` writes
 `shops.plan` and `shops.commission_rate`, closes the old subscription and issues an
@@ -152,11 +192,16 @@ removes the block from the page instead of leaving a hole.
 php artisan test
 ```
 
-37 tests. They cover the acceptance criteria of the finished issues: tenant isolation and
+62 tests. They cover the acceptance criteria of the finished issues: tenant isolation and
 cross-panel 403s (#3), the edit-a-rate-see-a-new-quote loop (#4), illegal status
-transitions (#5), board drops (#6), CMS edits and section deletion (#10), webhook
-idempotency and failure marking (#11), and plan changes that leave settled payouts
-alone (#12).
+transitions (#5), board drops (#6), the ledger balancing and a plan change leaving
+settled payouts alone (#7), approval and rejection both locking the owner in or out (#8),
+the policy matrix (#9), CMS edits and section deletion (#10), webhook idempotency and
+failure marking (#11), and crossover pricing (#12).
+
+The reports tests compare against an independent `SUM()` over `payments` rather than
+against the page's own numbers — a test that recomputes the same expression the code
+computes proves nothing.
 
 ## How the Vue half is wired
 

@@ -21,6 +21,9 @@ class User extends Authenticatable implements FilamentUser
 
     private bool $shopResolved = false;
 
+    /** @var array<int, int>|null Every shop this user is attached to, cached per request. */
+    private ?array $resolvedShopIds = null;
+
     protected $fillable = [
         'name',
         'email',
@@ -63,16 +66,63 @@ class User extends Authenticatable implements FilamentUser
         return $this->role === 'shop_owner';
     }
 
+    public function isCustomer(): bool
+    {
+        return $this->role === 'customer';
+    }
+
+    /**
+     * Every shop this user is attached to, as ids.
+     *
+     * Policies ask this on nearly every check, so it is resolved once per
+     * request rather than per row — otherwise a 20-row table costs 20 queries
+     * just to decide whether to show an edit button.
+     *
+     * @return array<int, int>
+     */
+    public function shopIds(): array
+    {
+        return $this->resolvedShopIds ??= $this->shops()->pluck('shops.id')->all();
+    }
+
+    public function belongsToShop(int|Shop|null $shop): bool
+    {
+        if ($shop === null) {
+            return false;
+        }
+
+        return in_array($shop instanceof Shop ? $shop->id : $shop, $this->shopIds(), true);
+    }
+
+    /** Owner of this particular shop — not merely staff. */
+    public function isOwnerOf(int|Shop|null $shop): bool
+    {
+        if (! $this->belongsToShop($shop)) {
+            return false;
+        }
+
+        $id = $shop instanceof Shop ? $shop->id : $shop;
+
+        return $this->shops()
+            ->whereKey($id)
+            ->wherePivot('role', 'owner')
+            ->exists();
+    }
+
     /**
      * Panel access. Both panels share the single `web` guard, so the only thing
      * separating an admin from a shop owner is this method — not a second guard,
      * and not a second users table.
+     *
+     * A shop owner whose shop is pending or suspended gets nothing: admission is
+     * checked here rather than inside each page, so a new panel page can never
+     * forget to check it.
      */
     public function canAccessPanel(Panel $panel): bool
     {
         return match ($panel->getId()) {
             'admin' => $this->isAdmin(),
-            'shop' => $this->isShopOwner() && $this->currentShop() !== null,
+            'shop' => $this->isShopOwner() && $this->currentShop()?->isActive() === true,
             default => false,
         };
     }

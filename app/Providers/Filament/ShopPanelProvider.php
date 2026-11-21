@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Http\Controllers\PayoutExportController;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -16,6 +17,7 @@ use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Route;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class ShopPanelProvider extends PanelProvider
@@ -52,6 +54,12 @@ class ShopPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
-            ]);
+            ])
+            // Panel-relative, so this lives at /shop/reports/export and inherits
+            // the panel's session, auth and `canAccessPanel()` checks.
+            ->authenticatedRoutes(function (): void {
+                Route::get('/reports/export', PayoutExportController::class)
+                    ->name('reports.export');
+            });
     }
 }

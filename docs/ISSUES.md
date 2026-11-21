@@ -3,9 +3,10 @@
 Issues for the second developer, plus the two spine tasks that must be done together
 before either half starts.
 
-> **Status:** issues **#1**, **#2**, **#3**–**#6**, **#10**, **#11** and **#12** are built.
-> They stay here as the reference for what exists — read them, do not rebuild them.
-> **#7, #8 and #9 are still open.**
+> **Status:** every issue **#1**–**#12** is built. They stay here as the reference for
+> what exists — read them, do not rebuild them.
+> **Next up: the documentation set** (SRS, ER / use case / context / architecture
+> diagrams, schema), which the brief requires and which is still outstanding.
 
 Labels used: `spine` · `shop-panel` · `admin-panel` · `integration` · `billing` ·
 `p0` (blocks someone) · `p1` (normal)
@@ -62,19 +63,23 @@ Seeders produce:
 
 | Thing | Count |
 |---|---|
-| Shops (each with a different matrix) | 6 |
-| Services | 16 |
-| Price tiers | 40 |
-| Quantity-discount bands | 14 |
-| Users (1 admin, 1 shop owner, 5 customers) | 7 |
-| Jobs, spread across every status | 21 |
-| Payments (approved and later) | 15 |
-| Proofs | 5 |
+| Shops (each with a different matrix) | 7 — six trading, one `pending` |
+| Services | 17 |
+| Price tiers | 43 |
+| Price options | 26 |
+| Quantity-discount bands | 15 |
+| Users (1 admin, 2 shop owners, 5 customers) | 8 |
+| Jobs, spread across every status | 33 |
+| Payments (approved and later) | 27 — 18 released, 9 still held |
+| Proofs | 29 |
 | CMS page sections | 6 |
 
 Every shop gets at least 2 jobs so the production board has something to drag, and
-collected jobs carry past dates so reports have history. Shops are seeded on different
-plans (Starter 5%, Growth 3%, Pro 1.5%) so the payout ledger is not all one rate.
+collected jobs carry past dates so reports have history — including two older jobs per
+trading shop, so the revenue chart spans about six weeks instead of one bar. Shops are
+seeded on different plans (Starter 5%, Growth 3%, Pro 1.5%) so the payout ledger is not
+all one rate. **Meridian Press** is seeded `pending` with an owner and no jobs, so the
+approval queue has something in it on a fresh clone.
 
 **Acceptance:** a tinker session calling `PriceCalculator::quote()` on a seeded shop
 returns the numbers in `CONTRACT.md`; the order builder can be built without touching
@@ -164,9 +169,19 @@ customer sees it on the job status page, and dropping into an illegal column sna
 
 ---
 
-## 7. Reports + payouts
+## 7. Reports + payouts ✅ done
 
 **Labels:** `shop-panel` `p1`
+**State:** built
+
+`/shop/reports` — four headline figures, eight weeks of gross as bars, top five services
+by revenue, and the payout ledger. `GET /shop/reports/export` streams the same ledger as
+CSV, registered through the panel's `authenticatedRoutes()` so it inherits the panel's
+session and `canAccessPanel()` check rather than sitting outside them.
+
+Settlement is a **second lifecycle** on `payments`: `status` says whether the customer
+paid, `payout_status` says whether we have paid the shop. Folding them into one column
+would lose the difference between "money in" and "money owed out".
 
 Revenue by week, top services by revenue, and a payout ledger: gross, platform
 commission, net, status, payout date. Export to CSV.
@@ -180,11 +195,28 @@ absolute centavo amount, snapshotted at the time of payment. Inkwell Press seeds
 month total matches a manual `SUM()` on `payments`. Changing a shop's plan does not
 alter any existing payout row.
 
+**Proven by:** `ReportsTest` — 7 tests, including one that sums `payments` independently
+and compares, and one that subscribes a shop to Pro and asserts every existing
+`commission` value is byte-identical afterwards.
+
 ---
 
-## 8. Admin dashboard + shop approvals
+## 8. Admin dashboard + shop approvals ✅ done
 
 **Labels:** `admin-panel` `p1`
+**State:** built
+
+Dashboard: `PlatformStats` (GMV, commission, active shops, jobs this month),
+`PendingApprovals` (the queue, hidden entirely when empty), `RevenueChart` (eight weeks
+of GMV), `LatestJobs` (feed across all shops), plus the existing
+`PaymentsNeedingAttention` pinned to the top when it has rows. All four render inline
+rather than lazily, so the dashboard does not pop in after paint.
+
+Admission lives in `App\Services\ShopApproval` — `approve`, `reject`, `suspend`,
+`reopen` — called by both the queue widget and the shops resource, so the status and the
+reason are written in exactly one place. `shops` gained `status_reason`, `approved_at`,
+`approved_by` and `status_changed_by`; the last two are the audit trail of who let a shop
+in and who shut it down.
 
 Platform GMV, jobs, active shops, commission earned. A pending-approvals queue where
 an admin approves or rejects a new shop (rejected shops cannot log in to the shop
@@ -197,11 +229,33 @@ plans.
 **Acceptance:** approving a seeded pending shop lets that owner log in; rejecting
 leaves them locked out with a reason.
 
+**Proven by:** `AdminDashboardTest` — 8 tests covering the queue, the commission sum
+(asserted *not* to equal `GMV × 5%`, since the shops are on three different plans),
+approval through the actual table action, and the lockout in both directions.
+
 ---
 
-## 9. Users, roles, policies
+## 9. Users, roles, policies ✅ done
 
 **Labels:** `admin-panel` `p1`
+**State:** built
+
+Sixteen policies in `app/Policies/`, registered explicitly in `AppServiceProvider` so the
+whole authorization surface is visible in one place. `User` gained `shopIds()`,
+`belongsToShop()` and `isOwnerOf()` — the last one distinguishes a shop's owner from its
+staff, which is the difference between "may edit the price matrix" and "may work the
+board". The admin panel gained a `Users` resource with role editing and a `Shop access`
+relation manager over the `shop_users` pivot.
+
+**There is no `Gate::before` administrator bypass.** A blanket "admin can do anything"
+makes "nobody may edit the status trail" and "an admin may not delete their own account"
+impossible to express, because the bypass wins before the policy is consulted. Every
+grant is written out in the policy that owns it.
+
+**Fixed while doing this:** `JobController::show()` had no authorization at all — any
+visitor with a job reference could read another customer's name, phone and payment. Job
+references are five digits, so that was enumerable. It now calls `Gate::authorize('view',
+$job)`.
 
 Four roles: Guest, Customer, Shop Owner, Administrator. `users.role` holds
 `customer|shop_owner|admin`; the `shop_users` pivot carries the per-shop
@@ -210,6 +264,10 @@ records, and only an administrator can approve shops or edit site content.
 
 **Acceptance:** a customer cannot open `/shop`; a shop owner cannot edit another
 shop's price matrix; only an administrator can change `page_sections`.
+
+**Proven by:** `AuthorizationTest` — 10 tests, asserted against the Gate rather than a
+controller, plus the HTTP layer (404 from the scoped query, 403 from the policy, redirect
+for a guest).
 
 ---
 

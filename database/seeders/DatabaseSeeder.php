@@ -161,6 +161,23 @@ class DatabaseSeeder extends Seeder
                         'options' => [['Extra print', 'pc', 7500]]],
                 ],
             ],
+
+            // Still waiting for admission. It has a catalogue and an owner but no
+            // jobs and no payouts — approving it in the admin panel is what turns
+            // it into a live storefront, and rejecting it locks the owner out.
+            [
+                'name' => 'Meridian Press', 'slug' => 'meridian-press', 'city' => 'Quezon City',
+                'address' => '8 Maginhawa St, Sikatuna Village', 'accent' => 'yellow',
+                'plan' => 'starter', 'rate' => 500, 'status' => 'pending',
+                'rating' => 0, 'jobs_done' => 0, 'phone' => '+63 915 660 2244',
+                'description' => 'New shop. Large-format tarpaulin and event backdrops.',
+                'discounts' => [[5, 5]],
+                'services' => [
+                    ['name' => 'Tarpaulin', 'slug' => 'tarpaulin', 'unit' => 'sqft', 'blurb' => '13oz vinyl, outdoor rated',
+                        'tiers' => [['Small (≤16in)', 0, 16, 2700], ['Medium (≤48in)', 16, 48, 2100], ['Large (≤96in)', 48, 96, 1850]],
+                        'options' => [['Eyelets', 'pc', 950], ['Hemming', 'ft', 1450]]],
+                ],
+            ],
         ];
 
         $created = [];
@@ -174,7 +191,8 @@ class DatabaseSeeder extends Seeder
                 'phone' => $data['phone'],
                 'description' => $data['description'],
                 'accent' => $data['accent'],
-                'status' => 'active',
+                'status' => $data['status'] ?? 'active',
+                'approved_at' => ($data['status'] ?? 'active') === 'active' ? now()->subMonths(6) : null,
                 'plan' => $data['plan'],
                 'commission_rate' => $data['rate'],
                 'rating' => $data['rating'],
@@ -258,6 +276,19 @@ class DatabaseSeeder extends Seeder
 
         $shops[0]->staff()->attach($owner->id, ['role' => 'owner']);
 
+        // The owner of the shop that is still pending. He can log in to the site
+        // but not to the shop panel until an admin approves Meridian Press.
+        $pendingOwner = User::create([
+            'name' => 'Lia Domingo',
+            'email' => 'lia@meridian.ph',
+            'role' => 'shop_owner',
+            'city' => 'Quezon City',
+            'password' => bcrypt('password'),
+        ]);
+
+        collect($shops)->firstWhere('slug', 'meridian-press')
+            ?->staff()->attach($pendingOwner->id, ['role' => 'owner']);
+
         $renz = User::create([
             'name' => 'Renz Cruz',
             'email' => 'renz@example.com',
@@ -334,6 +365,22 @@ class DatabaseSeeder extends Seeder
             ['shop' => 5, 'service' => 2, 'w' => 12, 'h' => 12, 'qty' => 20, 'status' => 'collected', 'user' => $dennis, 'due' => '-15 days', 'options' => [[0, 20]]],
         ];
 
+        // Two older collected jobs per trading shop, so the revenue chart has
+        // more than one week of history to draw instead of a single bar.
+        foreach ($shops as $index => $shop) {
+            if (! $shop->isActive()) {
+                continue;
+            }
+
+            // Size from the shop's own cheapest tier: a sticker shop cannot print
+            // a 24×36, so the history jobs must fit each matrix, not one shape.
+            $tier = $shop->services[0]->tiers->first();
+            $edge = $tier->max_width !== null ? (float) $tier->max_width : (float) $tier->min_width + 1;
+
+            $jobs[] = ['shop' => $index, 'service' => 0, 'w' => $edge, 'h' => $edge, 'qty' => 2, 'status' => 'collected', 'user' => $jomar, 'due' => '-21 days', 'options' => []];
+            $jobs[] = ['shop' => $index, 'service' => 0, 'w' => $edge, 'h' => $edge, 'qty' => 5, 'status' => 'collected', 'user' => $dennis, 'due' => '-35 days', 'options' => []];
+        }
+
         foreach ($jobs as $data) {
             $shop = $shops[$data['shop']];
             $service = $shop->services[$data['service']];
@@ -379,6 +426,17 @@ class DatabaseSeeder extends Seeder
             }
 
             if (in_array($data['status'], ['approved', 'in_production', 'ready', 'collected'], true)) {
+                // Paid when the proof was approved, two days before the pickup
+                // date. Anything older than ten days has already been released
+                // to the shop, so the ledger shows both settled and open rows.
+                $paidAt = $job->due_at->copy()->subDays(2);
+
+                if ($paidAt->isFuture()) {
+                    $paidAt = Carbon::now()->subDay();
+                }
+
+                $released = $paidAt->lt(Carbon::now()->subDays(10));
+
                 $job->payment()->create([
                     'provider' => 'paymongo',
                     'intent_id' => 'pi_test_'.$job->reference,
@@ -386,7 +444,9 @@ class DatabaseSeeder extends Seeder
                     'processing_fee' => (int) round($quote['total'] * 0.025) + 1500,
                     'commission' => (int) round($quote['total'] * $shop->commission_rate / 10000),
                     'status' => 'paid',
-                    'paid_at' => Carbon::now()->subDays(2),
+                    'paid_at' => $paidAt,
+                    'payout_status' => $released ? 'paid' : 'pending',
+                    'payout_date' => $released ? $paidAt->copy()->addDays(5)->toDateString() : null,
                 ]);
             }
         }

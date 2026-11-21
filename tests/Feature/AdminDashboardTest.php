@@ -1,0 +1,150 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Filament\Admin\Widgets\PendingApprovals;
+use App\Filament\Admin\Widgets\PlatformStats;
+use App\Models\Payment;
+use App\Models\Shop;
+use App\Models\User;
+use App\Support\Money;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
+use Tests\TestCase;
+
+/**
+ * Acceptance criteria for issue #8.
+ *
+ * The approval queue is not decoration: it is the thing that decides whether a
+ * shop can trade and whether its owner can sign in. Both directions are tested
+ * here, because "approve works" is only half a feature if "reject locks out"
+ * is not true.
+ */
+class AdminDashboardTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed();
+    }
+
+    private function admin(): User
+    {
+        return User::where('email', 'sofia@tarpalink.ph')->firstOrFail();
+    }
+
+    private function pendingShop(): Shop
+    {
+        return Shop::where('status', 'pending')->firstOrFail();
+    }
+
+    private function pendingOwner(): User
+    {
+        return User::where('email', 'lia@meridian.ph')->firstOrFail();
+    }
+
+    public function test_the_admin_dashboard_renders_platform_figures(): void
+    {
+        $this->actingAs($this->admin())
+            ->get('/admin')
+            ->assertSuccessful()
+            ->assertSee('Commission earned')
+            ->assertSee('Active shops')
+            ->assertSee('Waiting for approval');
+    }
+
+    public function test_commission_is_the_sum_of_commissions_not_gmv_times_one_rate(): void
+    {
+        $expected = (int) Payment::where('status', 'paid')->sum('commission');
+        $gmv = (int) Payment::where('status', 'paid')->sum('amount');
+
+        // The two only coincide if every shop were on the same plan, which they
+        // are not — so this is a real check, not a tautology.
+        $this->assertNotSame((int) round($gmv * 0.05), $expected);
+
+        Livewire::actingAs($this->admin())
+            ->test(PlatformStats::class)
+            ->assertSee(Money::short($expected));
+    }
+
+    public function test_the_queue_lists_the_pending_shop(): void
+    {
+        Livewire::actingAs($this->admin())
+            ->test(PendingApprovals::class)
+            ->assertCanSeeTableRecords([$this->pendingShop()])
+            ->assertSee('Meridian Press');
+    }
+
+    public function test_a_pending_owner_cannot_reach_the_shop_panel(): void
+    {
+        $this->actingAs($this->pendingOwner())
+            ->get('/shop')
+            ->assertForbidden();
+    }
+
+    public function test_approving_from_the_queue_lets_the_owner_in(): void
+    {
+        $shop = $this->pendingShop();
+
+        Livewire::actingAs($this->admin())
+            ->test(PendingApprovals::class)
+            ->callTableAction('approve', $shop)
+            ->assertHasNoTableActionErrors();
+
+        $shop->refresh();
+
+        $this->assertSame('active', $shop->status);
+        $this->assertNotNull($shop->approved_at);
+        $this->assertSame($this->admin()->id, $shop->approved_by);
+
+        $this->actingAs(User::find($this->pendingOwner()->id))
+            ->get('/shop')
+            ->assertSuccessful();
+    }
+
+    public function test_rejecting_locks_the_owner_out_and_keeps_the_reason(): void
+    {
+        $shop = $this->pendingShop();
+
+        Livewire::actingAs($this->admin())
+            ->test(PendingApprovals::class)
+            ->callTableAction('reject', $shop, ['reason' => 'Business permit could not be verified.'])
+            ->assertHasNoTableActionErrors();
+
+        $shop->refresh();
+
+        $this->assertSame('suspended', $shop->status);
+        $this->assertSame('Business permit could not be verified.', $shop->status_reason);
+
+        $this->actingAs(User::find($this->pendingOwner()->id))
+            ->get('/shop')
+            ->assertForbidden();
+    }
+
+    public function test_a_rejected_shop_disappears_from_the_storefront(): void
+    {
+        $shop = $this->pendingShop();
+        $slug = $shop->slug;
+
+        $this->actingAs($this->admin())
+            ->get("/admin/shops/{$shop->slug}")
+            ->assertSuccessful();
+
+        app(\App\Services\ShopApproval::class)->approve($shop, $this->admin());
+
+        $this->get("/shops/{$slug}")->assertSuccessful();
+
+        app(\App\Services\ShopApproval::class)->suspend($shop->fresh(), 'Chargebacks.', $this->admin());
+
+        $this->get("/shops/{$slug}")->assertNotFound();
+    }
+
+    public function test_a_shop_owner_cannot_open_the_admin_panel(): void
+    {
+        $this->actingAs(User::where('email', 'kevin@inkwell.ph')->firstOrFail())
+            ->get('/admin')
+            ->assertForbidden();
+    }
+}

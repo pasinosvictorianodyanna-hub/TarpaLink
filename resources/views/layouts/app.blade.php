@@ -90,6 +90,13 @@
         // it: a proof waiting on them, then a job at the counter, then an order
         // created but never paid, then anything still being printed.
         $resumeJob = $me->jobs()
+            // `User::jobs()` already carries a `latest()`. Without clearing it,
+            // that baked-in order stays the *primary* sort and everything below
+            // only breaks ties — so "a proof waiting on you outranks a job at
+            // the counter" silently degraded to "show the newest job". It looked
+            // right in the seeded database only because the seeder gives several
+            // jobs the same `created_at`.
+            ->reorder()
             ->whereIn('status', ['awaiting_proof', 'ready', 'quoted', 'approved', 'in_production'])
             ->orderByRaw("CASE status
                 WHEN 'awaiting_proof' THEN 0
@@ -97,7 +104,12 @@
                 WHEN 'quoted' THEN 2
                 WHEN 'approved' THEN 3
                 ELSE 4 END")
+            // `latest('id')` is not decoration either: two orders placed in the
+            // same second tie on `created_at`, and without a tie-break the
+            // database picks arbitrarily between them — which is what made
+            // CustomerNavTest fail intermittently.
             ->latest()
+            ->latest('id')
             ->first();
 
         if ($resumeJob !== null) {

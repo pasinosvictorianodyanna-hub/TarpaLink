@@ -497,6 +497,44 @@ pass. Nothing links to it any more, but deleting it — with the ten test files 
 
 ---
 
+## #68 — The "Open a shop account" button could not be clicked
+
+**Symptom.** The owner band at the bottom of the homepage had a working-looking primary
+button. Hovering changed nothing, clicking changed nothing, and no error appeared in the
+console. It was not disabled, not covered visually, not missing an `href`.
+
+**Cause.** `.cta-band .grid-paper` is the decorative grid, stretched over the band with
+`position:absolute; inset:0`. A positioned element paints above static siblings, so the
+overlay sat on top of the anchor. The `h2` and `p` in the same band had already been lifted
+with `position:relative` — they were losing the same fight and were patched individually —
+so the button was the one element left underneath. The click was landing on a `<div>`.
+
+**Fix.** `pointer-events:none` on the base `.grid-paper` rule. Decoration should never be a
+target, and stating that once on the layer itself holds wherever the grid is reused; the
+`.cta-band` override sets position, inset, opacity, colour and background-image only, so it
+does not undo it.
+
+```css
+.grid-paper{
+  /* Decoration, never a target. Stretched over a band it is a sibling of the
+     content, and a positioned element paints above static siblings — so without
+     this the "Open a shop account" button is visible, styled, and unclickable. */
+  pointer-events:none;
+}
+```
+
+**Proven by:** `AssetBuildTest > the decorative grid never swallows a click`, which reads the
+**built** stylesheet. That is the only layer where a stacking defect exists — a DOM
+assertion that the anchor has an `href` and the right text would have passed on the broken
+build, which is why the bug reached a screenshot before it reached a test. The test also
+asserts no later rule clears the property.
+
+**Lesson.** `position:relative` on the text was a symptom being treated one element at a
+time. Fix the overlay once, or every element added to that band afterwards has to defend
+itself and the one that forgets is silently dead.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

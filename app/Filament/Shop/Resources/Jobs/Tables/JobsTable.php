@@ -4,10 +4,13 @@ namespace App\Filament\Shop\Resources\Jobs\Tables;
 
 use App\Models\Job;
 use App\Services\JobWorkflow;
+use App\Services\ProofExchange;
 use App\Support\Money;
 use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -73,8 +76,48 @@ class JobsTable
             ])
             ->recordActions([
                 ViewAction::make(),
+                self::uploadProofAction(),
                 self::advanceAction(),
             ]);
+    }
+
+    /**
+     * Send the artwork for the customer to approve.
+     *
+     * Versioned rather than overwritten: rejecting a proof must not erase what
+     * the customer saw, and the last row is what `Job::latestProof()` returns.
+     * The file goes on the private disk and is served through a checked route.
+     */
+    public static function uploadProofAction(): Action
+    {
+        return Action::make('uploadProof')
+            ->label('Upload proof')
+            ->icon(Heroicon::OutlinedDocumentArrowUp)
+            ->color('warning')
+            ->visible(fn (Job $record): bool => in_array($record->status, ['quoted', 'awaiting_proof'], true))
+            ->schema([
+                FileUpload::make('file')
+                    ->label('Proof artwork')
+                    ->disk('local')
+                    ->directory('proofs')
+                    ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp', 'application/pdf'])
+                    ->maxSize(10240)
+                    ->previewable(false)
+                    ->required(),
+                Textarea::make('note')
+                    ->label('Note to the customer')
+                    ->nullable()
+                    ->maxLength(500),
+            ])
+            ->action(function (Job $record, array $data): void {
+                app(ProofExchange::class)->send(
+                    $record,
+                    $data['file'],
+                    $data['note'] ?? null,
+                    auth()->user(),
+                );
+            })
+            ->successNotificationTitle('Proof sent to the customer');
     }
 
     /**

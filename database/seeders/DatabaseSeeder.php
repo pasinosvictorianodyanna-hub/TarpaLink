@@ -530,6 +530,21 @@ class DatabaseSeeder extends Seeder
                 $job->lines()->create($line);
             }
 
+            // A quoted job always has a payment beside it in real use: checkout
+            // creates both in one transaction, the job `quoted` and the payment
+            // `pending`. Seeding one keeps the dashboard's "Unpaid" row visible,
+            // which is the whole point of that row existing.
+            if ($data['status'] === 'quoted') {
+                $job->payment()->create([
+                    'provider' => 'paymongo',
+                    'intent_id' => 'pi_test_'.$job->reference,
+                    'amount' => $quote['total'],
+                    'processing_fee' => (int) round($quote['total'] * 0.025) + 1500,
+                    'commission' => (int) round($quote['total'] * $shop->commission_rate / 10000),
+                    'status' => 'pending',
+                ]);
+            }
+
             if (in_array($data['status'], ['awaiting_proof', 'approved', 'in_production', 'ready', 'collected'], true)) {
                 $job->proofs()->create([
                     'version' => 1,

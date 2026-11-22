@@ -8,6 +8,7 @@ use App\Http\Controllers\ConsoleController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\JobController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\ProofController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\ShopController;
@@ -28,6 +29,14 @@ Route::post('/shops/{shop}/checkout', [CheckoutController::class, 'store'])
 
 Route::get('/jobs/{job}', [JobController::class, 'show'])->name('jobs.show');
 Route::get('/jobs/{job}/receipt', [JobController::class, 'receipt'])->name('jobs.receipt');
+// Proof files live on the private disk; these routes are the only way in, and
+// each one checks the job before serving or changing anything.
+Route::get('/jobs/{job}/proofs/{proof}/file', [ProofController::class, 'file'])
+    ->middleware('auth')->name('jobs.proof.file');
+Route::post('/jobs/{job}/proofs/{proof}/approve', [ProofController::class, 'approve'])
+    ->middleware('auth')->name('jobs.proof.approve');
+Route::post('/jobs/{job}/proofs/{proof}/reject', [ProofController::class, 'reject'])
+    ->middleware('auth')->name('jobs.proof.reject');
 Route::get('/account', [AccountController::class, 'index'])->middleware('auth')->name('account');
 Route::redirect('/account/jobs', '/account')->middleware('auth');
 Route::redirect('/shop/plan-and-billing', '/shop/billing')->middleware('auth');

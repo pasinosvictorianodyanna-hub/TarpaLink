@@ -14,7 +14,7 @@ class ProofPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->isAdmin() || $user->isShopOwner();
+        return $user->isAdmin() || $user->worksInShop();
     }
 
     public function view(User $user, Proof $proof): bool
@@ -30,9 +30,10 @@ class ProofPolicy
             || $user->belongsToShop($job->shop_id);
     }
 
+    /** Staff upload the artwork too — that is the job they are hired to do. */
     public function create(User $user): bool
     {
-        return $user->isAdmin() || $user->isShopOwner();
+        return $user->isAdmin() || $user->worksInShop();
     }
 
     public function update(User $user, Proof $proof): bool

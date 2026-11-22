@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Job;
+use App\Models\JobActivity;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -76,6 +77,7 @@ final class JobWorkflow
 
             $job->activities()->create([
                 'user_id' => $by?->id,
+                'kind' => JobActivity::TRANSITION,
                 'from_status' => $from,
                 'to_status' => $to,
                 'note' => $note,

@@ -88,7 +88,7 @@ class ConsoleController extends Controller
         $user = $request->user();
         $shop = $user?->currentShop();
 
-        if ($user === null || ! $user->isShopOwner() || $shop === null || ! $shop->isActive()) {
+        if ($user === null || ! $user->worksInShop() || $shop === null || ! $shop->isActive()) {
             throw new AccessDeniedHttpException('The shop console is for an active shop.');
         }
 
@@ -106,37 +106,47 @@ class ConsoleController extends Controller
      */
     private function shell(Shop $shop, int $openJobs): array
     {
+        $canManage = auth()->user()?->canManagePrices() ?? false;
+
+        // Staff see the work, not the money controls. Hiding the links is a
+        // courtesy; the pages and policies refuse the request as well.
+        $groups = [[
+            'label' => 'Operations',
+            'items' => [
+                $this->nav('Dashboard', route('console.dashboard'), 'grid', true),
+                $this->nav('Jobs', url('/shop/jobs'), 'inbox', false, $openJobs),
+                $this->nav('Production board', url('/shop/production-board'), 'board'),
+            ],
+        ]];
+
+        if ($canManage) {
+            $groups[] = [
+                'label' => 'Catalogue',
+                'items' => [
+                    $this->nav('Price matrix', url('/shop/price-matrix'), 'table'),
+                ],
+            ];
+        }
+
+        $business = [
+            $this->nav('Reports', url('/shop/reports'), 'chart'),
+        ];
+
+        if ($canManage) {
+            $business[] = $this->nav('Billing', url('/shop/billing'), 'doc');
+        }
+
+        $groups[] = ['label' => 'Business', 'items' => $business];
+
         return [
             'brand' => $shop->name,
             'badge' => 'Shop',
             'user' => [
                 'initials' => $this->initials(auth()->user()->name),
                 'name' => auth()->user()->name,
-                'role' => 'Shop owner',
+                'role' => auth()->user()->isShopStaff() ? 'Shop staff' : 'Shop owner',
             ],
-            'groups' => [
-                [
-                    'label' => 'Operations',
-                    'items' => [
-                        $this->nav('Dashboard', route('console.dashboard'), 'grid', true),
-                        $this->nav('Jobs', url('/shop/jobs'), 'inbox', false, $openJobs),
-                        $this->nav('Production board', url('/shop/production-board'), 'board'),
-                    ],
-                ],
-                [
-                    'label' => 'Catalogue',
-                    'items' => [
-                        $this->nav('Price matrix', url('/shop/price-matrix'), 'table'),
-                    ],
-                ],
-                [
-                    'label' => 'Business',
-                    'items' => [
-                        $this->nav('Reports', url('/shop/reports'), 'chart'),
-                        $this->nav('Billing', url('/shop/billing'), 'doc'),
-                    ],
-                ],
-            ],
+            'groups' => $groups,
         ];
     }
 

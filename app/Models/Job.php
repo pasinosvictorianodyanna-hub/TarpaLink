@@ -92,6 +92,18 @@ class Job extends Model
         return $this->proofs->first();
     }
 
+    /**
+     * Has the customer's money actually landed?
+     *
+     * A job is born `quoted` at checkout and the payment beside it is born
+     * `pending`, so "quoted" on its own says nothing about who is stalling.
+     * This is the question that separates the two cases.
+     */
+    public function isPaid(): bool
+    {
+        return $this->payment?->status === 'paid';
+    }
+
     public function statusLabel(): string
     {
         return self::STATUS_LABELS[$this->status] ?? ucfirst((string) $this->status);

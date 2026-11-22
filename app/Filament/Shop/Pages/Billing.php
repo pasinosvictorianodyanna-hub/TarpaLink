@@ -33,6 +33,16 @@ class Billing extends Page
 
     protected static ?string $title = 'Plan & billing';
 
+    public static function canView(): bool
+    {
+        return auth()->user()?->canManagePrices() ?? false;
+    }
+
+    public function mount(): void
+    {
+        abort_unless(static::canView(), 403);
+    }
+
     public function currentPlan(): ?Plan
     {
         return auth()->user()?->currentShop()?->currentPlan();

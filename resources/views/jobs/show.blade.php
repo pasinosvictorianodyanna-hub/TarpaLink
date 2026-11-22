@@ -76,21 +76,49 @@
                 @if ($proof)
                     <div class="card job-panel">
                         <div class="job-panel-head">
-                            <h4>Approved proof</h4>
-                            <span class="tag {{ $proof->approved_at ? 'tag-g' : 'tag-c' }}">
-                                {{ $proof->approved_at ? 'Approved v'.$proof->version : 'Awaiting approval · v'.$proof->version }}
+                            <h4>{{ $proof->status === 'approved' ? 'Approved proof' : 'Proof' }}</h4>
+                            <span class="tag {{ $proof->status === 'approved' ? 'tag-g' : ($proof->status === 'rejected' ? 'tag-r' : 'tag-c') }}">
+                                {{ match ($proof->status) {
+                                    'approved' => 'Approved v'.$proof->version,
+                                    'rejected' => 'Changes requested · v'.$proof->version,
+                                    default => 'Awaiting approval · v'.$proof->version,
+                                } }}
                             </span>
                         </div>
-                        @if ($proof->approved_at)
+
+                        @if ($proof->status === 'approved')
                             <p class="small">
-                                Version {{ $proof->version }} approved {{ $proof->approved_at->format('d M Y · g:i A') }}.
+                                Version {{ $proof->version }} approved {{ $proof->approved_at?->format('d M Y · g:i A') }}.
                                 The artwork is locked — what goes on press is what you signed off.
                             </p>
+                        @elseif ($proof->status === 'rejected')
+                            <p class="small">You asked for changes to version {{ $proof->version }}. The shop will upload a new one.</p>
                         @else
-                            <p class="small">The shop has uploaded version {{ $proof->version }} and it is waiting on you.</p>
+                            <p class="small">The shop uploaded version {{ $proof->version }} and it is waiting on you. Nothing goes to press until you approve.</p>
                         @endif
+
+                        <a class="btn btn-ghost btn-sm" style="margin-top:12px"
+                           href="{{ route('jobs.proof.file', [$job, $proof]) }}" target="_blank" rel="noopener">
+                            View proof artwork ↗
+                        </a>
+
                         @if ($proof->note)
-                            <p class="small" style="margin-top:8px;color:var(--ink-2)">“{{ $proof->note }}”</p>
+                            <p class="small" style="margin-top:10px;color:var(--ink-2)">“{{ $proof->note }}”</p>
+                        @endif
+
+                        @if ($proof->status === 'sent' && $job->status === 'awaiting_proof')
+                            <div class="proof-decision">
+                                <form method="POST" action="{{ route('jobs.proof.approve', [$job, $proof]) }}">
+                                    @csrf
+                                    <button class="btn btn-primary btn-sm" type="submit">Approve proof</button>
+                                </form>
+                                <form method="POST" action="{{ route('jobs.proof.reject', [$job, $proof]) }}">
+                                    @csrf
+                                    <input type="text" name="note" class="inp" maxlength="500"
+                                           placeholder="What needs changing? (optional)" aria-label="What needs changing?">
+                                    <button class="btn btn-ghost btn-sm" type="submit">Request changes</button>
+                                </form>
+                            </div>
                         @endif
                     </div>
                 @endif

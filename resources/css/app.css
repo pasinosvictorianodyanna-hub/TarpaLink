@@ -1013,6 +1013,13 @@ textarea.finp{height:auto;padding:8px 10px;line-height:1.5;resize:vertical}
   box-shadow:0 4px 10px -4px rgba(12,15,14,.5);
 }
 .tag-near{background:var(--tint-m);color:var(--magenta);border-color:#F8CBD8}
+.tag-r{background:#FEF3F2;color:#B42318;border-color:#FECDCA}
+.proof-decision{
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px;
+  margin-top:16px;padding-top:14px;border-top:1px dashed var(--line);
+}
+.proof-decision form{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.proof-decision .inp{flex:1;min-width:180px}
 .shop-dist{color:var(--ink-2);font-weight:600}
 
 /* Nearest / Top rated, only shown once the customer has a position. */

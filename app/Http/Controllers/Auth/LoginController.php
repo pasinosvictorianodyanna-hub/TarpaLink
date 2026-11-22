@@ -91,7 +91,7 @@ class LoginController extends Controller
 
         return match ($area) {
             'admin' => $user->isAdmin(),
-            'shop', 'console' => $user->isShopOwner() && $user->currentShop()?->isActive() === true,
+            'shop', 'console' => $user->worksInShop() && $user->currentShop()?->isActive() === true,
             default => true,
         };
     }
@@ -120,7 +120,7 @@ class LoginController extends Controller
         // A suspended or pending shop has no console to go to — `canAccessPanel`
         // and the console both refuse it — so it falls through to the storefront
         // rather than landing on a 403 immediately after signing in.
-        if ($user->isShopOwner() && $user->currentShop()?->isActive()) {
+        if ($user->worksInShop() && $user->currentShop()?->isActive()) {
             return route('console.dashboard');
         }
 

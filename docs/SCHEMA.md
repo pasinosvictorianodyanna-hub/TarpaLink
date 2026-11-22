@@ -143,6 +143,7 @@ erDiagram
         int id PK
         int job_id FK
         int user_id FK
+        string kind
         string from_status
         string to_status
         string note
@@ -306,8 +307,11 @@ against a plain `SUM()` over these columns, not against the ledger's own arithme
 
 ### 2.12 `job_activities`
 
-`job_id`, `user_id`, `from_status`, `to_status`, `note`. One row per transition, written by
-`JobWorkflow` and by nothing else. This is an audit log, not an event store.
+`job_id`, `user_id`, `kind`, `from_status`, `to_status`, `note`. One row per event on a
+job. A `kind = transition` row is written by `JobWorkflow` and by nothing else, and always
+names a move the `TRANSITIONS` table allows. A `kind = note` row records that something was
+said about the job — a nudge, a remark — and carries no statuses, so the trail can never
+claim a move that did not happen. This is an audit log, not an event store.
 
 ### 2.13 `plans` / `subscriptions` / `invoices`
 
@@ -337,7 +341,7 @@ or deleting a section removes the block from the page instead of leaving a hole.
 
 | Column | Values |
 |---|---|
-| `users.role` | `customer`, `shop_owner`, `admin` |
+| `users.role` | `customer`, `shop_owner`, `staff`, `admin` |
 | `shops.status` | `pending`, `active`, `suspended` |
 | `shops.plan` | `starter`, `growth`, `pro` |
 | `services.unit` | `sqft`, `pc` |
@@ -363,7 +367,10 @@ These hold after every request. If one of them is false, there is a bug.
    money we never received.
 7. **`jobs.collected_at` is non-null exactly when `status = collected`**, and it is set by
    `JobWorkflow` and nothing else.
-8. **Every `job_activities` row names a transition that `TRANSITIONS` allows.**
+8. **Every `job_activities` row with `kind = transition` names a transition that
+   `TRANSITIONS` allows; every row with `kind = note` has both statuses null.** The two
+   shapes never mix, so a cycle-time query over `kind = transition` cannot be skewed by a
+   nudge.
 9. **No row in `payments` is ever updated after `payout_status = paid`** — not by a plan
    change, not by a rate edit, not by a migration.
 

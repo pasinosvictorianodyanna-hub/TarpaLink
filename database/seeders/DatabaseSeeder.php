@@ -3,13 +3,11 @@
 namespace Database\Seeders;
 
 use App\Models\Job;
-use App\Models\PageSection;
 use App\Models\PriceOption;
 use App\Models\PriceTier;
 use App\Models\QuantityDiscount;
 use App\Models\Service;
 use App\Models\Shop;
-use App\Models\SiteSetting;
 use App\Models\User;
 use App\Services\PriceCalculator;
 use Illuminate\Database\Seeder;
@@ -24,11 +22,9 @@ class DatabaseSeeder extends Seeder
         $shops = $this->shops();
 
         $this->people($shops);
-        $this->content();
 
-        // Kept as its own seeder because it is idempotent: the footer copy can be
-        // refreshed on a live database without rebuilding jobs and payments.
-        $this->call(\Database\Seeders\PageContentSeeder::class);
+        // Storefront copy is not seeded here. It lives in the CMS application
+        // and reaches this one over HTTP — there is no content table to fill.
 
         // Everyone in the seed set their password when the account was created.
         // Leaving it null would make every profile screen read "Never changed",
@@ -554,56 +550,4 @@ class DatabaseSeeder extends Seeder
         }
     }
 
-    private function content(): void
-    {
-        $sections = [
-            ['key' => 'hero', 'label' => 'Homepage hero', 'sort' => 1, 'content' => [
-                'eyebrow' => 'Print marketplace · Metro Manila',
-                'headline' => "Custom printing,\npriced in seconds.",
-                'subheadline' => 'Find a verified print shop, set your size, material and quantity — and see the exact price before you order. No group chats. No “pm sent.” No waiting.',
-                'primary_label' => 'Find a print shop',
-                'primary_link' => '/shops',
-            ]],
-            // The design has no announcement bar, so the section ships as a draft:
-            // it exists in the CMS to be switched on, but the homepage is clean.
-            ['key' => 'banner', 'label' => 'Announcement banner', 'sort' => 2, 'status' => 'draft', 'content' => [
-                'text' => 'Free proof on every job over ₱1,500 — approve before we print.',
-                'link_label' => 'How proofs work',
-                'link' => '/shops',
-            ]],
-            ['key' => 'featured_shops', 'label' => 'Featured shops', 'sort' => 3, 'content' => [
-                'title' => 'Shops near you',
-                'subtitle' => 'Verified, priced and rated by customers who actually picked up.',
-            ]],
-            ['key' => 'testimonials', 'label' => 'Testimonials', 'sort' => 4, 'content' => [
-                'title' => 'People who stopped sending “pm sent”.',
-                // The third card is the shop-owner voice; the design rings it so the
-                // section speaks to both sides of the marketplace, not just buyers.
-                'items' => [
-                    ['quote' => 'I ordered 3 tarpaulins at 11 pm and had a price in ten seconds. That used to take two days of asking around.', 'name' => 'Jomar M.', 'role' => 'Small business owner · QC'],
-                    ['quote' => 'The proof approval step saved me. They caught a low-res logo before printing 200 flyers.', 'name' => 'Angela R.', 'role' => 'Marketing associate'],
-                    ['quote' => 'As a shop owner, the price matrix is the whole thing. I set it once and it just answers for me.', 'name' => 'Kevin C.', 'role' => 'Owner, Inkwell Press', 'highlight' => true],
-                ],
-            ]],
-            ['key' => 'faq', 'label' => 'FAQ', 'sort' => 5, 'content' => [
-                'title' => 'Common questions',
-                'items' => [
-                    ['q' => 'Do I pay online?', 'a' => 'You can pay with GCash, Maya or card, or pay cash when you pick up. The price is the same either way.'],
-                    ['q' => 'Can I change the design after ordering?', 'a' => 'Yes — until you approve the proof. After approval the job goes to press and the artwork is locked.'],
-                    ['q' => 'How do I get my print?', 'a' => 'Pick it up at the shop. Every job shows the counter address and the time it will be ready.'],
-                ],
-            ]],
-            ['key' => 'footer', 'label' => 'Footer', 'sort' => 6, 'content' => [
-                'blurb' => 'The print marketplace for tarpaulins, stickers, flyers and everything else you need on paper.',
-            ]],
-        ];
-
-        foreach ($sections as $section) {
-            PageSection::create($section + ['status' => 'published']);
-        }
-
-        SiteSetting::create(['key' => 'support_email', 'value' => 'hello@tarpalink.ph']);
-        SiteSetting::create(['key' => 'commission_percent', 'value' => '5']);
-        SiteSetting::create(['key' => 'platform_name', 'value' => 'TarpaLink']);
-    }
 }

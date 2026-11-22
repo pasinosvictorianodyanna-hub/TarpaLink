@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\PageSection;
 use App\Models\Shop;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -77,7 +76,7 @@ class LandingTest extends TestCase
 
     public function test_the_last_word_of_the_headline_carries_the_accent_stroke(): void
     {
-        PageSection::where('key', 'hero')->update(['content' => [
+        $this->fakeCms(['hero' => [
             'eyebrow' => 'Print marketplace · Metro Manila',
             'headline' => "Custom printing,\npriced in seconds.",
             'subheadline' => 'Find a verified print shop.',
@@ -93,7 +92,7 @@ class LandingTest extends TestCase
 
     public function test_the_accent_follows_the_last_word_when_the_headline_is_rewritten(): void
     {
-        PageSection::where('key', 'hero')->update(['content' => [
+        $this->fakeCms(['hero' => [
             'eyebrow' => 'Any',
             'headline' => 'Everything you need to get printed',
             'subheadline' => 'Any',
@@ -137,23 +136,44 @@ class LandingTest extends TestCase
         $this->assertSame(2, $items->where('highlight', false)->count());
     }
 
-    public function test_the_announcement_bar_is_draft_so_the_homepage_matches_the_design(): void
+    public function test_the_announcement_bar_is_absent_while_the_cms_holds_it_back(): void
     {
-        $this->assertSame('draft', PageSection::where('key', 'banner')->value('status'));
-
-        // Null, not an empty string: the component omits the bar entirely.
+        // The banner ships as a draft, and the CMS does not serve drafts — so the
+        // engine has nothing to render. Null, not an empty string: the component
+        // omits the bar entirely.
         $this->assertNull($this->props()['banner']);
         $this->get('/')->assertOk()->assertDontSee('Free proof on every job over');
     }
 
-    public function test_the_announcement_bar_appears_once_it_is_published(): void
+    public function test_the_announcement_bar_appears_once_the_cms_publishes_it(): void
     {
-        PageSection::where('key', 'banner')->update(['status' => 'published']);
+        $this->fakeCms([
+            'banner' => [
+                'text' => 'Free proof on every job over ₱1,500.',
+                'link' => '/help',
+                'link_label' => 'How proofs work',
+            ],
+        ]);
 
         $banner = $this->props()['banner'];
 
         $this->assertIsArray($banner);
         $this->assertStringContainsString('Free proof on every job over', $banner['text']);
+    }
+
+    public function test_the_storefront_still_renders_when_the_cms_is_unreachable(): void
+    {
+        // The two systems fail independently now. Losing the CMS must cost the
+        // page its edited copy, not its existence.
+        $this->cmsIsDown();
+
+        $props = $this->props();
+
+        // Falls back to the headline compiled into the controller.
+        $this->assertSame('seconds.', $props['hero']['tail']);
+        $this->assertNull($props['banner']);
+        $this->assertNull($props['testimonials']);
+        $this->assertSame([], $props['faq'] ?? []);
     }
 
     /**

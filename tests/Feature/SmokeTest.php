@@ -3,10 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Job;
-use App\Models\PageSection;
 use App\Models\QuantityDiscount;
 use App\Models\Shop;
-use App\Models\SiteSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -126,8 +124,6 @@ class SmokeTest extends TestCase
         $admin = $this->user('sofia@tarpalink.ph');
         $shop = Shop::firstOrFail();
         $user = User::where('role', 'customer')->firstOrFail();
-        $section = PageSection::firstOrFail();
-        $setting = SiteSetting::firstOrFail();
 
         $this->actAs($admin);
 
@@ -139,11 +135,7 @@ class SmokeTest extends TestCase
             '/admin/users',
             '/admin/users/create',
             '/admin/users/'.$user->getRouteKey().'/edit',
-            '/admin/site-content',
-            '/admin/site-content/'.$section->getRouteKey().'/edit',
-            '/admin/site-settings',
-            '/admin/site-settings/create',
-            '/admin/site-settings/'.$setting->getRouteKey().'/edit',
+            '/admin/integrations',
         ]);
     }
 

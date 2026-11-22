@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\PageController;
-use App\Models\PageSection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -67,13 +66,17 @@ class FooterLinksTest extends TestCase
 
     public function test_each_footer_page_renders_its_own_copy(): void
     {
+        [$sections] = require __DIR__.'/../Fixtures/content.php';
+
         foreach (PageController::SLUGS as $slug) {
-            $section = PageSection::where('key', 'page.'.$slug)->firstOrFail();
+            $page = $sections['page.'.$slug] ?? null;
+
+            $this->assertNotNull($page, "The fixture has no copy for [{$slug}].");
 
             $this->get('/'.$slug)
                 ->assertOk()
-                ->assertSee($section->content['title'])
-                ->assertSee($section->content['blocks'][0]['h']);
+                ->assertSee($page['title'])
+                ->assertSee($page['blocks'][0]['h']);
         }
     }
 
@@ -87,7 +90,9 @@ class FooterLinksTest extends TestCase
 
     public function test_an_unpublished_page_is_gone_rather_than_empty(): void
     {
-        PageSection::where('key', 'page.terms')->update(['status' => 'draft']);
+        // A page the CMS holds back is simply not in the payload, so the engine
+        // has nothing to render and says 404 rather than serving an empty shell.
+        $this->fakeCms([]);
 
         $this->get('/terms')->assertNotFound();
     }

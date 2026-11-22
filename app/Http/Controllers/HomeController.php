@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\PageSection;
 use App\Models\Shop;
+use App\Services\CmsClient;
 use Illuminate\Contracts\View\View;
 
 class HomeController extends Controller
 {
+    public function __construct(private readonly CmsClient $cms) {}
+
     public function index(): View
     {
         // Four, because the row is a four-column grid: three cards left a hole the
@@ -18,7 +20,7 @@ class HomeController extends Controller
             ->take(4)
             ->get();
 
-        $hero = PageSection::content('hero', [
+        $hero = $this->cms->section('hero', [
             'eyebrow' => 'Print marketplace · Metro Manila',
             'headline' => "Custom printing,\npriced in seconds.",
             'subheadline' => 'Find a verified print shop, set your size, material and quantity — and see the exact price before you order. No group chats. No “pm sent.” No waiting.',
@@ -122,9 +124,6 @@ class HomeController extends Controller
      */
     private function section(string $key): ?array
     {
-        return PageSection::where('key', $key)
-            ->where('status', 'published')
-            ->first()
-            ?->content;
+        return $this->cms->find($key);
     }
 }

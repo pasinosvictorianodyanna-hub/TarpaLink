@@ -48,4 +48,26 @@ return [
         'base_url' => env('PAYMONGO_BASE_URL', 'https://api.paymongo.com/v1'),
     ],
 
+    /*
+    | The content management system, which is a separate application.
+    |
+    | This engine holds no storefront copy of its own: headings, banners,
+    | testimonials and static page text all arrive from here over HTTP. If the
+    | CMS is unreachable the storefront still renders, on the defaults compiled
+    | into each controller.
+    */
+    'cms' => [
+        'url' => env('CMS_URL', 'http://127.0.0.1:8001'),
+        'token' => env('CMS_TOKEN'),
+    ],
+
+    /*
+    | The token this engine expects from the CMS when it asks us to approve a
+    | shop or release a payout. Deliberately different from the content token:
+    | the CMS may read our content without being able to move our money.
+    */
+    'admin_api' => [
+        'token' => env('ENGINE_API_TOKEN'),
+    ],
+
 ];

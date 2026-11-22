@@ -2,9 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\PageSection;
 use App\Models\Plan;
-use App\Models\SiteSetting;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -17,9 +15,6 @@ use Illuminate\Support\Facades\Hash;
  * creates only the rows the application cannot start without:
  *
  *   - the plan catalogue (billing reads it; a shop cannot be priced without it)
- *   - the six CMS sections (the landing page falls back to defaults, but an
- *     editor needs something to edit)
- *   - site settings
  *   - one administrator, from the environment, because /admin is otherwise
  *     unreachable — there is no self-service signup.
  *
@@ -30,15 +25,11 @@ class ProductionSeeder extends Seeder
     public function run(): void
     {
         $this->plans();
-        $this->content();
-        $this->settings();
         $this->administrator();
 
-        // The footer pages are page_sections rows (`page.about`, `page.pricing`
-        // …) served by PageController. Without them every footer link is a 404,
-        // and the site looks broken in a way nothing in the UI explains. This
-        // seeder is updateOrCreate throughout, so it is safe to re-run.
-        $this->call(PageContentSeeder::class);
+        // Storefront copy is not seeded here any more. It belongs to the CMS
+        // application, which has its own seeder and its own database; this one
+        // fills only what the engine cannot start without.
     }
 
     private function plans(): void
@@ -59,62 +50,6 @@ class ProductionSeeder extends Seeder
 
         foreach ($plans as $plan) {
             Plan::updateOrCreate(['code' => $plan['code']], $plan);
-        }
-    }
-
-    private function content(): void
-    {
-        $sections = [
-            ['key' => 'hero', 'label' => 'Homepage hero', 'sort' => 1, 'content' => [
-                'eyebrow' => 'Print, priced before you commit',
-                'headline' => 'Every tarpaulin, sticker and shirt — priced to the peso.',
-                'subheadline' => 'Pick a shop, set your size, see the exact total. No Messenger haggling, no surprise counter price.',
-                'primary_label' => 'Find a print shop',
-                'primary_link' => '/shops',
-            ]],
-            ['key' => 'banner', 'label' => 'Announcement banner', 'sort' => 2, 'content' => [
-                'text' => 'Free proof on every job over ₱1,500 — approve before we print.',
-                'link_label' => 'How proofs work',
-                'link' => '/shops',
-            ]],
-            ['key' => 'featured_shops', 'label' => 'Featured shops', 'sort' => 3, 'content' => [
-                'title' => 'Shops near you',
-                'subtitle' => 'Verified, priced and rated by customers who actually picked up.',
-            ]],
-            ['key' => 'testimonials', 'label' => 'Testimonials', 'sort' => 4, 'content' => [
-                'title' => 'What customers say',
-                'items' => [],
-            ]],
-            ['key' => 'faq', 'label' => 'FAQ', 'sort' => 5, 'content' => [
-                'title' => 'Common questions',
-                'items' => [
-                    ['q' => 'Do I pay online?', 'a' => 'You can pay with GCash, Maya or card, or pay cash when you pick up. The price is the same either way.'],
-                    ['q' => 'Can I change the design after ordering?', 'a' => 'Yes — until you approve the proof. After approval the job goes to press and the artwork is locked.'],
-                    ['q' => 'How do I get my print?', 'a' => 'Pick it up at the shop. Every job shows the counter address and the time it will be ready.'],
-                ],
-            ]],
-            ['key' => 'footer', 'label' => 'Footer', 'sort' => 6, 'content' => [
-                'blurb' => 'TarpaLink is a print marketplace for the Philippines. Exact prices, approved proofs, pickup at the counter.',
-            ]],
-        ];
-
-        foreach ($sections as $section) {
-            PageSection::updateOrCreate(
-                ['key' => $section['key']],
-                $section + ['status' => 'published'],
-            );
-        }
-    }
-
-    private function settings(): void
-    {
-        $settings = [
-            'support_email' => env('MAIL_FROM_ADDRESS', 'hello@tarpalink.ph'),
-            'platform_name' => env('APP_NAME', 'TarpaLink'),
-        ];
-
-        foreach ($settings as $key => $value) {
-            SiteSetting::updateOrCreate(['key' => $key], ['value' => $value]);
         }
     }
 

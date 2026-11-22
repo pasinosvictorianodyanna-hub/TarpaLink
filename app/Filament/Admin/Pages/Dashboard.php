@@ -37,6 +37,13 @@ class Dashboard extends BaseDashboard
     protected function getHeaderActions(): array
     {
         return [
+            // Content is edited in a different application now. This is the door
+            // to it — a real URL, because it is a real separate system.
+            Action::make('cms')
+                ->label('Open CMS')
+                ->icon('heroicon-m-squares-2x2')
+                ->url(rtrim((string) config('services.cms.url'), '/').'/admin')
+                ->openUrlInNewTab(),
             Action::make('export')
                 ->label('Export report')
                 ->icon('heroicon-m-arrow-down-tray')

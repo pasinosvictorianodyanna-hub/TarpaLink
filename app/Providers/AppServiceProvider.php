@@ -6,7 +6,6 @@ use App\Models\Invoice;
 use App\Models\Job;
 use App\Models\JobActivity;
 use App\Models\JobLine;
-use App\Models\PageSection;
 use App\Models\Payment;
 use App\Models\Plan;
 use App\Models\PriceOption;
@@ -15,14 +14,12 @@ use App\Models\Proof;
 use App\Models\QuantityDiscount;
 use App\Models\Service;
 use App\Models\Shop;
-use App\Models\SiteSetting;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Policies\InvoicePolicy;
 use App\Policies\JobActivityPolicy;
 use App\Policies\JobLinePolicy;
 use App\Policies\JobPolicy;
-use App\Policies\PageSectionPolicy;
 use App\Policies\PaymentPolicy;
 use App\Policies\PlanPolicy;
 use App\Policies\PriceOptionPolicy;
@@ -31,11 +28,11 @@ use App\Policies\ProofPolicy;
 use App\Policies\QuantityDiscountPolicy;
 use App\Policies\ServicePolicy;
 use App\Policies\ShopPolicy;
-use App\Policies\SiteSettingPolicy;
 use App\Policies\SubscriptionPolicy;
 use App\Policies\UserPolicy;
 use Filament\Support\Facades\FilamentView;
 use Filament\View\PanelsRenderHook;
+use App\Services\CmsClient;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -68,10 +65,7 @@ class AppServiceProvider extends ServiceProvider
         // The footer blurb is CMS copy but appears on every page, so it is shared
         // with the layout rather than threaded through every controller.
         View::composer('layouts.app', function ($view): void {
-            $footer = PageSection::where('key', 'footer')
-                ->where('status', 'published')
-                ->first()
-                ?->content;
+            $footer = app(CmsClient::class)->find('footer');
 
             $view->with('footerBlurb', $footer['blurb'] ?? null);
         });
@@ -102,8 +96,6 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(JobActivity::class, JobActivityPolicy::class);
         Gate::policy(Proof::class, ProofPolicy::class);
         Gate::policy(Payment::class, PaymentPolicy::class);
-        Gate::policy(PageSection::class, PageSectionPolicy::class);
-        Gate::policy(SiteSetting::class, SiteSettingPolicy::class);
         Gate::policy(Plan::class, PlanPolicy::class);
         Gate::policy(Subscription::class, SubscriptionPolicy::class);
         Gate::policy(Invoice::class, InvoicePolicy::class);

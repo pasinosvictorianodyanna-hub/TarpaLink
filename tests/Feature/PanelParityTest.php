@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Filament\Admin\Pages\Dashboard as AdminDashboard;
 use App\Filament\Admin\Pages\Integrations;
-use App\Filament\Admin\Resources\PageSections\Pages\ListPageSections as AdminListSections;
 use App\Filament\Admin\Resources\Shops\Pages\ListShops as AdminListShops;
 use App\Filament\Admin\Resources\Users\Pages\ListUsers as AdminListUsers;
 use App\Filament\Admin\Widgets\JobsPerDay;
@@ -325,12 +324,9 @@ class PanelParityTest extends TestCase
             ->assertSee('sofia@tarpalink.ph');
     }
 
-    public function test_the_site_content_screen_renders_the_sections(): void
-    {
-        Livewire::actingAs($this->admin())
-            ->test(AdminListSections::class)
-            ->assertOk()
-            ->assertSee('Key')
-            ->assertSee('hero');
-    }
+    /*
+     * The site-content screen is no longer here to test: it moved to the CMS
+     * application, where the content table lives. Its equivalent lives in that
+     * application's own suite, alongside the table it reads.
+     */
 }

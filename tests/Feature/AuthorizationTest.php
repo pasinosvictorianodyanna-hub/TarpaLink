@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Job;
-use App\Models\PageSection;
 use App\Models\Service;
 use App\Models\Shop;
 use App\Models\User;
@@ -76,16 +75,18 @@ class AuthorizationTest extends TestCase
         $this->assertFalse($owner->can('update', $foreignTier));
     }
 
-    public function test_only_an_administrator_can_change_site_content(): void
+    /**
+     * Site content is no longer this application's to protect.
+     *
+     * The copy now lives in the CMS, which is a separate application with its
+     * own administrators. What the engine still owes is that nobody signs in
+     * here and finds an admin screen they are not entitled to — asserted below
+     * and in PanelAccessTest.
+     */
+    public function test_a_shop_owner_cannot_reach_the_admin_panel(): void
     {
-        $section = PageSection::where('key', 'hero')->firstOrFail();
-
-        $this->assertFalse($this->user('kevin@inkwell.ph')->can('update', $section));
-        $this->assertFalse($this->user('jomar@tarpalink.ph')->can('update', $section));
-        $this->assertTrue($this->user('sofia@tarpalink.ph')->can('update', $section));
-
         $this->actingAs($this->user('kevin@inkwell.ph'))
-            ->get('/admin/site-content')
+            ->get('/admin')
             ->assertForbidden();
     }
 
@@ -150,13 +151,11 @@ class AuthorizationTest extends TestCase
         $admin = $this->user('sofia@tarpalink.ph');
 
         // A shop owner gets none of the platform abilities...
-        $this->assertFalse($owner->can('viewAny', \App\Models\SiteSetting::class));
         $this->assertFalse($owner->can('create', \App\Models\Plan::class));
         $this->assertFalse($owner->can('viewAny', User::class));
 
         // ...and the admin only gets them because the policy says so, which is
         // also what makes the self-delete rule above enforceable.
-        $this->assertTrue($admin->can('viewAny', \App\Models\SiteSetting::class));
         $this->assertTrue($admin->can('create', \App\Models\Plan::class));
         $this->assertTrue($admin->can('viewAny', User::class));
     }

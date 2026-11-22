@@ -75,12 +75,35 @@ class ShopController extends Controller
                 ->values();
         }
 
+        // Where the customer is standing, if they told us. Everything below —
+        // the ordering, the distance on each card, the pin numbering — hangs off
+        // this being non-null, so it is resolved once and passed around rather
+        // than re-parsed in the view.
+        $origin = $this->origin($request);
+
+        // Default to nearest-first the moment a location exists: the whole point
+        // of handing us your position is that the closest shop should be at the
+        // top. Without one there is nothing to sort by, so rating wins.
+        $sort = $request->query('sort') === 'rating' || $origin === null ? 'rating' : 'near';
+
+        if ($sort === 'near') {
+            $shops = $shops
+                // Shops with no coordinates cannot be "nearest" to anything, so
+                // they fall to the end rather than silently jumping to the top
+                // (which is what a null would do in a numeric comparison).
+                ->sortBy(fn (Shop $shop) => $shop->distanceKm($origin['lat'], $origin['lng']) ?? PHP_FLOAT_MAX)
+                ->values();
+        }
+
         return view('shops.index', [
             'shops' => $shops,
             'cities' => Shop::active()->distinct()->orderBy('city')->pluck('city'),
             'serviceTypes' => $this->serviceTypes(),
             'priceCeiling' => $this->priceCeiling(),
-            'pins' => $this->pins($shops),
+            'pins' => $this->pins($shops, $origin),
+            'mapCenter' => $this->mapCenter($shops, $origin),
+            'origin' => $origin,
+            'sort' => $sort,
             'search' => $search,
             'city' => $city,
             'service' => $service,
@@ -88,6 +111,47 @@ class ShopController extends Controller
             'options' => $options,
             'maxPrice' => $maxPrice,
         ]);
+    }
+
+    /**
+     * The customer's position, from `?near=lat,lng`.
+     *
+     * Deliberately strict: a malformed or out-of-range pair is treated as "no
+     * location" rather than clamped. Clamping would put the customer at a point
+     * they never were, and then sort shops against a fiction.
+     *
+     * `src` records how the point was obtained — `gps` from the browser's
+     * geolocation API, `pin` from a tap on the map — so the caption can say
+     * "your location" or "the pin you dropped" instead of guessing.
+     *
+     * @return array{lat: float, lng: float, src: string}|null
+     */
+    private function origin(Request $request): ?array
+    {
+        $near = trim((string) $request->query('near'));
+
+        if ($near === '' || ! str_contains($near, ',')) {
+            return null;
+        }
+
+        [$lat, $lng] = array_map('trim', explode(',', $near, 2));
+
+        if (! is_numeric($lat) || ! is_numeric($lng)) {
+            return null;
+        }
+
+        $lat = (float) $lat;
+        $lng = (float) $lng;
+
+        if ($lat < -90 || $lat > 90 || $lng < -180 || $lng > 180) {
+            return null;
+        }
+
+        return [
+            'lat' => $lat,
+            'lng' => $lng,
+            'src' => $request->query('src') === 'pin' ? 'pin' : 'gps',
+        ];
     }
 
     /**
@@ -125,35 +189,92 @@ class ShopController extends Controller
     }
 
     /**
-     * Pin positions for the map panel, normalised from lat/lng into a 0–100 box.
-     * With no tile server this is a honest scatter of where the shops actually
-     * are, not a decorative illustration.
+     * The map's pins: real coordinates, numbered to match the cards below.
+     *
+     * The previous version normalised lat/lng into a 0–100 box using the
+     * min/max of the *current result set*, which meant a shop's position on the
+     * map changed every time a filter changed — a pin's location was relative to
+     * whatever else happened to be on screen, not to the city. The numbers are
+     * now handed to Leaflet as latitude/longitude, so position means position.
+     *
+     * Numbering runs off the card index, not the pin index, so a shop with no
+     * coordinates leaves a gap instead of shifting every later number by one and
+     * quietly breaking the pin-to-card correspondence.
      *
      * @param  \Illuminate\Support\Collection<int, Shop>  $shops
-     * @return array<int, array{x: float, y: float, name: string, city: string, url: string}>
+     * @param  array{lat: float, lng: float, src: string}|null  $origin
+     * @return array<int, array<string, mixed>>
      */
-    private function pins($shops): array
+    private function pins($shops, ?array $origin): array
     {
-        $located = $shops->filter(fn (Shop $shop) => $shop->lat && $shop->lng);
+        // "Nearest" is a fact about the geometry, not about the sort order — if
+        // the customer flips the list back to rating order the closest shop is
+        // still the closest shop, and the map should still say so.
+        $nearestId = $origin === null
+            ? null
+            : $shops
+                ->filter(fn (Shop $shop) => $shop->lat !== null && $shop->lng !== null)
+                ->sortBy(fn (Shop $shop) => $shop->distanceKm($origin['lat'], $origin['lng']) ?? PHP_FLOAT_MAX)
+                ->first()?->id;
 
-        if ($located->isEmpty()) {
-            return [];
+        $pins = [];
+
+        foreach ($shops->values() as $i => $shop) {
+            if ($shop->lat === null || $shop->lng === null) {
+                continue;
+            }
+
+            $pins[] = [
+                'n' => $i + 1,
+                'id' => $shop->id,
+                'name' => $shop->name,
+                'city' => $shop->city,
+                'url' => route('shops.show', $shop),
+                'lat' => $shop->lat,
+                'lng' => $shop->lng,
+                'distance' => $origin === null
+                    ? null
+                    : $shop->distanceLabelShort($origin['lat'], $origin['lng']),
+                'nearest' => $shop->id === $nearestId,
+                'price' => '₱'.number_format(($shop->cheapestRate() ?? 0) / 100),
+                'unit' => $shop->cheapestUnitLabel(),
+                'rating' => number_format($shop->rating, 1),
+                'turnaround' => $shop->turnaroundLabel(),
+            ];
         }
 
-        $lats = $located->pluck('lat');
-        $lngs = $located->pluck('lng');
-        $latSpan = max(0.0001, $lats->max() - $lats->min());
-        $lngSpan = max(0.0001, $lngs->max() - $lngs->min());
+        return $pins;
+    }
 
-        return $located->values()->map(fn (Shop $shop, int $i) => [
-            'x' => 10 + (($shop->lng - $lngs->min()) / $lngSpan) * 80,
-            // Kept above 78% so no pin lands on the caption pill in the corner.
-            'y' => 76 - (($shop->lat - $lats->min()) / $latSpan) * 62,
-            'name' => $shop->name,
-            'city' => $shop->city,
-            'url' => route('shops.show', $shop),
-            'n' => $i + 1,
-        ])->all();
+    /**
+     * Where the map opens.
+     *
+     * With a location, the answer is trivially the location. Without one, the
+     * centre of the shop bounding box — not the platform origin — because the
+     * thing on screen should be the shops, and Metro Manila is wide enough that
+     * anchoring on Quezon City puts Caloocan off the top of the panel.
+     *
+     * @param  \Illuminate\Support\Collection<int, Shop>  $shops
+     * @param  array{lat: float, lng: float, src: string}|null  $origin
+     * @return array{lat: float, lng: float}
+     */
+    private function mapCenter($shops, ?array $origin): array
+    {
+        if ($origin !== null) {
+            return ['lat' => $origin['lat'], 'lng' => $origin['lng']];
+        }
+
+        $located = $shops->filter(fn (Shop $shop) => $shop->lat !== null && $shop->lng !== null);
+
+        if ($located->isEmpty()) {
+            // Metro Manila's rough centre, used only when nothing is mappable.
+            return ['lat' => 14.6091, 'lng' => 121.0223];
+        }
+
+        return [
+            'lat' => round($located->avg('lat'), 5),
+            'lng' => round($located->avg('lng'), 5),
+        ];
     }
 
     public function show(Shop $shop): View

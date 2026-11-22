@@ -824,34 +824,156 @@ textarea.finp{height:auto;padding:8px 10px;line-height:1.5;resize:vertical}
 .rail-scale{display:flex;justify-content:space-between;font-size:10px;color:var(--muted-2);font-variant-numeric:tabular-nums}
 .rail-apply{width:100%;justify-content:center;margin-top:14px}
 
+/* ---------- directory map (Leaflet) ----------
+   The map is a real one now, so most of the styling is about making a third-party
+   control look like it belongs on this page: tiles knocked back so the pins and
+   the paper stock win, chrome replaced with the site's own buttons, and a caption
+   that says what you are actually looking at. */
 .dir-map{
-  position:relative;height:196px;border-radius:var(--r-lg);overflow:hidden;
+  position:relative;height:300px;border-radius:var(--r-lg);overflow:hidden;
   background:linear-gradient(160deg,#EFEDE5,#E4E1D6);border:1px solid var(--line);margin-bottom:18px;
+  isolation:isolate;
 }
-.dir-map-grid{position:absolute;inset:0;width:100%;height:100%}
-.dir-map-grid line{stroke:#D9D4C6;stroke-width:.35}
-.dir-pin{
-  position:absolute;transform:translate(-50%,-100%);
-  width:22px;height:22px;border-radius:50% 50% 50% 2px;
-  background:var(--magenta);color:#fff;font-size:10px;font-weight:700;
-  display:grid;place-items:center;box-shadow:0 6px 14px -6px rgba(12,15,14,.55);
+.dir-map--loading{display:grid;place-items:center;font-size:12px;color:var(--muted)}
+.dir-map-canvas{position:absolute;inset:0;background:linear-gradient(160deg,#EFEDE5,#E4E1D6)}
+
+/* OSM's palette is louder than anything else on the page. Desaturating the
+   tiles keeps the streets readable while letting the magenta pins stay the
+   loudest thing in the panel. */
+.leaflet-tile-pane{filter:saturate(.55) contrast(.96) brightness(1.04)}
+.dir-map .leaflet-container{background:transparent;font-family:var(--sans)}
+.dir-map .leaflet-control-attribution{
+  background:rgba(255,255,255,.82);border-radius:6px 0 0 0;font-size:9.5px;color:var(--muted);padding:2px 6px;
+}
+.dir-map .leaflet-control-attribution a{color:var(--muted)}
+.dir-map .leaflet-control-zoom{border:0;box-shadow:var(--sh-sm);border-radius:10px;overflow:hidden}
+.dir-map .leaflet-control-zoom a{
+  width:28px;height:28px;line-height:26px;font-size:15px;font-weight:600;
+  background:#fff;color:var(--ink);border-color:var(--line);
+}
+.dir-map .leaflet-control-zoom a:hover{background:var(--paper-2);color:var(--ink)}
+.dir-map.is-picking .dir-map-canvas{cursor:crosshair}
+.dir-map.is-picking .leaflet-grab{cursor:crosshair}
+
+/* Pins are divIcons, not Leaflet's default marker images — one less asset to
+   404, and the number is the whole point. A circle rather than a teardrop: the
+   digit stays upright, and the centre of the circle is the shop's actual point,
+   which is what a distance-ordered map is claiming. */
+.tl-pin-wrap{background:none;border:0}
+.tl-pin{
+  display:grid;place-items:center;width:28px;height:28px;border-radius:50%;
+  background:var(--ink);color:#fff;font-size:11px;font-weight:700;line-height:1;
+  font-variant-numeric:tabular-nums;
+  border:1.5px solid #fff;
+  box-shadow:0 0 0 1px rgba(12,15,14,.18),0 8px 18px -8px rgba(12,15,14,.75);
   transition:transform .16s var(--ease),background .16s;
 }
-.dir-pin:hover{background:var(--ink);transform:translate(-50%,-100%) scale(1.12)}
+.tl-pin:hover{background:var(--magenta);transform:scale(1.12)}
+.tl-pin--near{
+  background:var(--magenta);
+  box-shadow:0 0 0 4px rgba(232,38,94,.20),0 8px 18px -8px rgba(12,15,14,.7);
+}
+.tl-pin--near:hover{background:var(--ink)}
+
+/* "You are here": a dot with a ring that breathes, the one thing on the map
+   that is about the customer rather than a shop. */
+.tl-me-wrap{background:none;border:0}
+.tl-me{
+  display:block;width:14px;height:14px;margin:4px;border-radius:50%;
+  background:var(--cyan);border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);
+}
+.tl-me-ring{
+  position:absolute;inset:-8px;border-radius:50%;border:2px solid var(--cyan);
+  opacity:.55;animation:tl-pulse 2.4s var(--ease) infinite;
+}
+@keyframes tl-pulse{
+  0%{transform:scale(.55);opacity:.7}
+  70%{transform:scale(1.35);opacity:0}
+  100%{transform:scale(1.35);opacity:0}
+}
+
+.dir-map-tools{position:absolute;top:10px;right:10px;z-index:500;display:flex;gap:6px}
+.map-btn{
+  display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;
+  background:#fff;border:1px solid var(--line);border-radius:99px;
+  font-size:11.5px;font-weight:600;color:var(--ink-2);box-shadow:var(--sh-sm);
+  transition:.14s var(--ease);
+}
+.map-btn svg{width:14px;height:14px;flex:none}
+.map-btn:hover{border-color:var(--ink);color:var(--ink);transform:translateY(-1px)}
+.map-btn-primary{background:var(--ink);border-color:var(--ink);color:#fff}
+.map-btn-primary:hover{background:var(--magenta);border-color:var(--magenta);color:#fff}
+.map-btn.on{background:var(--magenta);border-color:var(--magenta);color:#fff}
+.map-btn:disabled{opacity:.65;cursor:progress;transform:none}
+
+.dir-map-note{
+  position:absolute;left:10px;top:10px;right:150px;z-index:500;
+  background:rgba(12,15,14,.86);color:#fff;border-radius:9px;padding:7px 11px;
+  font-size:11px;line-height:1.4;max-width:330px;backdrop-filter:blur(3px);
+}
+.dir-map-note--offline{top:auto;bottom:52px;right:auto;background:rgba(245,183,0,.94);color:var(--ink)}
+
 .dir-map-cap{
-  position:absolute;left:12px;bottom:12px;background:#fff;border:1px solid var(--line);
-  border-radius:99px;padding:6px 12px;font-size:11px;font-weight:500;color:var(--ink-2);
-  box-shadow:var(--sh-sm);
+  position:absolute;left:12px;bottom:12px;z-index:500;display:flex;align-items:baseline;gap:6px;
+  background:#fff;border:1px solid var(--line);border-radius:99px;padding:6px 13px;
+  font-size:11px;font-weight:500;color:var(--muted);box-shadow:var(--sh-sm);
+  max-width:calc(100% - 60px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.dir-map-cap b{color:var(--ink);font-weight:600}
+
+/* Leaflet popups, dressed like the rest of the site. */
+.dir-map .leaflet-popup-content-wrapper{
+  border-radius:12px;box-shadow:var(--sh);border:1px solid var(--line);padding:0;
+}
+.dir-map .leaflet-popup-content{margin:0;width:190px !important;line-height:1.4}
+.dir-map .leaflet-popup-tip{box-shadow:none;border:1px solid var(--line)}
+.tl-pop{padding:11px 13px 12px}
+.tl-pop-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px}
+.tl-pop-head b{font-weight:650;color:var(--ink)}
+.tl-pop-flag{
+  font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--magenta);background:var(--tint-m);border-radius:99px;padding:2px 6px;flex:none;
+}
+.tl-pop-meta{display:flex;flex-wrap:wrap;gap:4px;font-size:11px;color:var(--muted);margin-top:3px}
+.tl-pop-link{
+  display:inline-block;margin-top:8px;font-size:11.5px;font-weight:650;color:var(--ink);
+  border-bottom:1.5px solid var(--yellow);padding-bottom:1px;
+}
+.tl-pop-link:hover{color:var(--magenta);border-color:var(--magenta)}
+
+/* The pin number, repeated on the card it belongs to. */
+.shop-rank{
+  position:absolute;left:10px;top:10px;width:22px;height:22px;border-radius:50%;
+  display:grid;place-items:center;background:rgba(255,255,255,.94);color:var(--ink);
+  font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;
+  box-shadow:0 4px 10px -4px rgba(12,15,14,.5);
+}
+.tag-near{background:var(--tint-m);color:var(--magenta);border-color:#F8CBD8}
+.shop-dist{color:var(--ink-2);font-weight:600}
+
+/* Nearest / Top rated, only shown once the customer has a position. */
+.dir-sort{
+  display:flex;align-items:center;gap:4px;margin:-6px 0 14px;font-size:11.5px;
+}
+.dir-sort > span{font-weight:600;color:var(--muted);margin-right:4px}
+.dir-sort a{
+  padding:4px 11px;border-radius:99px;border:1px solid transparent;color:var(--muted);font-weight:550;
+  transition:.14s;
+}
+.dir-sort a:hover{color:var(--ink);border-color:var(--line);background:#fff}
+.dir-sort a.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.dir-sort-clear{margin-left:auto;font-weight:500 !important;text-decoration:underline;text-underline-offset:2px}
+
+@media (max-width:1080px){
+  .dir-rail{position:static}
+  .dir-map{height:220px}
+  .dir-map-note{right:10px;max-width:none}
 }
 .shops.cols-3{grid-template-columns:repeat(3,1fr)}
 .shop-badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
 .shop-badges .tag{font-size:10px;padding:2px 8px}
 .tag-c{background:var(--tint-c);color:#05649B;border-color:#CBE7F8}
 .tag-n{background:var(--paper);color:var(--muted);border-color:var(--line)}
-@media (max-width:1080px){
-  .dir-rail{position:static}
-  .dir-map{height:150px}
-}
 .shop-desc{font-size:12px;color:var(--muted);line-height:1.5;margin:8px 0 10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .shop-name a{color:inherit}
 .pay-row{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}

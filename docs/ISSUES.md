@@ -6,10 +6,11 @@ before either half starts.
 > **Status:** every issue **#1**–**#12** is built, plus **#14** (design fidelity),
 > **#16** (the profile screen) and **#17** (shop dashboard). They stay here as the
 > reference for what exists — read them, do not rebuild them.
+> **The documentation set is written:** [SRS](SRS.md) (requirements and traceability),
+> [ARCHITECTURE](ARCHITECTURE.md) (context, containers, sequences, decisions) and
+> [SCHEMA](SCHEMA.md) (ER diagram, dictionary, invariants).
 > **Next up:** **#13** — reconcile `main` with `feature/reports-payouts-policies`,
 > which independently implements #7–#9.
-> The documentation set (SRS, architecture and schema) is written on
-> `docs/18-documentation-set` and is not merged yet.
 
 Labels used: `spine` · `shop-panel` · `admin-panel` · `integration` · `billing` ·
 `p0` (blocks someone) · `p1` (normal)

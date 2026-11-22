@@ -1,6 +1,6 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.6 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.7 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
 > profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
@@ -16,9 +16,12 @@
 > The dashboard had a console layout of its own while the other seven screens were still
 > Filament, so every link out of the dashboard changed the product underneath the click.
 > All eight screens moved into the console (§5.9).
-> Version 1.6 finishes that job — the panel the screens came from is deleted, so Filament
+> Version 1.6 finished that job — the panel the screens came from is deleted, so Filament
 > is the admin side only, and the two capabilities that lived only in the panel were
 > carried across before it went (§11).
+> Version 1.7 adds the missing first step: a shop can now **ask** for an account (§5.10).
+> The public page had always described that step and nothing implemented it, so the only
+> way a shop could join was for a developer to seed one.
 
 ---
 
@@ -205,6 +208,21 @@ feature names.
 | FR-92 | The console shall let an account that owns more than one shop switch between them, and shall accept a shop only when it belongs to the account and is trading. | #66 |
 | FR-93 | The console shall hide the price, catalogue and billing screens from shop staff and shall refuse them at the route, so hiding the link is a courtesy and not the rule. | #66 |
 
+### 5.10 Shop admission — FR-94 …
+
+| ID | Requirement | Issue |
+|---|---|---|
+| FR-94 | The system shall let a prospective shop submit a request from `/open-a-shop` with its business name, contact name, email, phone, city, counter address, the services it wants to list, and an optional note — **without creating an account or a shop**. | #73 |
+| FR-95 | The system shall list requests in the administrative panel oldest-first, shall count the unanswered ones in the navigation, and shall keep handled requests out of the default view. | #73 |
+| FR-96 | The system shall, on approval, create the shop-owner account and the shop in **one transaction**, place the shop on the free Starter plan, attach the owner, and record on the request which shop it became and who approved it. | #73 |
+| FR-97 | The system shall never create, store or transmit a plaintext password: the owner sets their own through a single-use, expiring link, and the same link is shown to the administrator once when mail is not configured. | #73 |
+| FR-98 | The system shall rate-limit the public request form and shall silently discard a submission whose hidden field is filled, answering the same way it answers a person. | #73 |
+| FR-99 | The system shall reuse and promote an existing account that matches the applicant's email rather than create a second one, and shall refuse to approve a request whose email belongs to an administrator. | #73 |
+
+A request is **not** a pending shop. It has no owner, no matrix and no storefront, so it
+lives in its own table until an administrator decides — otherwise every enquiry would put an
+unowned row in the shop list and in every count that says "shops".
+
 ---
 
 ## 6. Business rules
@@ -304,6 +322,7 @@ given so a reader can open it; several issues are covered by more than one file.
 | #61 | FR-80 … FR-82 | `TransactionalMailTest` — including mail failure leaving the record intact |
 | #63 | FR-83 … FR-86 | `InboundMailTest` — signature, provider shapes, dedupe, and mail never moving a job |
 | #66 | FR-87 … FR-93 | `ConsoleTest`, `ConsoleScreensTest` — every screen, every permission, and no nav link out of the console |
+| #73 | FR-94 … FR-99 | `ShopRequestTest` — the form creates nothing but a request, approval creates the account and the shop in one go, and the invite link really sets a working password |
 
 Two honest notes about this table:
 

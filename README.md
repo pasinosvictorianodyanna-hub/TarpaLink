@@ -16,14 +16,14 @@ A job-order platform for the Philippine printing industry. Customers find a prin
 | Admin panel (Filament) | done | issues #8–#9, #10 — dashboard, approvals, users & roles, CMS |
 | Integrations | partly done | PayMongo sandbox: intent + signed webhook + retry. SMTP/Maps/storage still open |
 
-**Spine (shared, done):** 17 domain tables, models, `PriceCalculator`, `JobWorkflow`, `Billing`, `ShopApproval`, seeders with seven shops.
+**Spine (shared, done):** 19 domain tables, models, `PriceCalculator`, `JobWorkflow`, `Billing`, `ShopApproval`, seeders with seven shops.
 
 ## Stack
 
 - **PHP 8.2+ / Laravel 12** — the whole application, one repo, one deploy
 - **Vue 3 (Composition API) + Vite** — the interactive storefront (order builder, checkout, job status, account)
 - **Filament v4 (Livewire 3 + Alpine)** — the admin panel only; this is the CMS. The shop surface is the console
-- **MySQL 8** — 17 domain tables (25 with framework tables)
+- **MySQL 8** — 19 domain tables (27 with framework tables)
 - **PayMongo (sandbox)** — payments, no live charges
 
 The rule that keeps it coherent: **Vue renders, Filament edits, Laravel decides.** Any price the browser shows is recomputed server-side before an order is created. The server always wins.
@@ -35,6 +35,7 @@ app/                      Laravel application
   Services/PriceCalculator.php    the only place a price is computed
   Services/JobWorkflow.php        the only place status transitions are allowed
   Services/Billing.php            plan changes; never rewrites settled payouts
+  Services/ShopOnboarding.php     an approved request becomes an owner and a shop
   Services/ShopApproval.php       approve / reject / suspend a shop, in one place
   Services/PayMongo.php           sandbox intents + webhook signature check
   Services/Geocoder.php           address lookup, cached; fails closed when off
@@ -42,14 +43,14 @@ app/                      Laravel application
   Support/Credentials.php         the only reader of an API key (db, then env)
   Support/ReplyAddress.php        reply+<reference>@ — the job, in an address
   Support/Notifier.php            the one place a notification leaves
-  Models/                         17 models (18 domain tables — shop_users is a pivot)
+  Models/                         18 models (19 domain tables — shop_users is a pivot)
   Policies/                       16 policies; one per model, no blanket admin bypass
   Http/Controllers/Console/       the shop console: dashboard, jobs, board, prices, reports, billing, catalogue
-  Http/Controllers/               home, shops, quote, checkout, jobs, account, profile, auth, CSV export, webhooks
+  Http/Controllers/               home, shops, quote, checkout, jobs, account, profile, auth, shop requests, CSV export, webhooks
   Filament/Admin/                 dashboard widgets, shops, users, CMS, integrations
   Providers/Filament/             the admin panel provider
 database/
-  migrations/             18 domain tables
+  migrations/             19 domain tables
   seeders/                7 shops, 17 services, 43 price tiers, 33 jobs in every status
 resources/
   css/app.css             design system, extracted from the prototype
@@ -124,6 +125,14 @@ shop they operate comes from the `shop_users` pivot.
 Sign in at `/login` as `kevin@inkwell.ph` and you land on the console. Every query is
 scoped to that owner's `shop_id`, so a shop owner sees only Inkwell Press — and `/admin`
 returns 403 for them. The admin panel has its own door at `/admin/login`.
+
+**A shop asks to join, an admin decides.** The public form at `/open-a-shop` creates a
+*request* — no account, no shop — and the queue is at `/admin/shop-requests` with a badge
+for what is waiting. Approving creates the `shop_owner` account and the shop in one
+transaction, on the free Starter plan, and emails a single-use link so the owner sets their
+own password; no plaintext password is ever stored or sent. When mail is not configured the
+same link is shown to the administrator once, on the request page, to pass on by hand. That
+is `ShopOnboarding` — the only place a shop is created from a request.
 
 **Filament is the admin side only.** The shop panel that used to sit at `/shop` was
 retired in #71: it was a second shell over the same data, and the console is the shop

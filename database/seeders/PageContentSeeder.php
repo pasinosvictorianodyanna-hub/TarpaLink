@@ -231,7 +231,7 @@ class PageContentSeeder extends Seeder
                         'Your finishing fees (eyelets, hemming, lamination, cutting), your quantity discount thresholds, and how long a typical job takes to produce.',
                     ]],
                     ['h' => 'How onboarding works', 'p' => [
-                        'Create an account, then send us your business name, counter address and the services you want to list. We review the application, and once it is approved the shop console opens.',
+                        'Send us your business name, counter address and the services you want to list using the form below. We review every application, and once it is approved we create the account and email you a link to set your own password.',
                         'Inside the console you build the price matrix, set your proof window and turn on rush orders if you can take them. Your storefront goes live the moment the matrix is complete — there is no separate publishing step.',
                     ]],
                     ['h' => 'What it costs', 'p' => [

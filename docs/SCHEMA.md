@@ -1,14 +1,14 @@
 # Data model — TarpaLink
 
-Eighteen domain tables, seventeen Eloquent models (`shop_users` is a pivot with no model of
+Nineteen domain tables, eighteen Eloquent models (`shop_users` is a pivot with no model of
 its own), sixteen policies — one per model that a panel can address. `Integration` has none
 on purpose: credentials are reached through `/admin/integrations`, which is gated by panel
 access, and a resource with a list page would put every stored key one click from a table.
 
 > **Written against:** current `main`. The model has been stable since #17; #61 added the
-> `RESTRICT` foreign keys that protect settled money, and #63 added `integrations` plus the
-> three inbound-mail columns on `job_activities`. Everything shown here is migrated in this
-> repository today.
+> `RESTRICT` foreign keys that protect settled money, #63 added `integrations` plus the
+> three inbound-mail columns on `job_activities`, and #73 added `shop_requests`. Everything
+> shown here is migrated in this repository today.
 
 ---
 
@@ -386,6 +386,23 @@ third — and a blank stored value is dropped on save so the environment fallbac
 That is what makes "leave this field empty" mean *revert*, which is the only reading that
 is not ambiguous.
 
+### 2.16 `shop_requests`
+
+A shop asking to be let in. `business_name`, `contact_name`, `email`, `phone`, `city`,
+`address`, `services` (free text, one service per line), `message`, `status`, `reason`,
+`shop_id`, `handled_by`, `handled_at`.
+
+Deliberately **not** a `shops` row with `status = pending`. A request has no owner account,
+no price matrix and no storefront; creating a half-shop for every enquiry would put unowned
+rows in the shop list, in the pending count on the admin dashboard, and in every query that
+assumes a shop has somebody who runs it. The request is its own record until an
+administrator decides, and `shop_id` links it to what it became.
+
+`status` is `new` → `approved` | `rejected`, and nothing moves it back: a rejected
+application is re-applied for, not reopened, because the details will have changed. The
+account is created only at approval (`ShopOnboarding`), so between the form and the decision
+there is no `users` row and no `shops` row — which is what the page promises.
+
 ---
 
 ## 3. Enumerations
@@ -401,6 +418,7 @@ is not ambiguous.
 | `payments.status` | `pending`, `paid`, `failed`, `refunded` |
 | `payments.payout_status` | `pending`, `paid` |
 | `job_activities.kind` | `transition`, `note` |
+| `shop_requests.status` | `new`, `approved`, `rejected` |
 | `job_activities.source` | `NULL`, `email` |
 | `page_sections.status` | `visible`, `hidden` |
 

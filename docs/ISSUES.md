@@ -594,6 +594,66 @@ deleted once their coverage existed on the console.
 
 ---
 
+## #73 — A shop could not ask to join, and the page said it could
+
+**Reported as a question.** "If I want to open a shop account for my shop, how can I request
+to admin?" The answer was: you can't.
+
+**What the page promised.** `/open-a-shop` — where the homepage CTA points — said: *"Create
+an account, then send us your business name, counter address and the services you want to
+list. We review the application, and once it is approved the shop console opens."*
+
+**What existed.**
+
+- `/register` creates customers only. `RegisteredUserController` hard-codes
+  `'role' => 'customer'` and never reads a role from the form.
+- No "send us your details" form, address or queue. Nothing received an application.
+- The admin panel could list, view, edit, approve, reject and suspend a shop — but had **no
+  create page**. `ShopResource::getPages()` is `index` / `view` / `edit`.
+- `ShopApproval::approve()` flips the *shop* to `active`; it never touched `users.role`. So
+  even a manually created pending shop attached to a customer account would still be 403 at
+  the console door, because `worksInShop()` reads `users.role`.
+- The only place a shop was ever created was `DatabaseSeeder`.
+
+So the front door for shop owners led to instructions nobody could follow, and the approval
+queue could only ever contain shops a developer had seeded.
+
+**The flow, as specified.** Request → admin approves → admin's approval creates the account →
+owner is given access. A request is **not** an account and **not** a pending shop.
+
+| Stage | What happens |
+|---|---|
+| Request | `POST /open-a-shop` writes a `shop_requests` row. No user, no shop. Rate-limited, with a honeypot that answers exactly like a person. |
+| Review | `/admin/shop-requests` — oldest first, `new` by default, unanswered count on the nav. |
+| Approve | `ShopOnboarding::approve()` creates the `shop_owner` account and the shop in one transaction, on the free Starter plan via `Billing`, attaches the pivot, and records the resulting `shop_id` on the request. |
+| Hand over | A password-reset token is minted and emailed. No plaintext password is stored, generated-and-told, or emailed. |
+
+**Why its own table.** A `shops` row with `status = pending` and no owner would appear in the
+shop list, in the pending-approval count, and in every query that assumes a shop has somebody
+who runs it. The request is its own record until an administrator decides.
+
+**Two edges worth naming.** An email that already belongs to a customer is reused and
+promoted rather than duplicated — two rows for one person is how a shop ends up unable to see
+its own history. An email belonging to an administrator is refused outright, because `role`
+holds one value and approving would demote them.
+
+**The link is shown, not just sent.** This deployment's mailer is `log`, so `Notifier::send()`
+succeeds while nothing arrives. The approve action therefore flashes the link onto the
+request page, where it is copyable for the administrator — otherwise "approved" would mean
+"created an account nobody can log into".
+
+**Also corrected:** the seeded copy on `/open-a-shop` told the applicant to create an account
+first, which the flow no longer needs. It now describes what actually happens.
+
+**Proven by:** `ShopRequestTest` (16) — the form creates a request and *nothing else* (user
+and shop counts asserted unchanged), the honeypot stores nothing, the throttle returns 429 on
+the sixth submission, approval creates the owner + shop + pivot + plan and sends the invite,
+an existing customer is reused and promoted, an admin address is refused, a second approval
+is refused, and the invitation link is followed end to end through password reset to a
+working sign-in that lands on `/console`.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

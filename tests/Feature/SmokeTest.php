@@ -76,6 +76,7 @@ class SmokeTest extends TestCase
             '/shops/inkwell-press/build',
             '/shops/inkwell-press/checkout',
             '/login',
+            '/open-a-shop',
             '/admin/login',
             '/login',
         ]);
@@ -201,6 +202,7 @@ class SmokeTest extends TestCase
             '/admin/site-content',
             '/admin/site-content/'.$section->getRouteKey().'/edit',
             '/admin/site-settings',
+            '/admin/shop-requests',
             '/admin/site-settings/create',
             '/admin/site-settings/'.$setting->getRouteKey().'/edit',
         ]);

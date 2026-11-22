@@ -22,6 +22,7 @@ use App\Http\Controllers\ProofController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\ShopController;
+use App\Http\Controllers\ShopRequestController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -31,6 +32,14 @@ Route::get('/shops/{shop}', [ShopController::class, 'show'])->name('shops.show')
 Route::get('/shops/{shop}/build', [ShopController::class, 'builder'])->name('shops.builder');
 
 Route::post('/api/quote', QuoteController::class)->name('quote');
+
+// A shop asking to be let in. Public and unauthenticated on purpose: the whole
+// point is that a shop with no account yet can apply. It creates a request, not
+// a user and not a shop — an administrator decides, and the account is created
+// at that point (see ShopOnboarding).
+Route::post('/open-a-shop', [ShopRequestController::class, 'store'])
+    ->middleware('throttle:5,60')
+    ->name('shop-request.store');
 
 Route::get('/shops/{shop}/checkout', [CheckoutController::class, 'show'])->name('checkout.show');
 Route::post('/shops/{shop}/checkout', [CheckoutController::class, 'store'])

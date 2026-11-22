@@ -48,7 +48,9 @@ Then edit `.env`:
 | `PAYMONGO_*` | sandbox keys. `PAYMONGO_WEBHOOK_SECRET` is **mandatory** — without it the webhook rejects every request |
 | `INBOUND_ADDRESS`, `INBOUND_SECRET` | the mailbox replies are forwarded to, and the secret that signs the forward. Both empty means notifications go out with no `Reply-To` and the inbound webhook refuses everything — deliberately, so a half-configured deployment fails closed |
 | `GEOCODER_ENABLED` | `true` by default. Set `false` if the container has no outbound HTTPS, or the address box waits for a timeout before saying it cannot help |
-| `MAIL_*` | real mailer, or leave `log` and read `storage/logs` |
+| `MAIL_*` | real mailer, or leave `log` and read `storage/logs`. Switching to `smtp` needs `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` and `MAIL_SCHEME` — the example file carries them commented out |
+| `PROOF_DISK_DRIVER` | **`s3` before accepting real artwork.** The default `local` writes into the container and is lost on the next rebuild. With `s3`, set `AWS_BUCKET` plus credentials and region |
+| `TRUSTED_PROXIES` | only when something else terminates TLS. nginx forwards `X-Forwarded-Proto`, but Laravel ignores it until this names the proxy — without it every emailed link is `http://` |
 
 `PAYMONGO_*`, `INBOUND_ADDRESS` and `INBOUND_SECRET` do not have to stay in `.env`.
 They can be saved on `/admin/integrations`, where they are stored encrypted and take
@@ -65,8 +67,25 @@ docker compose logs -f app          # watch the entrypoint
 
 On boot the entrypoint runs, in order: publish Filament assets, `storage:link`,
 `migrate --force`, then `optimize` (config, route and view caches). Migrations
-run **only in `app`** — the worker has `RUN_MIGRATIONS=false` so two processes
-cannot race the schema on a rolling restart.
+run **only in `app`** — the worker and the scheduler have `RUN_MIGRATIONS=false`
+so no two processes race the schema on a rolling restart.
+
+Four containers come up: `app`, `worker`, `scheduler` and `db`. The scheduler exists
+only to run `billing:issue`; if it is not running, subscription invoices are never
+issued and nothing reports the failure.
+
+```bash
+docker compose ps                   # all four should be Up
+docker compose logs scheduler       # should show the schedule loop
+```
+
+### Behind HTTPS
+
+The compose file publishes plain HTTP on `APP_PORT`. If something else terminates
+TLS — Cloudflare, an ALB, a front nginx — set `TRUSTED_PROXIES` to that proxy, or
+every link the app emails will be `http://` and every session cookie will be issued
+for the wrong scheme. The container's nginx forwards `X-Forwarded-Proto`; Laravel
+ignores it until `TRUSTED_PROXIES` names the proxy.
 
 ---
 
@@ -181,6 +200,16 @@ unreachable except through the proxy.
   automatically — an admin still marks them paid on `/admin/payouts`.
 - **Single container serves HTTP.** Fine for one host; for horizontal scaling you
   would split nginx out and share `public/` between replicas.
+- **CI runs SQLite; production runs MySQL.** Every test in the suite runs against
+  SQLite, which is more forgiving than MySQL 8 in two ways that have already bitten
+  this project: `only_full_group_by` (the reports query selects through a join) and
+  `TIMESTAMP` conversion through the connection's time zone. Before the first deploy,
+  run the suite against MySQL rather than assuming:
+
+  ```bash
+  DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_DATABASE=tarpalink_test \
+  DB_USERNAME=root DB_PASSWORD=secret php artisan test
+  ```
 - **Inbound mail needs a forwarder.** `/webhooks/inbound` takes a signed JSON body
   and does not speak IMAP. Point a provider's inbound rule (Mailgun, Postmark, or a
   small relay) at it with an `X-Inbound-Signature` HMAC over the raw body. A body that

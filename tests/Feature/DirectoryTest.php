@@ -132,10 +132,114 @@ class DirectoryTest extends TestCase
         $this->assertNotEmpty($pins);
 
         foreach ($pins as $pin) {
-            $this->assertGreaterThanOrEqual(0, $pin['x']);
-            $this->assertLessThanOrEqual(100, $pin['x']);
-            $this->assertGreaterThanOrEqual(0, $pin['y']);
-            $this->assertLessThanOrEqual(100, $pin['y']);
+            // Real coordinates now, not a 0–100 projection of the result set.
+            $this->assertGreaterThan(14.0, $pin['lat']);
+            $this->assertLessThan(15.0, $pin['lat']);
+            $this->assertGreaterThan(120.0, $pin['lng']);
+            $this->assertLessThan(122.0, $pin['lng']);
         }
+    }
+
+    /* ------------------------------------------------------------ near me */
+
+    public function test_a_location_puts_the_nearest_shop_first(): void
+    {
+        // Standing on top of Inkwell Press in Diliman.
+        $shops = $this->get('/shops?near=14.64000,121.05500')->assertOk()->viewData('shops');
+
+        $this->assertSame('inkwell-press', $shops->first()->slug);
+    }
+
+    public function test_results_are_ordered_by_distance_not_by_rating(): void
+    {
+        $origin = ['lat' => 14.5547, 'lng' => 121.0244]; // Makati
+        $shops = $this->get('/shops?near=14.55470,121.02440')->assertOk()->viewData('shops');
+
+        $previous = -1.0;
+
+        foreach ($shops as $shop) {
+            $km = $shop->distanceKm($origin['lat'], $origin['lng']);
+
+            $this->assertNotNull($km, "{$shop->name} has no coordinates but was returned");
+            $this->assertGreaterThanOrEqual($previous, $km, "{$shop->name} is out of distance order");
+            $previous = $km;
+        }
+
+        // And that order is genuinely different from the default rating order,
+        // or this test would pass on a page that ignored `near` entirely.
+        $byRating = $this->get('/shops')->viewData('shops');
+
+        $this->assertNotSame($byRating->first()->slug, $shops->first()->slug);
+    }
+
+    public function test_distance_is_measured_from_the_customer_not_the_platform_origin(): void
+    {
+        $shops = $this->get('/shops?near=14.55470,121.02440')->assertOk()->viewData('shops');
+        $shop = $shops->firstWhere('slug', 'northline-print');
+
+        $fromCustomer = $shop->distanceKm(14.5547, 121.0244);
+        $fromOrigin = $shop->distanceKm();
+
+        $this->assertGreaterThan($fromOrigin, $fromCustomer);
+    }
+
+    public function test_the_nearest_pin_is_flagged_and_carries_a_distance(): void
+    {
+        $pins = $this->get('/shops?near=14.64000,121.05500')->assertOk()->viewData('pins');
+
+        $this->assertTrue($pins[0]['nearest']);
+        $this->assertSame(1, $pins[0]['n']);
+        $this->assertMatchesRegularExpression('/^\d+(\.\d)? (m|km)$/', $pins[0]['distance']);
+
+        // Exactly one pin is the nearest one.
+        $this->assertCount(1, array_filter($pins, fn ($pin) => $pin['nearest']));
+    }
+
+    public function test_pin_numbers_line_up_with_the_card_order(): void
+    {
+        $response = $this->get('/shops?near=14.64000,121.05500')->assertOk();
+
+        $shops = $response->viewData('shops');
+        $pins = $response->viewData('pins');
+
+        foreach ($pins as $pin) {
+            $this->assertSame($shops[$pin['n'] - 1]->id, $pin['id']);
+        }
+    }
+
+    public function test_sorting_by_rating_keeps_the_location(): void
+    {
+        $response = $this->get('/shops?near=14.55470,121.02440&sort=rating')->assertOk();
+
+        $this->assertSame('rating', $response->viewData('sort'));
+        $this->assertNotNull($response->viewData('origin'));
+
+        $ratings = $response->viewData('shops')->pluck('rating');
+
+        $this->assertSame(
+            $ratings->sortDesc()->values()->all(),
+            $ratings->values()->all(),
+            'sort=rating should still order by rating'
+        );
+    }
+
+    public function test_a_malformed_location_is_ignored_rather_than_clamped(): void
+    {
+        foreach (['near=abc', 'near=14.6', 'near=999,121', 'near=14.6,999', 'near='] as $query) {
+            $response = $this->get('/shops?'.$query)->assertOk();
+
+            $this->assertNull($response->viewData('origin'), "`{$query}` should not produce an origin");
+            $this->assertSame('rating', $response->viewData('sort'));
+        }
+    }
+
+    public function test_the_location_survives_every_link_on_the_page(): void
+    {
+        $response = $this->get('/shops?near=14.64000,121.05500')->assertOk();
+
+        // The filter rail, the search box and the service pills all have to carry
+        // it, or the next click silently re-sorts from the platform origin.
+        $response->assertSee('name="near" value="14.64000,121.05500"', false);
+        $response->assertSee('near=14.64000%2C121.05500', false);
     }
 }

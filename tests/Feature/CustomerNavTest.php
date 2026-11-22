@@ -1,0 +1,219 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Shop;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+/**
+ * The customer's header.
+ *
+ * The bar used to offer three doors and left four of the customer's seven
+ * screens reachable only by walking into a shop or a job. All seven now sit in
+ * the bar. These tests hold that to the two things that matter: every item goes
+ * somewhere real, and an item with nowhere to go is visibly not a link rather
+ * than a link that quietly does the wrong thing.
+ */
+class CustomerNavTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed();
+    }
+
+    private function customer(string $email = 'jomar@tarpalink.ph'): User
+    {
+        return User::where('email', $email)->firstOrFail();
+    }
+
+    /**
+     * The header's link list on its own.
+     *
+     * The same screen names appear elsewhere on the page — in a job row, in the
+     * footer — so a bare assertSee over the whole document would pass whether or
+     * not the bar actually carried the item.
+     */
+    private function bar(string $html): string
+    {
+        preg_match('/<div class="appbar-links">(.*?)<\/div>/s', $html, $match);
+
+        return $match[1] ?? '';
+    }
+
+    /** The href of a link in the bar, or null when the item is not a link. */
+    private function linkFor(string $bar, string $label): ?string
+    {
+        preg_match('/<a href="([^"]+)"[^>]*>'.preg_quote($label, '/').'<\/a>/', $bar, $match);
+
+        return $match[1] ?? null;
+    }
+
+    /** True when the item is rendered as the dimmed, non-clickable variant. */
+    private function isOff(string $bar, string $label): bool
+    {
+        return (bool) preg_match(
+            '/<span class="nav-off"[^>]*>'.preg_quote($label, '/').'<\/span>/',
+            $bar
+        );
+    }
+
+    public function test_the_bar_lists_all_seven_screens(): void
+    {
+        $bar = $this->bar($this->actingAs($this->customer())->get('/account')->assertOk()->getContent());
+
+        foreach ([
+            'Shop directory',
+            'Shop profile',
+            'Order builder',
+            'Checkout',
+            'Order status',
+            'My jobs',
+            'Profile',
+        ] as $screen) {
+            $this->assertMatchesRegularExpression(
+                '/'.preg_quote($screen, '/').'/',
+                $bar,
+                "{$screen} is missing from the header"
+            );
+        }
+    }
+
+    public function test_order_status_becomes_a_link_once_there_is_a_job(): void
+    {
+        $me = $this->customer();
+        $job = $me->jobs()->firstOrFail();
+
+        $bar = $this->bar($this->actingAs($me)->get('/account')->assertOk()->getContent());
+
+        $this->assertSame(route('jobs.show', $job), $this->linkFor($bar, 'Order status'));
+        $this->assertFalse($this->isOff($bar, 'Order status'));
+    }
+
+    public function test_a_customer_with_no_jobs_sees_order_status_dimmed_not_linked(): void
+    {
+        $fresh = User::create([
+            'name' => 'New Customer',
+            'email' => 'new.customer@tarpalink.ph',
+            'password' => 'password',
+            'role' => 'customer',
+        ]);
+
+        $html = $this->actingAs($fresh)->get('/account')->assertOk()->getContent();
+        $bar = $this->bar($html);
+
+        // Visible, because it is part of the journey — but not a link, because
+        // there is no job to open.
+        $this->assertTrue($this->isOff($bar, 'Order status'));
+        $this->assertNull($this->linkFor($bar, 'Order status'));
+        $this->assertStringContainsString('No order in progress', $bar);
+        $this->assertStringNotContainsString('resume-chip', $html);
+    }
+
+    public function test_screens_that_need_a_shop_are_dimmed_with_the_reason(): void
+    {
+        $bar = $this->bar($this->actingAs($this->customer())->get('/account')->assertOk()->getContent());
+
+        foreach (['Shop profile', 'Order builder'] as $screen) {
+            $this->assertTrue($this->isOff($bar, $screen), "{$screen} should not be a link on My jobs");
+        }
+
+        $this->assertTrue($this->isOff($bar, 'Checkout'));
+        $this->assertStringContainsString('Open a shop first', $bar);
+        $this->assertStringContainsString('Build an order first', $bar);
+    }
+
+    public function test_the_bar_points_at_the_shop_the_customer_is_looking_at(): void
+    {
+        $shop = Shop::active()->firstOrFail();
+
+        $bar = $this->bar(
+            $this->actingAs($this->customer())->get('/shops/'.$shop->slug)->assertOk()->getContent()
+        );
+
+        $this->assertSame(route('shops.show', $shop), $this->linkFor($bar, 'Shop profile'));
+        $this->assertSame(route('shops.builder', $shop), $this->linkFor($bar, 'Order builder'));
+        $this->assertSame(route('checkout.show', $shop), $this->linkFor($bar, 'Checkout'));
+        $this->assertStringNotContainsString('Open a shop first', $bar);
+    }
+
+    public function test_the_chip_names_the_proof_waiting_on_the_customer(): void
+    {
+        $me = $this->customer();
+        $job = $me->jobs()->firstOrFail();
+        $job->update(['status' => 'awaiting_proof']);
+
+        $html = $this->actingAs($me)->get('/account')->assertOk()->getContent();
+
+        $this->assertStringContainsString('Approve proof', $html);
+        $this->assertStringContainsString('resume-chip urgent', $html);
+        $this->assertStringContainsString(route('jobs.show', $job), $html);
+    }
+
+    public function test_a_proof_outranks_a_newer_unpaid_order(): void
+    {
+        $me = $this->customer();
+
+        // Clear the board, then put a proof behind a newer unpaid order. The chip
+        // should still be the proof: it is the only one of the two that needs the
+        // customer to do something.
+        $me->jobs()->update(['status' => 'collected']);
+
+        $jobs = $me->jobs()->get(); // newest first
+        $unpaid = $jobs[0];
+        $proof = $jobs[1];
+
+        $unpaid->update(['status' => 'quoted']);
+        $proof->update(['status' => 'awaiting_proof']);
+
+        $html = $this->actingAs($me)->get('/account')->assertOk()->getContent();
+
+        $this->assertStringContainsString('Approve proof', $html);
+        $this->assertStringContainsString(route('jobs.show', $proof), $html);
+        $this->assertStringNotContainsString('Unpaid '.$unpaid->reference, $html);
+    }
+
+    public function test_an_unpaid_order_is_named_rather_than_promised(): void
+    {
+        $me = $this->customer();
+        $job = $me->jobs()->where('status', 'quoted')->firstOrFail();
+
+        $html = $this->actingAs($me)->get('/account')->assertOk()->getContent();
+
+        // The job page has no way to take a payment, so the chip must not say
+        // "Finish" — that would be a promise the destination cannot keep.
+        $this->assertStringContainsString('Unpaid '.$job->reference, $html);
+        $this->assertStringNotContainsString('Finish '.$job->reference, $html);
+    }
+
+    public function test_the_seven_screens_belong_to_customers_only(): void
+    {
+        $owner = User::where('email', 'kevin@inkwell.ph')->firstOrFail();
+        $admin = User::where('email', 'sofia@tarpalink.ph')->firstOrFail();
+
+        foreach ([$owner, $admin] as $user) {
+            $bar = $this->bar($this->actingAs($user)->get('/account')->assertOk()->getContent());
+
+            $this->assertStringNotContainsString(
+                'Shop directory',
+                $bar,
+                "{$user->email} should not be offered the customer journey"
+            );
+            $this->assertStringNotContainsString('nav-off', $bar);
+        }
+    }
+
+    public function test_the_bar_marks_the_screen_the_customer_is_on(): void
+    {
+        $bar = $this->bar($this->actingAs($this->customer())->get('/account')->assertOk()->getContent());
+
+        // Exactly one item carries the active class, and it is My jobs.
+        $this->assertSame(1, substr_count($bar, 'class="on"'));
+        $this->assertMatchesRegularExpression('/<a href="[^"]+" class="on">My jobs<\/a>/', $bar);
+    }
+}

@@ -164,46 +164,72 @@ class Shop extends Model
     }
 
     /**
-     * The point distances are measured from: Quezon City hall.
+     * The fallback point distances are measured from: Quezon City hall.
      *
-     * The hero's location pill defaults to Quezon City, so "4.2 km" on a card
-     * means "4.2 km from the city you are browsing", not from the customer's GPS.
-     * Until the directory takes a real origin, this is the only defensible one.
+     * Only used when no origin is supplied — on the landing page, where there is
+     * no customer position to measure from, "4.2 km" has to mean something, and
+     * "from the city the marketplace is anchored in" is the only defensible
+     * reading. The directory passes the customer's own coordinates instead.
      */
     public const ORIGIN_LAT = 14.6760;
 
     public const ORIGIN_LNG = 121.0437;
 
     /**
-     * Straight-line kilometres from the marketplace origin, or null when the
-     * shop has no coordinates.
+     * Straight-line kilometres from a given point, or null when the shop has no
+     * coordinates.
+     *
+     * Defaults to the marketplace origin so callers that genuinely have no
+     * origin (the landing page's "nearby" strip) keep working. The directory
+     * passes the customer's position, which is what makes "nearest" mean
+     * nearest to *them*.
      *
      * Haversine rather than a flat approximation: at Metro Manila's latitude the
      * difference is small but it costs one line, and a wrong distance is exactly
      * the kind of detail a customer notices.
      */
-    public function distanceKm(): ?float
+    public function distanceKm(?float $lat = null, ?float $lng = null): ?float
     {
         if ($this->lat === null || $this->lng === null) {
             return null;
         }
 
+        $lat ??= self::ORIGIN_LAT;
+        $lng ??= self::ORIGIN_LNG;
+
         $earthKm = 6371.0;
-        $dLat = deg2rad($this->lat - self::ORIGIN_LAT);
-        $dLng = deg2rad($this->lng - self::ORIGIN_LNG);
+        $dLat = deg2rad($this->lat - $lat);
+        $dLng = deg2rad($this->lng - $lng);
 
         $a = sin($dLat / 2) ** 2
-            + cos(deg2rad(self::ORIGIN_LAT)) * cos(deg2rad($this->lat)) * sin($dLng / 2) ** 2;
+            + cos(deg2rad($lat)) * cos(deg2rad($this->lat)) * sin($dLng / 2) ** 2;
 
         return round($earthKm * 2 * asin(min(1.0, sqrt($a))), 1);
     }
 
     /** "4.2 km", or the city when there is no coordinate to measure. */
-    public function distanceLabel(): string
+    public function distanceLabel(?float $lat = null, ?float $lng = null): string
     {
-        $km = $this->distanceKm();
+        $km = $this->distanceKm($lat, $lng);
 
         return $km === null ? $this->city : number_format($km, 1).' km';
+    }
+
+    /**
+     * Walking-scale distances read badly as "0.4 km" — metres are what a person
+     * uses for the last few hundred metres, so the label switches under 1 km.
+     */
+    public function distanceLabelShort(?float $lat = null, ?float $lng = null): string
+    {
+        $km = $this->distanceKm($lat, $lng);
+
+        if ($km === null) {
+            return $this->city;
+        }
+
+        return $km < 1.0
+            ? number_format($km * 1000).' m'
+            : number_format($km, 1).' km';
     }
 
     /** The unit as a person reads it: `sqft` is "sq ft", not "sqft". */

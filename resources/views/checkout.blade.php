@@ -24,6 +24,17 @@
             <a href="{{ route('shops.show', $shop) }}">{{ $shop->name }}</a> <span>/</span> Checkout
         </div>
 
+        {{-- Validation and payment errors used to be flashed to a bag this page
+             never rendered, so a rejected size or a failed intent looked like
+             the button simply did nothing. --}}
+        @if ($errors->any())
+            <div class="alert alert-err" role="alert">
+                @foreach ($errors->all() as $error)
+                    <div>{{ $error }}</div>
+                @endforeach
+            </div>
+        @endif
+
         <div class="co-steps" style="margin:0 0 20px">
             <div class="co-step done"><span class="n">1</span>Configure</div>
             <div class="co-line" style="width:40px"></div>

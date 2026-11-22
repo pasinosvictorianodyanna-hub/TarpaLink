@@ -37,6 +37,7 @@ Then edit `.env`:
 | `APP_KEY` | the value from `key:generate --show` |
 | `APP_URL` | the real public URL, e.g. `https://tarpalink.ph` |
 | `APP_PORT` | host port for nginx, default `8080` |
+| `APP_TIMEZONE`, `DB_TIMEZONE` | `Asia/Manila` and `+08:00` by default. Keep them in step: a 17:00 due date in UTC is 1 AM the next day in Manila, and MySQL converts TIMESTAMPs through the connection's time zone. Set them before loading real data — changing them later does not rewrite stored rows. |
 | `DB_PASSWORD`, `DB_ROOT_PASSWORD` | real passwords — the defaults are `change-me` |
 | `PAYMONGO_*` | sandbox keys. `PAYMONGO_WEBHOOK_SECRET` is **mandatory** — without it the webhook rejects every request |
 | `MAIL_*` | real mailer, or leave `log` and read `storage/logs` |

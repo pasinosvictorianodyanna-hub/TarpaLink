@@ -12,6 +12,9 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class CheckoutController extends Controller
 {
@@ -71,52 +74,93 @@ class CheckoutController extends Controller
 
         $spec = $this->specFromRequest($request, $shop);
 
+        /*
+         * A double-click used to create two jobs and two payment intents. The key
+         * identifies who ordered what from which shop; Cache::add is atomic, so
+         * two requests arriving together cannot both get through. Held for 30s
+         * only — long enough to catch a double-click, short enough that a real
+         * retry after a failure is not locked out (the failure releases it).
+         */
+        $key = 'checkout:'.sha1(json_encode([
+            $request->user()->id,
+            $shop->id,
+            $spec,
+            $data['payment_method'],
+        ]));
+
+        if (! Cache::add($key, true, now()->addSeconds(30))) {
+            return back()
+                ->withErrors(['checkout' => 'That order is already being placed. Check My jobs before trying again.'])
+                ->withInput();
+        }
+
         try {
             $quote = $calculator->quote($shop, $spec);
         } catch (ServiceUnavailable $e) {
+            Cache::forget($key);
+
             return back()->withErrors(['size' => $e->getMessage()])->withInput();
         }
 
-        $job = Job::create([
-            'shop_id' => $shop->id,
-            'user_id' => $request->user()->id,
-            'contact_name' => $data['contact_name'] ?? $request->user()->name,
-            'contact_phone' => $data['contact_phone'] ?? $request->user()->phone,
-            'contact_email' => $data['contact_email'] ?? $request->user()->email,
-            'pickup_person' => $data['pickup_person'] ?? null,
-            'service_id' => $spec['service_id'],
-            'status' => 'quoted',
-            'spec' => $spec,
-            'subtotal' => $quote['subtotal'],
-            'discount' => $quote['discount'],
-            'total' => $quote['total'],
-            'matrix_version' => $quote['matrix_version'],
-            'pickup_city' => $shop->city,
-            'fulfillment' => $data['fulfillment'] ?? 'pickup',
-            'notes' => $data['notes'] ?? null,
-            'due_at' => Carbon::now()->addDays(2)->setTime(17, 0),
-        ]);
+        try {
+            /*
+             * All writes, including the call to PayMongo, happen in one transaction.
+             * Previously a failed intent threw after the job and payment had been
+             * committed: the customer saw a 500, no way to pay, and retrying made
+             * a second job. Now a failed intent rolls the whole order back.
+             */
+            $job = DB::transaction(function () use ($shop, $request, $data, $spec, $quote) {
+                $job = Job::create([
+                    'shop_id' => $shop->id,
+                    'user_id' => $request->user()->id,
+                    'contact_name' => $data['contact_name'] ?? $request->user()->name,
+                    'contact_phone' => $data['contact_phone'] ?? $request->user()->phone,
+                    'contact_email' => $data['contact_email'] ?? $request->user()->email,
+                    'pickup_person' => $data['pickup_person'] ?? null,
+                    'service_id' => $spec['service_id'],
+                    'status' => 'quoted',
+                    'spec' => $spec,
+                    'subtotal' => $quote['subtotal'],
+                    'discount' => $quote['discount'],
+                    'total' => $quote['total'],
+                    'matrix_version' => $quote['matrix_version'],
+                    'pickup_city' => $shop->city,
+                    'fulfillment' => $data['fulfillment'] ?? 'pickup',
+                    'notes' => $data['notes'] ?? null,
+                    'due_at' => Carbon::now()->addDays(2)->setTime(17, 0),
+                ]);
 
-        foreach ($quote['lines'] as $line) {
-            $job->lines()->create($line);
-        }
+                foreach ($quote['lines'] as $line) {
+                    $job->lines()->create($line);
+                }
 
-        if ($data['payment_method'] !== 'cod') {
-            // Sandbox: no live charge. The webhook is the only thing that marks
-            // this paid — nothing in checkout may set status to paid.
-            $payment = Payment::create([
-                'job_id' => $job->id,
-                'provider' => 'paymongo',
-                'intent_id' => 'pending-'.$job->reference,
-                'amount' => $quote['total'],
-                'processing_fee' => (int) round($quote['total'] * 0.025) + 1500,
-                'commission' => (int) round($quote['total'] * $shop->commission_rate / 10000),
-                'status' => 'pending',
-            ]);
+                if ($data['payment_method'] !== 'cod') {
+                    // Sandbox: no live charge. The webhook is the only thing that
+                    // marks this paid — nothing in checkout may set status to paid.
+                    $payment = Payment::create([
+                        'job_id' => $job->id,
+                        'provider' => 'paymongo',
+                        'intent_id' => 'pending-'.$job->reference,
+                        'amount' => $quote['total'],
+                        'processing_fee' => (int) round($quote['total'] * 0.025) + 1500,
+                        'commission' => (int) round($quote['total'] * $shop->commission_rate / 10000),
+                        'status' => 'pending',
+                    ]);
 
-            $intent = app(PayMongo::class)->createIntent($job, $payment);
+                    $intent = app(PayMongo::class)->createIntent($job, $payment);
 
-            $payment->update(['intent_id' => $intent['id']]);
+                    $payment->update(['intent_id' => $intent['id']]);
+                }
+
+                return $job;
+            });
+        } catch (Throwable $e) {
+            Cache::forget($key);
+            report($e);
+
+            return back()
+                ->withErrors(['checkout' => 'We could not complete the order. Nothing was charged — please try again.'])
+                ->withInput();
         }
 
         return redirect()

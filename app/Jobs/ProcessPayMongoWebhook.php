@@ -70,6 +70,13 @@ class ProcessPayMongoWebhook implements ShouldQueue
     {
         $intentId = app(PayMongo::class)->intentIdFrom($this->event);
 
+        // A malformed event has no intent to find. Without this guard Laravel
+        // turns `where('intent_id', null)` into `IS NULL` and this would mark
+        // every unmatched payment in the system as failed.
+        if ($intentId === null || $intentId === '') {
+            return;
+        }
+
         Payment::where('intent_id', $intentId)->update([
             'status' => 'failed',
             'failed_at' => now(),

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Job;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -59,21 +60,26 @@ final class JobWorkflow
 
         $from = $job->status;
 
-        $job->status = $to;
+        // Status and audit row live or die together. A transition written
+        // without its activity row would break the audit trail (FR-43) in a way
+        // nobody notices until somebody asks who moved a job.
+        DB::transaction(function () use ($job, $to, $from, $by, $note) {
+            $job->status = $to;
 
-        // Stamped here, in the only place a transition can happen, so a job can
-        // never be `collected` without a timestamp for the on-time rate.
-        if ($to === 'collected') {
-            $job->collected_at = now();
-        }
+            // Stamped here, in the only place a transition can happen, so a job
+            // can never be `collected` without a timestamp for the on-time rate.
+            if ($to === 'collected') {
+                $job->collected_at = now();
+            }
 
-        $job->save();
+            $job->save();
 
-        $job->activities()->create([
-            'user_id' => $by?->id,
-            'from_status' => $from,
-            'to_status' => $to,
-            'note' => $note,
-        ]);
+            $job->activities()->create([
+                'user_id' => $by?->id,
+                'from_status' => $from,
+                'to_status' => $to,
+                'note' => $note,
+            ]);
+        });
     }
 }

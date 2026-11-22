@@ -94,6 +94,14 @@ final class PayMongo
             return false;
         }
 
+        // A signature proves the payload was signed once, not that it is new.
+        // Without a freshness window a captured event can be replayed forever;
+        // five minutes is long enough for retries, short enough to be useless
+        // to someone replaying an old "payment.paid".
+        if (! ctype_digit((string) $timestamp) || abs(time() - (int) $timestamp) > 300) {
+            return false;
+        }
+
         $expected = hash_hmac('sha256', $timestamp.'.'.$payload, (string) $secret);
 
         return hash_equals($expected, $signature);

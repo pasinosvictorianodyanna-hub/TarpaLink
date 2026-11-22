@@ -14,6 +14,12 @@
             </div>
         @endif
 
+        @if (session('status'))
+            <div class="alert" role="status" style="background:#F1F7F1;border-color:#C9E2C9;color:#1F5130;margin-bottom:16px">
+                {{ session('status') }}
+            </div>
+        @endif
+
         <form method="POST" action="{{ route('login') }}">
             @csrf
             <label class="field">
@@ -32,6 +38,10 @@
                 Sign in
             </button>
         </form>
+
+        <div class="tiny" style="margin-top:14px;text-align:center">
+            <a href="{{ route('password.request') }}" style="text-decoration:underline;text-underline-offset:2px;color:var(--muted)">Forgot your password?</a>
+        </div>
 
         <div class="tiny" style="margin-top:16px;text-align:center">
             New here? <a href="{{ route('register') }}" style="text-decoration:underline;text-underline-offset:2px;color:var(--ink)">Create an account</a>

@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Mail\ProofSent;
 use App\Models\Job;
 use App\Models\Proof;
 use App\Models\User;
+use App\Support\Notifier;
 
 /**
  * Sending artwork to a customer.
@@ -33,6 +35,20 @@ final class ProofExchange
         // change, not another status change.
         if ($job->status === 'quoted') {
             JobWorkflow::transition($job, 'awaiting_proof', $by, 'Proof v'.$version.' sent');
+        }
+
+        // Best-effort, and after the record exists: the customer has to find out
+        // somehow, and "check the website" is not a notification. A mail failure
+        // is reported inside `Notifier` and does not undo the upload.
+        $customer = $job->user;
+
+        if ($customer !== null) {
+            Notifier::send($customer->email, new ProofSent(
+                job: $job->fresh(),
+                proof: $proof,
+                customerName: $customer->name,
+                shopName: $job->shop?->name ?? 'The shop',
+            ));
         }
 
         return $proof;

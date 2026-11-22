@@ -37,10 +37,17 @@ erDiagram
         string name
         string email UK
         string password
-        string role "customer | shop_owner | admin"
+        string role "customer | shop_owner | staff | admin"
         string phone
         string city
         datetime password_changed_at
+        string remember_token
+    }
+
+    password_reset_tokens {
+        string email PK
+        string token
+        datetime created_at
     }
 
     shops {
@@ -190,13 +197,18 @@ erDiagram
 | `name` | string | |
 | `email` | string, unique | Login identity. Uniqueness is re-checked on profile save, ignoring the current user. |
 | `password` | string | Bcrypt hash. |
-| `role` | string | `customer` · `shop_owner` · `admin`. Exactly one per user. |
+| `role` | string | `customer` · `shop_owner` · `staff` · `admin`. Exactly one per user. |
 | `phone`, `city` | string, nullable | Profile fields; `city` is the default pickup area. |
 | `password_changed_at` | timestamp, nullable | Drives "Last changed …" on the profile screen. Null means never. |
+| `remember_token` | string, nullable | Rewritten on every password reset, so a "remember me" cookie issued before the reset stops working. |
 
 The role answers "which panel may this person open". It does **not** answer "which shop" —
 that is `shop_users`. A `shop_owner` with no `shop_users` row can open `/shop` and see
 nothing, which is the correct outcome.
+
+`password_reset_tokens` is Laravel's own single-use table, keyed by email. It is written by
+`Password::sendResetLink()` and consumed by `Password::reset()`; nothing in this codebase
+reads or writes it directly.
 
 ### 2.2 `shops`
 
@@ -373,6 +385,9 @@ These hold after every request. If one of them is false, there is a bug.
    nudge.
 9. **No row in `payments` is ever updated after `payout_status = paid`** — not by a plan
    change, not by a rate edit, not by a migration.
+10. **No payment row is ever removed.** `payments.job_id` is `RESTRICT`, so a job cannot
+    be deleted while a payment points at it, and `jobs.shop_id` is `RESTRICT` for the same
+    reason one level up. A payment disappears only if somebody drops the table.
 
 ---
 
@@ -391,16 +406,24 @@ These hold after every request. If one of them is false, there is a bug.
 | `page_sections`, `site_settings` | unique `key` | One row per key; hiding a section is a status, not a second row. |
 | `invoices` | unique `number` | Invoice numbering. |
 
-Foreign keys cascade on delete throughout: deleting a shop removes its services, tiers,
-jobs, payments and activities. That is the right default for a tenant and the wrong
-default for a ledger.
+Foreign keys cascade on delete throughout — with two deliberate exceptions. Deleting a
+shop removes its services, tiers, jobs, lines, proofs and activities; deleting a job
+removes its lines, proofs and activities. That is the right default for a tenant's own
+work.
 
-`ShopPolicy::delete` returns `$user->isAdmin()`, so an administrator *can* delete a shop —
-and the cascade takes its financial history with it. There is no `SoftDeletes` anywhere in
-the model layer. The correct fix is `restrictOnDelete` on `payments` plus soft deletes on
-`shops`; the intended operating rule is that a shop is **suspended, never deleted**
-(`ShopApproval::suspend`). Recorded here rather than hidden, because a cascade that can
-reach a settled payment is exactly the kind of thing that is discovered late.
+It is the wrong default for money, so `payments.job_id` and `jobs.shop_id` are
+**`RESTRICT`**. Both cascades used to end at `payments`, which meant an administrator's
+delete could erase every settled payment the ledger and the platform's commission are
+computed from, with nothing to warn anybody. The operating rule is that a shop is
+**suspended, never deleted** (`ShopApproval::suspend`), and the database now enforces it
+rather than trusting everyone to remember it.
+
+The policies agree with the schema, so the panel offers a hidden button rather than a
+constraint violation: `ShopPolicy::delete` refuses a shop that still has jobs, and
+`UserPolicy::delete` refuses a user whose jobs carry payments. A job with no money on it
+still deletes cleanly, which is the case that actually needs deleting. There is still no
+`SoftDeletes` anywhere in the model layer; `RESTRICT` is the guarantee, and soft deletes
+would be an additional convenience rather than the fix.
 
 ---
 

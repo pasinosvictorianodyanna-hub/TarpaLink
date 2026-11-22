@@ -3,6 +3,7 @@
 namespace App\Filament\Admin\Pages;
 
 use App\Models\Payment;
+use App\Models\Proof;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -133,7 +134,10 @@ class Integrations extends Page
 
     private function storageCard(): array
     {
-        $disk = (string) config('filesystems.default');
+        // Probes the disk artwork actually lives on, not the default one. They
+        // were the same until proofs got a disk of their own, and a card that
+        // reports on a disk nobody uploads to is worse than no card.
+        $disk = Proof::DISK;
 
         $writable = false;
 
@@ -146,6 +150,8 @@ class Integrations extends Page
             $writable = false;
         }
 
+        $driver = (string) config('filesystems.disks.'.$disk.'.driver');
+
         return [
             'key' => 'storage',
             'name' => 'Storage',
@@ -153,14 +159,14 @@ class Integrations extends Page
             'ok' => $writable,
             'badge' => $writable ? 'Writable' : 'Not writable',
             'badgeTone' => $writable ? 'success' : 'danger',
-            'blurb' => 'Proof files and uploaded artwork. Local disk lives inside the container and is lost on rebuild.',
+            'blurb' => 'Proof files and uploaded artwork. A local disk lives inside the container and is lost on rebuild.',
             'facts' => [
                 'Disk' => $disk,
+                'Driver' => $driver,
                 'Writable' => $writable ? 'yes' : 'no',
-                'S3 configured' => config('filesystems.disks.s3.bucket') ? 'yes' : 'no',
             ],
-            'fix' => $disk === 'local'
-                ? 'FILESYSTEM_DISK=local loses uploads on every rebuild. Point it at S3 before accepting real artwork.'
+            'fix' => $driver === 'local'
+                ? 'PROOF_DISK_DRIVER=local loses artwork on every rebuild. Set PROOF_DISK_DRIVER=s3 and AWS_BUCKET before accepting real proofs.'
                 : null,
         ];
     }

@@ -7,6 +7,7 @@ use App\Models\Proof;
 use App\Models\User;
 use App\Services\ProofExchange;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -138,7 +139,7 @@ class ProofExchangeTest extends TestCase
 
     public function test_the_artwork_is_served_only_to_the_job_parties(): void
     {
-        Storage::disk('local')->put('proofs/v1-test.png', 'fake-artwork');
+        Storage::disk(Proof::DISK)->put('proofs/v1-test.png', 'fake-artwork');
 
         $job = $this->job();
         $proof = $this->send($job);
@@ -152,6 +153,49 @@ class ProofExchangeTest extends TestCase
         $other = User::where('email', 'renz@example.com')->firstOrFail();
         $this->actingAs($other)->get($url)->assertNotFound();
 
-        Storage::disk('local')->delete('proofs/v1-test.png');
+        Storage::disk(Proof::DISK)->delete('proofs/v1-test.png');
+    }
+
+    /**
+     * The disk is a configuration choice, not a fact about the code.
+     *
+     * Proofs used to be pinned to `local`, which meant moving artwork to object
+     * storage was a code change. This proves the read path follows the disk the
+     * configuration names — so setting PROOF_DISK_DRIVER=s3 really does move the
+     * files, rather than leaving the app looking in the old place.
+     */
+    public function test_proof_artwork_is_read_from_whichever_disk_the_configuration_names(): void
+    {
+        $root = storage_path('framework/testing/proofs-'.uniqid());
+        File::ensureDirectoryExists($root);
+
+        config(['filesystems.disks.proofs.root' => $root]);
+        Storage::forgetDisk(Proof::DISK);
+
+        Storage::disk(Proof::DISK)->put('proofs/moved.png', 'fake-artwork');
+
+        $job = $this->job();
+        $proof = app(ProofExchange::class)->send($job, 'proofs/moved.png');
+
+        $this->actingAs($this->customer())
+            ->get(route('jobs.proof.file', [$job, $proof]))
+            ->assertOk();
+
+        // And nothing was written to the disk the code used to hardcode.
+        $this->assertFileDoesNotExist(storage_path('app/private/proofs/moved.png'));
+
+        File::deleteDirectory($root);
+    }
+
+    public function test_a_proof_row_whose_file_is_missing_returns_404_rather_than_500(): void
+    {
+        $job = $this->job();
+
+        // The seeded proofs point at a sample file that does not exist on disk.
+        $proof = app(ProofExchange::class)->send($job, 'proofs/never-uploaded.png');
+
+        $this->actingAs($this->customer())
+            ->get(route('jobs.proof.file', [$job, $proof]))
+            ->assertNotFound();
     }
 }

@@ -36,7 +36,12 @@ class ShopPolicy
 
     public function delete(User $user, Shop $shop): bool
     {
-        return $user->isAdmin();
+        // The database refuses to delete a shop that still has jobs, because the
+        // cascade would reach settled payments. Saying the same thing here keeps
+        // the panel from offering a button whose only possible outcome is a
+        // constraint violation. Suspend it instead — that is the operating rule,
+        // and now it is also the only thing that works.
+        return $user->isAdmin() && ! $shop->jobs()->exists();
     }
 
     public function approve(User $user, Shop $shop): bool

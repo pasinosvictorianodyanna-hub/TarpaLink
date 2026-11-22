@@ -1,14 +1,16 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.2 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.3 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
 > profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
 > directory map, the customer navigation, the admin integrations screen, customer
-> registration, and the timezone fix. This revision records the seller-side pass: the
+> registration, and the timezone fix. Version 1.2 recorded the seller-side pass: the
 > shop staff role, proof upload and customer approval, the multi-shop picker, and a
-> `job_activities` trail that no longer records a nudge as a status change. The unmet
-> items are stated in §11 rather than quietly dropped.
+> `job_activities` trail that no longer records a nudge as a status change. This revision
+> closes the three remaining security and durability gaps: sign-in throttling, password
+> recovery, a delete that can no longer reach settled money, and the notifications the
+> workflow was missing. The unmet items are stated in §11 rather than quietly dropped.
 
 ---
 
@@ -90,6 +92,8 @@ feature names.
 | FR-12 | The system shall let a signed-in user view and change their own name, mobile number, email, and pickup area without a page reload. | #16 |
 | FR-13 | The system shall let a signed-in user change their password by supplying the current one, and shall record `password_changed_at`. | #16 |
 | FR-14 | The system shall refuse a duplicate email at registration **and** at profile update, while allowing a user to keep their own address. | #16 |
+| FR-15 | The system shall throttle repeated failed sign-ins per email **and** per caller, refusing further attempts until the window expires, and shall not reveal whether an address is registered while throttled. | #61 |
+| FR-16 | The system shall let a user reset a forgotten password by email link, shall invalidate existing "remember me" sessions on success, and shall answer identically whether or not the address is registered. | #61 |
 
 ### 5.2 Directory and storefront — FR-20 …
 
@@ -159,6 +163,15 @@ feature names.
 | FR-72 | The system shall give an administrator a dashboard of platform-wide money and volume, and a list of payments needing attention. | #8 |
 | FR-73 | The system shall let an administrator create and edit users and assign roles. | #9 |
 | FR-74 | The system shall let an administrator edit CMS sections and settings, and hiding or deleting a section shall remove the block from the page rather than leave a gap. | #10 |
+| FR-75 | The system shall refuse any delete that would destroy a payment, and shall refuse to delete a shop that still has jobs, at the database rather than only in the panel. | #61 |
+
+### 5.8 Notifications — FR-80 …
+
+| ID | Requirement | Issue |
+|---|---|---|
+| FR-80 | The system shall email the customer when a proof is sent, and shall email the shop when that proof is approved or sent back with a reason. | #61 |
+| FR-81 | The system shall email the customer a receipt when a payment settles, and shall send it once even if the webhook is replayed. | #61 |
+| FR-82 | The system shall treat every notification as best-effort: a mail failure shall be reported and shall not undo the record it describes, fail the request, or retry money logic. | #61 |
 
 ---
 
@@ -223,9 +236,9 @@ own), sixteen policies. The full dictionary, enumerations and invariants are in
 | Interface | Direction | Protocol | Failure behaviour |
 |---|---|---|---|
 | **PayMongo** | out (create intent) / in (webhook) | HTTPS + JSON, signature header | Unsigned and stale signatures rejected; failed processing retried with backoff and flagged after three attempts |
-| **SMTP** | out | SMTP | One manual "nudge" mail exists; no transactional mail — see §11 |
+| **SMTP** | out | SMTP | Proof sent, proof decided, payment receipt, password reset and the shop's nudge. Every send is best-effort: a failure is reported and never undoes the record it describes — see FR-82 |
 | **Maps** | out | Leaflet tiles (OpenStreetMap), browser geolocation | Tiles degrade to a labelled offline panel; no address-to-coordinate lookup — see §11 |
-| **File storage** | local disk | Filesystem | Proof files are stored under `storage/app`; S3 is a drop-in |
+| **File storage** | `proofs` disk | Filesystem, or S3 when configured | Proof files live on their own disk and are served only through a checked route; `PROOF_DISK_DRIVER=s3` moves them without a code change |
 
 ---
 
@@ -254,6 +267,9 @@ given so a reader can open it; several issues are covered by more than one file.
 | #55 | FR-35, FR-60 … FR-63 | `CheckoutSafetyTest`, `TimezoneTest`, `PayMongoWebhookTest` |
 | — | FR-11 (multi-shop) | `ShopSwitchTest` — one owner, two shops, and no way for the session to pick a third |
 | — | FR-10 (registration) | `RegistrationTest` |
+| #61 | FR-15, FR-16 | `LoginThrottleTest`, `PasswordResetTest` |
+| #61 | FR-75 | `DeleteSafetyTest` — the database refuses, and the panel agrees with it |
+| #61 | FR-80 … FR-82 | `TransactionalMailTest` — including mail failure leaving the record intact |
 
 Two honest notes about this table:
 
@@ -271,30 +287,32 @@ Two honest notes about this table:
 
 Stated plainly, because a specification that claims completeness is not credible:
 
-- **SMTP is not wired for transactional mail.** A shop can "nudge" a customer by email;
-  there is no receipt, proof notification or password reset mail.
+- **Mail is sent inline, not queued.** Proof sent, proof decided, payment receipt, password
+  reset and the shop's nudge all leave through `Notifier`, which sends synchronously and
+  swallows failures so a mail problem can never break the workflow that triggered it. The
+  queue driver is `database` with no worker guaranteed, so queueing would have meant mail
+  sitting in a table forever — which looks exactly like a bug. With `MAIL_MAILER=log`
+  nothing leaves the machine at all; that is a deployment setting, not a code path.
 - **Maps have no geocoding.** A shop's `lat`/`lng` are seeded, and the customer positions
   themselves with browser geolocation or by tapping the map. There is a live map view
   (Leaflet + OpenStreetMap) with real pins and nearest-first sorting, but no
   address-to-coordinate lookup and no Google Maps API key.
-- **Object storage is local disk.** Fine for one server, not for a fleet.
+- **Proof storage defaults to the container's disk.** Proofs have a disk of their own
+  (`PROOF_DISK_DRIVER`) so moving artwork to object storage is a configuration change
+  rather than a code change, and the read and write paths both go through it. The default
+  is still `local`, which is lost on rebuild — a deployment must set it to `s3` before a
+  shop uploads anything it needs back.
 - **Checkout is still a Blade form.** The account screen is now a Vue island; checkout
   still reloads the page where the builder does not.
 - **The admin integrations screen is informational.** `/admin/integrations` exists, but
   PayMongo settings remain environment variables, not editable fields.
-- **Deleting a shop cascades to its payments.** No soft deletes exist, so an
-  administrator's delete reaches settled money. The operating rule is "suspend, never
-  delete"; the schema should enforce it with `restrictOnDelete`.
-- **No rate limiting on login.** Repeated password guesses are not throttled.
-- **Proofs are uploaded by the shop and decided by the customer, but nothing announces
-  either event.** A version can be uploaded from the job in the shop panel, and the
-  customer approves or requests changes on their own job page — but both sides only find
-  out by looking. There is no proof email and no notification, because transactional mail
-  is not wired (see the first gap).
 - **The shop picker is a plain form post.** An owner attached to two shops switches from
   the topbar, and the choice is re-checked against membership and trading status on every
   read. Switching reloads the panel rather than patching it in place — deliberate, but it
   is a full page load where the rest of the panel is Livewire.
+- **There is no inbound mail.** A reply to a proof notification goes to a mailbox nobody
+  reads. The customer's answer belongs on the job page, which is where the approve and
+  request-changes controls are.
 
 ---
 

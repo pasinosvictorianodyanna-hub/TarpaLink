@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\ConsoleController;
@@ -61,6 +62,18 @@ Route::post('/webhooks/paymongo', \App\Http\Controllers\PayMongoWebhookControlle
 
 Route::get('/login', [LoginController::class, 'show'])->name('login');
 Route::post('/login', [LoginController::class, 'store']);
+
+// Password recovery. Throttled at the route as well as by the broker: the broker
+// throttles per account, which does nothing about somebody working through a
+// list of addresses.
+Route::get('/forgot-password', [PasswordResetController::class, 'requestForm'])
+    ->middleware('guest')->name('password.request');
+Route::post('/forgot-password', [PasswordResetController::class, 'sendLink'])
+    ->middleware(['guest', 'throttle:6,1'])->name('password.email');
+Route::get('/reset-password/{token}', [PasswordResetController::class, 'resetForm'])
+    ->middleware('guest')->name('password.reset');
+Route::post('/reset-password', [PasswordResetController::class, 'reset'])
+    ->middleware(['guest', 'throttle:6,1'])->name('password.store');
 // Registration is a customer door only. Whoever is already signed in is sent
 // back to their own screen by the controller; shop and admin accounts are
 // created inside the panels, never from this form.

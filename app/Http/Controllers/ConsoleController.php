@@ -47,6 +47,9 @@ class ConsoleController extends Controller
 
         return view('console.dashboard', [
             'props' => [
+                // The sign-out form lives inside the component, so the token has
+                // to travel with the props rather than sit in a Blade form.
+                'csrf' => csrf_token(),
                 'shell' => $this->shell($shop, $openCount),
                 'heading' => [
                     'title' => 'Dashboard',
@@ -65,6 +68,7 @@ class ConsoleController extends Controller
                     'dashboard' => route('console.dashboard'),
                     'export' => route('filament.shop.reports.export'),
                     'newJob' => route('shops.index'),
+                    'logout' => route('logout'),
                 ],
             ],
         ]);

@@ -9,6 +9,7 @@
  * them.
  */
 defineProps({
+    csrf: { type: String, required: true },
     shell: { type: Object, required: true },
     heading: { type: Object, required: true },
     stats: { type: Array, default: () => [] },
@@ -61,6 +62,25 @@ const logo = '<path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/><path d="M9.5 12
             <div class="fil-user">
                 <span class="av">{{ shell.user.initials }}</span>
                 <div><b>{{ shell.user.name }}</b><span>{{ shell.user.role }}</span></div>
+
+                <!--
+                    Sign out has to be here. The console is a separate shell from
+                    the storefront, so the header's sign-out is not on this page,
+                    and the Filament panels put theirs behind the avatar — which
+                    left an owner with no visible way out of the console at all.
+
+                    A plain form POST, not a fetch: Laravel's logout is a POST
+                    route, and this works without a line of JavaScript.
+                -->
+                <form method="POST" :action="routes.logout">
+                    <input type="hidden" name="_token" :value="csrf">
+                    <button class="out" type="submit" title="Sign out" aria-label="Sign out">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+                            <path d="M15 17l5-5-5-5" /><path d="M20 12H9" />
+                            <path d="M12 20H5a2 2 0 01-2-2V6a2 2 0 012-2h7" />
+                        </svg>
+                    </button>
+                </form>
             </div>
         </aside>
 

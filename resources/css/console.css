@@ -53,6 +53,15 @@ table{border-collapse:collapse}
 .fil-user b{display:block;font-size:11.5px;font-weight:600;line-height:1.3}
 .fil-user span{font-size:10px;color:#9CA3AF}
 
+/* Sign out, pushed to the far end of the account strip. */
+.fil-user form{margin-left:auto;flex:none}
+.fil-user .out{
+  width:28px;height:28px;border-radius:6px;display:grid;place-items:center;
+  color:#9CA3AF;transition:.14s;
+}
+.fil-user .out:hover{background:#F3F4F6;color:#111827}
+.fil-user .out svg{width:15px;height:15px}
+
 .fil-main{min-width:0;display:flex;flex-direction:column}
 .fil-top{height:58px;background:#fff;border-bottom:1px solid #E5E7EB;display:flex;align-items:center;gap:12px;padding:0 22px;position:sticky;top:0;z-index:2}
 .fil-crumb{display:flex;align-items:center;gap:7px;font-size:12px;color:#9CA3AF}

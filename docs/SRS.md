@@ -397,7 +397,7 @@ Two honest notes about this table:
 Stated plainly, because a specification that claims completeness is not credible. Version
 1.4 closed five items this section used to carry — geocoding, the form-post shop picker,
 inbound mail, the read-only integrations screen, and checkout as a Blade form. Two remain,
-and neither is a bug:
+and neither is a bug; v1.12 adds a third that is a business rule rather than a defect:
 
 - **Mail is sent inline, not queued.** Proof sent, proof decided, payment receipt, password
   reset, the shop's nudge and the inbound acknowledgement all leave through `Notifier`,
@@ -411,6 +411,14 @@ and neither is a bug:
   rather than a code change, and the read and write paths both go through it. The default
   is still `local`, which is lost on rebuild — a deployment must set it to `s3` before a
   shop uploads anything it needs back.
+
+Version 1.12 made subscription revenue collectable, and that leaves a third gap which is a
+business rule rather than a defect: **nothing enforces payment.** A shop can be invoiced every
+month, never pay, and go on trading — there is no card on file to charge and no automatic
+suspension. Overdue invoices are visible to the administrator (`/admin/invoices`) and to the
+shop (`/console/billing` shows what is outstanding), and that is the whole of it. Suspending
+a shop for non-payment is a decision a person makes on the shop's record, deliberately, in
+the same way that approving one is.
 
 Version 1.6 retired the **Filament shop panel**. It had been registered at `/shop` with
 nothing linking to it since §5.9 moved every screen to the console, and it is gone now —

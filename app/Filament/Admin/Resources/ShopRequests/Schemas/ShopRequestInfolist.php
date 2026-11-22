@@ -14,7 +14,8 @@ class ShopRequestInfolist
         return $schema
             ->components([
                 /*
-                 * The invitation link, shown once, right after approval.
+                 * The invitation link, shown once, right after approval — or
+                 * after a resend.
                  *
                  * It is a session flash rather than a stored column: the link is
                  * a password-reset token, and keeping it on the record would mean

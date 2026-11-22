@@ -11,6 +11,8 @@ use App\Models\User;
 use App\Services\ShopOnboarding;
 use Filament\Actions\Testing\TestAction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Livewire;
@@ -295,6 +297,119 @@ class ShopRequestTest extends TestCase
         $this->assertSame('approved', $request->fresh()->status);
         $this->assertDatabaseHas('shops', ['slug' => 'bayanihan-press', 'status' => 'active']);
         Mail::assertSent(ShopInvited::class);
+    }
+
+    // --------------------------------------------------------- the re-send
+
+    public function test_a_resend_mints_a_fresh_link_and_emails_it(): void
+    {
+        Mail::fake();
+
+        $request = $this->request();
+        $first = app(ShopOnboarding::class)->approve($request, $this->admin());
+
+        $shops = Shop::count();
+        $users = User::count();
+
+        $second = app(ShopOnboarding::class)->reinvite($request->fresh());
+
+        $this->assertNotSame($first['link'], $second['link'], 'A re-send must mint a new token.');
+        $this->assertSame($first['shop']->id, $second['shop']->id, 'A re-send must not create a shop.');
+        $this->assertSame($first['user']->id, $second['user']->id, 'A re-send must not create an account.');
+        $this->assertSame($shops, Shop::count());
+        $this->assertSame($users, User::count());
+
+        $this->assertCount(2, Mail::sent(ShopInvited::class));
+        Mail::assertSent(ShopInvited::class, fn (ShopInvited $mail) => $mail->hasTo('rosa@bayanihan.ph'));
+    }
+
+    /**
+     * Re-sending is not additive: `createToken()` overwrites the row, so the
+     * link in the first email stops working. One account, one way in.
+     */
+    public function test_a_resend_retires_the_previous_link(): void
+    {
+        Mail::fake();
+
+        $request = $this->request();
+        $first = app(ShopOnboarding::class)->approve($request, $this->admin());
+        $owner = $first['user'];
+
+        $second = app(ShopOnboarding::class)->reinvite($request->fresh());
+
+        $this->assertSame(1, DB::table('password_reset_tokens')->where('email', 'rosa@bayanihan.ph')->count());
+
+        $this->post(route('password.store'), [
+            'token' => basename(parse_url($first['link'], PHP_URL_PATH)),
+            'email' => 'rosa@bayanihan.ph',
+            'password' => 'from-the-stale-link',
+            'password_confirmation' => 'from-the-stale-link',
+        ])->assertSessionHasErrors('email');
+
+        $this->assertFalse(Hash::check('from-the-stale-link', $owner->fresh()->password));
+
+        $this->post(route('password.store'), [
+            'token' => basename(parse_url($second['link'], PHP_URL_PATH)),
+            'email' => 'rosa@bayanihan.ph',
+            'password' => 'from-the-new-link',
+            'password_confirmation' => 'from-the-new-link',
+        ])->assertRedirect(route('login'));
+
+        $this->assertTrue(Hash::check('from-the-new-link', $owner->fresh()->password));
+    }
+
+    public function test_only_an_approved_request_offers_a_resend(): void
+    {
+        Mail::fake();
+
+        $request = $this->request();
+
+        Livewire::actingAs($this->admin())
+            ->test(ViewShopRequest::class, ['record' => $request->getRouteKey()])
+            ->assertActionHidden(TestAction::make('resend'));
+
+        app(ShopOnboarding::class)->approve($request, $this->admin());
+
+        Livewire::actingAs($this->admin())
+            ->test(ViewShopRequest::class, ['record' => $request->fresh()->getRouteKey()])
+            ->assertActionVisible(TestAction::make('resend'));
+    }
+
+    /** The shop is `nullOnDelete`; an approved request can outlive the shop. */
+    public function test_a_resend_is_refused_when_the_shop_is_gone(): void
+    {
+        Mail::fake();
+
+        $request = $this->request();
+        app(ShopOnboarding::class)->approve($request, $this->admin());
+
+        $request->fresh()->forceFill(['shop_id' => null])->save();
+
+        try {
+            app(ShopOnboarding::class)->reinvite($request->fresh());
+            $this->fail('Re-inviting a request with no shop should be refused.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->assertArrayHasKey('request', $e->errors());
+        }
+
+        $this->assertCount(1, Mail::sent(ShopInvited::class), 'Only the approval should have mailed.');
+    }
+
+    public function test_resending_from_the_request_page_flashes_the_new_link(): void
+    {
+        Mail::fake();
+
+        $request = $this->request();
+        app(ShopOnboarding::class)->approve($request, $this->admin());
+
+        Livewire::actingAs($this->admin())
+            ->test(ViewShopRequest::class, ['record' => $request->fresh()->getRouteKey()])
+            ->callAction('resend')
+            ->assertHasNoActionErrors();
+
+        $this->assertCount(2, Mail::sent(ShopInvited::class));
+        $this->assertNotNull(session('invite_link'), 'The new link must be shown, not only mailed.');
+        $this->assertSame('rosa@bayanihan.ph', session('invite_email'));
     }
 
     public function test_rejecting_stores_the_reason_and_creates_nothing(): void

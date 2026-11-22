@@ -65,6 +65,46 @@ final class ShopOnboarding
     }
 
     /**
+     * Re-send the invitation for a request that was already approved.
+     *
+     * Approval mints one token and flashes the link; if the administrator
+     * closes that page, or the hour passes, the link is unrecoverable — the
+     * token is stored hashed, so nothing can rebuild it. This mints a fresh one
+     * from the same broker, which also means the previous link stops working:
+     * there is never more than one way into the account.
+     *
+     * Nothing is created here. The account and the shop already exist; this
+     * only reopens the door to them.
+     *
+     * @return array{shop: Shop, user: User, link: string, sent: bool}
+     */
+    public function reinvite(ShopRequest $request): array
+    {
+        if ($request->status !== 'approved' || $request->shop_id === null) {
+            throw ValidationException::withMessages([
+                'request' => 'Only an approved request with a live shop can be re-invited.',
+            ]);
+        }
+
+        $shop = Shop::find($request->shop_id);
+        $user = User::where('email', $request->email)->first();
+
+        // The shop is `nullOnDelete`, so a deleted shop leaves an approved
+        // request pointing at nothing. Say so rather than mailing a link to a
+        // console that would 404 on arrival.
+        if ($shop === null || $user === null) {
+            throw ValidationException::withMessages([
+                'request' => 'The account or the shop behind this request no longer exists.',
+            ]);
+        }
+
+        $link = $this->setPasswordLink($user);
+        $sent = Notifier::send($user->email, new ShopInvited($shop, $user, $link));
+
+        return ['shop' => $shop, 'user' => $user, 'link' => $link, 'sent' => $sent];
+    }
+
+    /**
      * The applicant's account.
      *
      * Most applicants have never signed up, so this creates one. When the email

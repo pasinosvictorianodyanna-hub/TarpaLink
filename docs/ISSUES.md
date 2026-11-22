@@ -654,6 +654,43 @@ working sign-in that lands on `/console`.
 
 ---
 
+## #75 — An approved shop could lose its only way in
+
+**Found while answering a question.** "Paano malalaman ng nagrequest na na-approve na ang
+request niya?" The answer is that the invitation email *is* the notification — which is also
+how much the handover depends on a single message.
+
+**What it relied on.** Approving mints a password-reset token, emails it, and flashes it onto
+the request page for exactly one request. The token is stored **hashed**, so the plaintext
+link cannot be rebuilt from the database. If the administrator closed the page, or the hour
+ran out, the shop was live and the owner had no way in. The panel offered two actions:
+`approve` and `reject`.
+
+**What was added.** `ShopOnboarding::reinvite()` and a `Resend invitation` action on approved
+requests, in the header of the request page and on the queue row.
+
+- Mints a fresh token through `Password::broker()->createToken()` — the same path as the
+  first handover, so it adds no new surface.
+- `createToken()` **overwrites** the row, so the previous link stops working. One account,
+  one way in, never a growing set of live links.
+- Creates nothing: the account and the shop already exist.
+- Refuses when the shop behind the request is gone — `shop_id` is `nullOnDelete`, so an
+  approved request can outlive its shop — rather than mailing a link to a console that would
+  404 on arrival.
+- Flashes the new link onto the page exactly as approval does, so it still works when
+  `MAIL_MAILER=log`.
+
+**Not built, and why.** Rejection still emails nobody. That is a different silence — the
+applicant is told nothing at all — and it needs a decision about what the message says before
+it needs code.
+
+**Proven by:** `ShopRequestTest` (5 new) — a re-send mints a different link and mails again
+without creating a user or a shop; the old link is dead and the new one sets a working
+password; the action is hidden on an unapproved request and visible once approved; a request
+whose shop is gone is refused.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

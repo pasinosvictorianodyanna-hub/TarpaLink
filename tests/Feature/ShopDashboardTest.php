@@ -254,4 +254,64 @@ class ShopDashboardTest extends TestCase
         $this->assertNotNull($flagged);
         $this->assertSame('Past its pickup date', $flagged['issue']);
     }
+
+    /**
+     * `quoted` is the state a job is born in at checkout — the order is already
+     * placed. Telling the shop the customer "hasn't ordered" describes a step
+     * that does not exist, and hides the step that does: the money has not
+     * arrived.
+     */
+    public function test_an_unpaid_quote_is_flagged_as_unpaid(): void
+    {
+        $job = $this->inkwell()->jobs()->where('status', 'quoted')->firstOrFail();
+
+        $job->payment()->update(['status' => 'pending']);
+        $job->forceFill(['created_at' => now()->subHours(30)])->save();
+
+        $flagged = $this->flagged($job);
+
+        $this->assertNotNull($flagged);
+        $this->assertSame('Unpaid, payment not confirmed', $flagged['issue']);
+        $this->assertStringNotContainsString('ordered', $flagged['issue']);
+    }
+
+    /**
+     * The mirror case, and the more urgent one: the customer has paid, so the
+     * only reason the job has not moved is that the shop has not sent a proof.
+     */
+    public function test_a_paid_job_with_no_proof_is_flagged_as_the_shops_own_delay(): void
+    {
+        $job = $this->inkwell()->jobs()->where('status', 'quoted')->firstOrFail();
+
+        $job->payment()->update(['status' => 'paid', 'paid_at' => now()->subHours(10)]);
+        $job->forceFill(['created_at' => now()->subHours(10)])->save();
+
+        $flagged = $this->flagged($job);
+
+        $this->assertNotNull($flagged);
+        $this->assertSame('Paid, proof not sent yet', $flagged['issue']);
+    }
+
+    /**
+     * The two thresholds differ on purpose. Six hours of silence on a paid job is
+     * the shop dragging its feet; the same six hours on an unpaid one is just a
+     * customer who has not got to it yet.
+     */
+    public function test_an_unpaid_job_is_not_chased_before_the_quote_window(): void
+    {
+        $job = $this->inkwell()->jobs()->where('status', 'quoted')->firstOrFail();
+
+        $job->payment()->update(['status' => 'pending']);
+        $job->forceFill(['created_at' => now()->subHours(10)])->save();
+
+        $this->assertNull($this->flagged($job));
+    }
+
+    /** @return array{job: Job, issue: string, waiting: string, since: \Illuminate\Support\Carbon, url: string}|null */
+    private function flagged(Job $job): ?array
+    {
+        $rows = Livewire::actingAs($this->owner())->test(NeedsAttention::class)->instance()->rows();
+
+        return collect($rows)->firstWhere(fn (array $row) => $row['job']->id === $job->id);
+    }
 }

@@ -11,6 +11,16 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * Deliberately a plain controller rather than a Livewire action: a CSV of a few
  * thousand rows should stream, not be assembled in memory inside a component
  * that is also rendering a page.
+ *
+ * The rows are read as flat columns through a cursor rather than as models.
+ * That is not a micro-optimisation — a year of payouts is a few thousand models
+ * with their relations, and holding all of them to write a text file is how an
+ * export becomes the slowest page in the panel. Selecting the seven columns the
+ * file actually prints keeps memory flat no matter how long the ledger gets.
+ *
+ * `cursor()` would normally undo the eager loading and issue a query per row, so
+ * the service name is joined here instead of lazy-loaded. One query, no models,
+ * constant memory.
  */
 class PayoutExportController extends Controller
 {
@@ -20,31 +30,44 @@ class PayoutExportController extends Controller
 
         abort_if($shop === null, 403);
 
-        $payments = $shop->payments()
-            // Each row prints the service name through its job. Without this
-            // the export issued one query per row while streaming the CSV.
-            ->with('job.service')
+        $rows = $shop->payments()
+            // `payments()` is a hasManyThrough and already joins `jobs`, so only
+            // the service needs fetching.
+            ->leftJoin('services', 'services.id', '=', 'jobs.service_id')
             ->where('payments.status', 'paid')
+            // `id` breaks ties: without it two payments stamped in the same
+            // second can arrive in either order, and a cursor is only stable if
+            // the ordering is total.
             ->orderBy('payments.paid_at')
-            ->get();
+            ->orderBy('payments.id')
+            ->select([
+                'payments.paid_at',
+                'payments.amount',
+                'payments.commission',
+                'payments.payout_status',
+                'payments.payout_date',
+                'jobs.reference as job_reference',
+                'services.name as service_name',
+            ])
+            ->cursor();
 
         $filename = sprintf('tarpalink-payouts-%s-%s.csv', $shop->slug, now()->format('Y-m-d'));
 
-        return response()->streamDownload(function () use ($payments): void {
+        return response()->streamDownload(function () use ($rows): void {
             $out = fopen('php://output', 'w');
 
             fputcsv($out, ['Paid at', 'Job', 'Service', 'Gross', 'Commission', 'Net', 'Payout status', 'Payout date']);
 
-            foreach ($payments as $payment) {
+            foreach ($rows as $row) {
                 fputcsv($out, [
-                    $payment->paid_at?->format('Y-m-d') ?? '',
-                    $payment->job?->reference ?? '',
-                    $payment->job?->service?->name ?? '',
-                    number_format($payment->amount / 100, 2, '.', ''),
-                    number_format($payment->commission / 100, 2, '.', ''),
-                    number_format($payment->net() / 100, 2, '.', ''),
-                    $payment->payout_status,
-                    $payment->payout_date?->format('Y-m-d') ?? '',
+                    $row->paid_at ? substr((string) $row->paid_at, 0, 10) : '',
+                    $row->job_reference ?? '',
+                    $row->service_name ?? '',
+                    number_format($row->amount / 100, 2, '.', ''),
+                    number_format($row->commission / 100, 2, '.', ''),
+                    number_format(($row->amount - $row->commission) / 100, 2, '.', ''),
+                    $row->payout_status,
+                    $row->payout_date ? substr((string) $row->payout_date, 0, 10) : '',
                 ]);
             }
 

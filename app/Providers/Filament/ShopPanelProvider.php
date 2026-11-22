@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Http\Controllers\PayoutExportController;
+use App\Http\Controllers\ShopSwitchController;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -74,6 +75,12 @@ class ShopPanelProvider extends PanelProvider
             ->authenticatedRoutes(function (): void {
                 Route::get('/reports/export', PayoutExportController::class)
                     ->name('reports.export');
+
+                // Named `filament.shop.switch-shop` by virtue of living inside
+                // the panel's own route group, which is what the topbar picker
+                // posts to.
+                Route::post('/switch-shop', ShopSwitchController::class)
+                    ->name('switch-shop');
             });
     }
 }

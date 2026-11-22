@@ -48,7 +48,7 @@
                 ['label' => 'Admin panel', 'url' => route('filament.admin.pages.dashboard'), 'on' => request()->routeIs('filament.admin.*'), 'why' => null],
                 ['label' => 'Profile', 'url' => route('profile.edit'), 'on' => request()->routeIs('profile.*'), 'why' => null],
             ];
-        } elseif ($me->isShopOwner()) {
+        } elseif ($me->worksInShop()) {
             $barLinks = [
                 ['label' => 'Shops', 'url' => route('shops.index'), 'on' => request()->routeIs('shops.*'), 'why' => null],
                 ['label' => 'Console', 'url' => route('console.dashboard'), 'on' => request()->routeIs('console.*'), 'why' => null],
@@ -63,7 +63,7 @@
 
     // The bell counts proofs waiting on a customer. A shop owner and an admin
     // have no such list, so it would be a permanent zero that leads nowhere.
-    $showBell = ! $me->isAdmin() && ! $me->isShopOwner();
+    $showBell = ! $me->isAdmin() && ! $me->worksInShop();
 
     /*
      |--------------------------------------------------------------------------
@@ -80,7 +80,7 @@
      | until that context exists — a nav item that looks clickable and quietly
      | goes nowhere is the thing this is meant to prevent.
      */
-    $isCustomer = ! $me->isAdmin() && ! $me->isShopOwner();
+    $isCustomer = ! $me->isAdmin() && ! $me->worksInShop();
 
     $resume = null;
     $currentShop = null;

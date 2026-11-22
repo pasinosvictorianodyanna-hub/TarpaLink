@@ -1,12 +1,14 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.1 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.2 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
-> profile island (#16), before the shop dashboard was merged. This revision records
-> what has since changed: the directory map, the customer navigation, the admin
-> integrations screen, customer registration, and the timezone fix. The unmet items
-> are stated in §11 rather than quietly dropped.
+> profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
+> directory map, the customer navigation, the admin integrations screen, customer
+> registration, and the timezone fix. This revision records the seller-side pass: the
+> shop staff role, proof upload and customer approval, the multi-shop picker, and a
+> `job_activities` trail that no longer records a nudge as a status change. The unmet
+> items are stated in §11 rather than quietly dropped.
 
 ---
 
@@ -58,9 +60,11 @@ marketplace-wide promotions, and any form of stock control.
 | **Administrator** | Approves shops, manages users and roles, edits site content, monitors money. | Admin panel (`/admin`) |
 | **PayMongo** | Payment processor. Creates intents; calls our webhook to confirm them. | `POST /webhooks/paymongo` |
 
-A user has exactly one `users.role` — `customer`, `shop_owner`, or `admin` — but a shop
-owner is linked to shops through `shop_users`, not through the role, so one person can
-own two shops and a shop can have two staff.
+A user has exactly one `users.role` — `customer`, `shop_owner`, `staff`, or `admin` — but a
+shop owner is linked to shops through `shop_users`, not through the role, so one person can
+own two shops and a shop can have two staff. `shop_users.role` (`owner` / `staff`) is the
+per-shop role; `users.role` is the platform-wide one. Price and billing screens require
+`shop_users.role = owner`, so a staff member is inside the panel but outside the money.
 
 ---
 
@@ -115,7 +119,7 @@ feature names.
 | FR-40 | The system shall move a job only along the transitions in `JobWorkflow::TRANSITIONS`: quoted → awaiting_proof → approved → in_production → ready → collected, with `cancelled` reachable from the first three. | #5 |
 | FR-41 | The system shall reject any illegal transition with an exception, not a silent no-op. | #5 |
 | FR-42 | The system shall refuse cancellation once a job is `in_production`, because material has been consumed. | #5 |
-| FR-43 | The system shall write one `job_activities` row per transition, recording who moved it, from what, to what, and when. | #5 |
+| FR-43 | The system shall write one `job_activities` row per transition, recording who moved it, from what, to what, and when. A row that records something other than a transition (a nudge, a note) shall carry `kind = note` and no statuses, so the trail never claims a move that did not happen. | #5 |
 | FR-44 | The system shall stamp `collected_at` when and only when a job reaches `collected`, and shall derive on-time rate from `collected_at <= due_at`. | #17 |
 | FR-45 | The system shall show a customer their own jobs only, and shall return **404** — not 403 — for another customer's job. | #13 |
 | FR-46 | The system shall record each proof as a numbered version with a status, and shall tell the customer on their account page when a proof is waiting for them. | #5 |
@@ -233,11 +237,11 @@ given so a reader can open it; several issues are covered by more than one file.
 | Issue | Requirements | Tests |
 |---|---|---|
 | #2 | FR-30 … FR-34 | `CheckoutSmokeTest` (size outside every tier, shop with no catalogue) |
-| #3 | FR-11, FR-52 | `AuthorizationTest`, `ShopPanelTest` |
+| #3 | FR-11, FR-52 | `AuthorizationTest`, `ShopPanelTest`, `ShopStaffTest` (staff inside the panel, outside the money) |
 | #4 | FR-22, FR-35, FR-36, FR-53 | `ShopPanelTest::editing_a_tier_changes_the_next_quote_and_the_matrix_version`, `CheckoutSmokeTest` |
-| #5 | FR-40 … FR-43, FR-46 | `ShopPanelTest` (illegal skip, legal transition recorded, cancel blocked on press) |
+| #5 | FR-40 … FR-43, FR-46 | `ShopPanelTest` (illegal skip, legal transition recorded, cancel blocked on press), `ProofExchangeTest`, `PanelParityTest` (a nudge is a note, not a move) |
 | #6 | FR-50, FR-51 | `ShopPanelTest` (board drop, illegal column, another shop's job) |
-| #7 | FR-64 … FR-68 | `ReportsTest` |
+| #7 | FR-64 … FR-68 | `ReportsTest`, `ExportTest` (streamed ledger, query count flat) |
 | #8 | FR-70 … FR-72 | `AdminDashboardTest` |
 | #9 | FR-10, FR-73 | `AuthorizationTest` (incl. `there_is_no_blanket_administrator_bypass`) |
 | #10 | FR-23, FR-74 | `CmsTest` |
@@ -248,6 +252,7 @@ given so a reader can open it; several issues are covered by more than one file.
 | #17 | FR-44, FR-54, FR-55 | `ShopDashboardTest` |
 | #53 | FR-20, FR-21 | `DirectoryTest` — real map, customer position, nearest-first ordering |
 | #55 | FR-35, FR-60 … FR-63 | `CheckoutSafetyTest`, `TimezoneTest`, `PayMongoWebhookTest` |
+| — | FR-11 (multi-shop) | `ShopSwitchTest` — one owner, two shops, and no way for the session to pick a third |
 | — | FR-10 (registration) | `RegistrationTest` |
 
 Two honest notes about this table:
@@ -281,13 +286,15 @@ Stated plainly, because a specification that claims completeness is not credible
   administrator's delete reaches settled money. The operating rule is "suspend, never
   delete"; the schema should enforce it with `restrictOnDelete`.
 - **No rate limiting on login.** Repeated password guesses are not throttled.
-- **The customer cannot approve a proof in the app.** Proofs are recorded, versioned and
-  surfaced ("the proof is waiting"), but approval happens outside the system — a message
-  or a phone call — and the shop moves the job on. The lifecycle supports the step; the
-  screen for it does not exist. There is no upload UI either: proof rows are seeded.
-- **A shop owner attached to two shops operates only the first.** `User::currentShop()`
-  picks the lowest-id shop and the panel has no picker. The data model supports several
-  shops per owner; the UI does not expose the choice.
+- **Proofs are uploaded by the shop and decided by the customer, but nothing announces
+  either event.** A version can be uploaded from the job in the shop panel, and the
+  customer approves or requests changes on their own job page — but both sides only find
+  out by looking. There is no proof email and no notification, because transactional mail
+  is not wired (see the first gap).
+- **The shop picker is a plain form post.** An owner attached to two shops switches from
+  the topbar, and the choice is re-checked against membership and trading status on every
+  read. Switching reloads the panel rather than patching it in place — deliberate, but it
+  is a full page load where the rest of the panel is Livewire.
 
 ---
 

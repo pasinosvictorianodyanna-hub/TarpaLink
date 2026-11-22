@@ -2,9 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\Job;
+use App\Models\Payment;
 use App\Models\Shop;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -84,5 +87,57 @@ class ExportTest extends TestCase
             ->get('/shop/reports')
             ->assertOk()
             ->assertSee('/shop/reports/export');
+    }
+
+    /**
+     * The point of streaming is that cost stops following row count. Reading the
+     * ledger with `->get()` and printing it afterwards would pass every other
+     * test in this file while quietly holding the whole ledger in memory, so the
+     * query count is the thing worth asserting.
+     */
+    public function test_the_export_reads_the_ledger_in_one_pass_whatever_its_size(): void
+    {
+        $before = $this->exportQueryCount();
+
+        $shop = $this->owner()->currentShop();
+        $job = Job::where('shop_id', $shop->id)->whereHas('payment')->firstOrFail();
+
+        // Five more rows for the same job: the file gets longer, the work must not.
+        foreach (range(1, 5) as $n) {
+            Payment::create([
+                'job_id' => $job->id,
+                'provider' => 'paymongo',
+                'intent_id' => 'pi_bulk_'.$n,
+                'amount' => 50000,
+                'commission' => 500,
+                'status' => 'paid',
+                'paid_at' => now()->subDays($n),
+            ]);
+        }
+
+        $after = $this->exportQueryCount();
+
+        $this->assertSame(
+            $before,
+            $after,
+            'Adding rows to the ledger must not add queries: the export reads it as a cursor, not row by row.',
+        );
+    }
+
+    /** Queries issued by one full download, session and auth included. */
+    private function exportQueryCount(): int
+    {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $this->actingAs($this->owner())
+            ->get('/shop/reports/export')
+            ->streamedContent();
+
+        $count = count(DB::getQueryLog());
+
+        DB::disableQueryLog();
+
+        return $count;
     }
 }

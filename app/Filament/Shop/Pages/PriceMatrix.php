@@ -49,8 +49,15 @@ class PriceMatrix extends Page
 
     public int $qty = 3;
 
+    public static function canView(): bool
+    {
+        return auth()->user()?->canManagePrices() ?? false;
+    }
+
     public function mount(): void
     {
+        abort_unless(static::canView(), 403);
+
         $this->serviceId = $this->services()->first()?->id;
     }
 

@@ -67,6 +67,24 @@ class User extends Authenticatable implements FilamentUser
         return $this->role === 'shop_owner';
     }
 
+    /** Staff work the queue and the board, but never prices or billing. */
+    public function isShopStaff(): bool
+    {
+        return $this->role === 'staff';
+    }
+
+    /** Someone who runs a shop day to day, owner or staff. */
+    public function worksInShop(): bool
+    {
+        return $this->isShopOwner() || $this->isShopStaff();
+    }
+
+    /** Only an owner (or an admin) may change published prices and plans. */
+    public function canManagePrices(): bool
+    {
+        return $this->isAdmin() || $this->isShopOwner();
+    }
+
     public function isCustomer(): bool
     {
         return $this->role === 'customer';
@@ -123,23 +141,47 @@ class User extends Authenticatable implements FilamentUser
     {
         return match ($panel->getId()) {
             'admin' => $this->isAdmin(),
-            'shop' => $this->isShopOwner() && $this->currentShop()?->isActive() === true,
+            'shop' => $this->worksInShop() && $this->currentShop()?->isActive() === true,
             default => false,
         };
     }
 
     /**
-     * The shop this user operates. One owner can be attached to several shops
-     * through the pivot; the panel works on the first one.
+     * The shop this user is currently operating.
+     *
+     * One owner can be attached to several shops through the pivot, so "the"
+     * shop is a choice, not a fact. The session carries that choice.
+     *
+     * The session is a preference, never a permission: a shop id this user is
+     * not attached to is ignored rather than obeyed. A shop that is not trading
+     * is ignored too — the panel refuses a suspended shop at the door, so
+     * honouring one here would strand the owner on a page they cannot open.
+     *
+     * The last resort still returns a non-trading shop rather than null, so the
+     * door check keeps something to refuse and the failure reads as "your shop
+     * is paused" instead of "you have no shop".
      */
     public function currentShop(): ?Shop
     {
-        if (! $this->shopResolved) {
-            $this->resolvedShop = $this->shops()->orderBy('shops.id')->first();
-            $this->shopResolved = true;
+        if ($this->shopResolved) {
+            return $this->resolvedShop;
         }
 
-        return $this->resolvedShop;
+        $this->shopResolved = true;
+
+        $chosen = session('shop_id');
+
+        if ($chosen !== null) {
+            $this->resolvedShop = $this->shops()
+                ->whereKey($chosen)
+                ->where('shops.status', 'active')
+                ->first();
+        }
+
+        return $this->resolvedShop ??= $this->shops()
+            ->orderByRaw("case when shops.status = 'active' then 0 else 1 end")
+            ->orderBy('shops.id')
+            ->first();
     }
 
     public function currentShopId(): ?int

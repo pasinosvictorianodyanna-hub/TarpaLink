@@ -12,6 +12,7 @@ use App\Filament\Shop\Pages\PriceMatrix;
 use App\Filament\Shop\Resources\Jobs\Pages\ListJobs;
 use App\Filament\Shop\Widgets\NeedsAttention;
 use App\Models\Job;
+use App\Models\JobActivity;
 use App\Models\Payment;
 use App\Models\Shop;
 use App\Models\User;
@@ -140,6 +141,7 @@ class PanelParityTest extends TestCase
     public function test_a_shop_can_nudge_a_customer_on_a_stuck_job(): void
     {
         $job = $this->owner()->currentShop()->jobs()->firstOrFail();
+        $statusBefore = $job->status;
 
         $this->actAsShop();
 
@@ -149,6 +151,16 @@ class PanelParityTest extends TestCase
             'job_id' => $job->id,
             'note' => 'Shop nudged the customer',
         ]);
+
+        // A nudge is not a move. Writing it as `from_status = to_status` made
+        // the history claim "Quoted → Quoted", which cannot happen and skews
+        // any count of how often a job actually changed hands.
+        $nudge = $job->activities()->where('note', 'Shop nudged the customer')->firstOrFail();
+
+        $this->assertSame(JobActivity::NOTE, $nudge->kind);
+        $this->assertNull($nudge->from_status);
+        $this->assertNull($nudge->to_status);
+        $this->assertSame($statusBefore, $job->fresh()->status);
     }
 
     public function test_a_shop_cannot_nudge_another_shops_job(): void

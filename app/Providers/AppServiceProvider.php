@@ -65,6 +65,14 @@ class AppServiceProvider extends ServiceProvider
             fn () => view('filament.sign-out-button'),
         );
 
+        // An owner with more than one shop needs a way to say which one they are
+        // looking at. The view renders nothing when there is only one, so this
+        // costs every single-shop owner in the country exactly one query.
+        FilamentView::registerRenderHook(
+            PanelsRenderHook::TOPBAR_END,
+            fn () => view('filament.shop.shop-picker'),
+        );
+
         // The footer blurb is CMS copy but appears on every page, so it is shared
         // with the layout rather than threaded through every controller.
         View::composer('layouts.app', function ($view): void {

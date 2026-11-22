@@ -5,6 +5,7 @@ namespace App\Filament\Shop\Widgets;
 use App\Filament\Shop\Concerns\ScopesToShop;
 use App\Filament\Shop\Resources\Jobs\JobResource;
 use App\Models\Job;
+use App\Models\JobActivity;
 use Filament\Notifications\Notification;
 use Filament\Widgets\Widget;
 use Illuminate\Support\Carbon;
@@ -15,7 +16,9 @@ use Throwable;
  * Jobs that are stuck, and for how long.
  *
  * Every row is a job where the next move belongs to somebody else — the customer
- * has not approved a proof, or has not confirmed a quote, or has not picked up.
+ * has not approved a proof, or has not paid, or has not picked up. The one
+ * exception is a paid job with no proof on it yet: that one is the shop's own
+ * fault, and it is listed for exactly that reason.
  * The thresholds are deliberately conservative: chasing a quote that is two hours
  * old trains the owner to ignore the list, which makes the list worthless.
  *
@@ -60,7 +63,7 @@ class NeedsAttention extends Widget
         }
 
         $jobs = $shop->jobs()
-            ->with(['user', 'service.options', 'proofs'])
+            ->with(['user', 'service.options', 'proofs', 'payment'])
             ->whereNotIn('status', ['collected', 'cancelled'])
             ->get();
 
@@ -118,8 +121,20 @@ class NeedsAttention extends Widget
                 : null;
         }
 
-        if ($job->status === 'quoted' && $job->created_at->lt($now->copy()->subHours(self::QUOTE_HOURS))) {
-            return ['issue' => "Quote sent, customer hasn't ordered", 'since' => $job->created_at];
+        if ($job->status === 'quoted') {
+            // `quoted` means the order is in and the money is not — there is no
+            // "ordering" left for the customer to do. Who the shop is waiting on
+            // depends on the payment, and the two cases deserve different words:
+            // unpaid is the customer's move, paid-with-no-proof is the shop's.
+            if ($job->isPaid()) {
+                return $job->created_at->lt($now->copy()->subHours(self::PROOF_HOURS))
+                    ? ['issue' => 'Paid, proof not sent yet', 'since' => $job->created_at]
+                    : null;
+            }
+
+            return $job->created_at->lt($now->copy()->subHours(self::QUOTE_HOURS))
+                ? ['issue' => 'Unpaid, payment not confirmed', 'since' => $job->created_at]
+                : null;
         }
 
         if ($job->status === 'ready' && $job->updated_at->lt($now->copy()->subHours(self::PICKUP_HOURS))) {
@@ -165,8 +180,9 @@ class NeedsAttention extends Widget
 
         $job->activities()->create([
             'user_id' => auth()->id(),
-            'from_status' => $job->status,
-            'to_status' => $job->status,
+            'kind' => JobActivity::NOTE,
+            'from_status' => null,
+            'to_status' => null,
             'note' => 'Shop nudged the customer',
         ]);
 

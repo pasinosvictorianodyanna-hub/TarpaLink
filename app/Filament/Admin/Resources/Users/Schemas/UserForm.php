@@ -41,10 +41,11 @@ class UserForm
                             ->options([
                                 'customer' => 'Customer',
                                 'shop_owner' => 'Shop owner',
+                                'staff' => 'Shop staff',
                                 'admin' => 'Administrator',
                             ])
                             ->required()
-                            ->helperText('Shop owners also need a shop attached below before the panel opens for them.'),
+                            ->helperText('Owners and staff also need a shop attached below before the shop panel opens. Staff work the queue and board; only owners can change prices and billing.'),
 
                         TextInput::make('password')
                             ->password()

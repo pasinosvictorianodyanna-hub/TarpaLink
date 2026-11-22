@@ -13,7 +13,7 @@ class JobLinePolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->isAdmin() || $user->isShopOwner();
+        return $user->isAdmin() || $user->worksInShop();
     }
 
     public function view(User $user, JobLine $line): bool

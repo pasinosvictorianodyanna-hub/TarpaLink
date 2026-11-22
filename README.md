@@ -250,8 +250,23 @@ There are two tiers in the registry, and they differ only in size:
 | Page | `resources/js/pages/` | A whole screen. The Blade view is just the mount host. |
 | Island | `resources/js/components/` | One interactive block inside a Blade screen. |
 
-The landing page and the three dashboards are pages. The order builder and the
-profile form are islands.
+| Screen | Route | Component |
+|---|---|---|
+| Landing page | `/` | `pages/Home.vue` |
+| Customer dashboard | `/account` | `pages/Account.vue` |
+| Shop console dashboard | `/console` | `pages/ShopDashboard.vue` |
+| Order builder | `/shops/{shop}/build` | `components/OrderBuilder.vue` |
+| Profile form | `/account/profile` | `components/ProfileForm.vue` |
+
+The admin panel is Filament and stays Filament — that is the CMS, and it belongs
+on the admin side. The shop console is being moved out of Filament screen by
+screen; `/console` serves the dashboard and its sidebar links into `/shop/…` for
+the five screens that have not been ported yet.
+
+The console has its own stylesheet (`resources/css/console.css`) and its own
+layout. It is a tool, not a page of the brochure: grey canvas, 246px sidebar,
+tables. The storefront should not ship a shell it never shows, and the console
+should not inherit the paper stock and serif display type.
 
 The order builder posts to `POST /api/quote` on every change. That endpoint calls
 `PriceCalculator` and returns the same line items the server will use to create the

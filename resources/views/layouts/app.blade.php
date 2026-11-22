@@ -37,6 +37,12 @@
             ['My jobs', route('account'), request()->routeIs('account') || request()->routeIs('jobs.*')],
             ['Profile', route('profile.edit'), request()->routeIs('profile.*')],
         ];
+
+        // A shop owner has no business in "My jobs" being their only door. The
+        // console has its own shell, so this is the one link that crosses back.
+        if ($me->isShopOwner()) {
+            $barLinks[] = ['Console', route('console.dashboard'), request()->routeIs('console.*')];
+        }
     }
   @endphp
 
@@ -145,9 +151,9 @@
           <h5>Shop owners</h5>
           <a href="{{ route('page', 'open-a-shop') }}">Open a shop</a>
           <a href="{{ route('page', 'pricing') }}">Pricing &amp; fees</a>
-          {{-- The Filament panel owns its own login, so this is the console's
-               front door for owners and a sign-in wall for everyone else. --}}
-          <a href="{{ url('/shop') }}">Shop console</a>
+          {{-- The console sits behind `auth`, so this is its front door for
+               owners and a sign-in wall for everyone else. --}}
+          <a href="{{ route('console.dashboard') }}">Shop console</a>
           <a href="{{ route('page', 'partners') }}">Partner guidelines</a>
         </div>
         <div>

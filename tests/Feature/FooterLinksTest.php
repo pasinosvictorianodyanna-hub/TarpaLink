@@ -58,9 +58,10 @@ class FooterLinksTest extends TestCase
             $this->assertStringContainsString('href="'.$href.'"', $html, "Footer is missing {$href}.");
         }
 
-        // The console is a Filament panel with its own login, so it is a path
-        // rather than a named route.
-        $this->assertStringContainsString('href="'.url('/shop').'"', $html);
+        // The console is now a named route of its own. The Filament panel still
+        // owns the screens that have not been ported, but the front door is the
+        // console, not the panel.
+        $this->assertStringContainsString('href="'.route('console.dashboard').'"', $html);
     }
 
     public function test_each_footer_page_renders_its_own_copy(): void

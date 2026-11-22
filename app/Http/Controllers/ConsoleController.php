@@ -67,6 +67,8 @@ class ConsoleController extends Controller
                 'routes' => [
                     'dashboard' => route('console.dashboard'),
                     'export' => route('filament.shop.reports.export'),
+                    'jobs' => url('/shop/jobs'),
+                    'board' => url('/shop/production-board'),
                     'newJob' => route('shops.index'),
                     'logout' => route('logout'),
                 ],
@@ -257,11 +259,13 @@ class ConsoleController extends Controller
                 'customer' => $job->user?->name ?? '—',
                 'cover' => $job->shop->coverGradient(),
                 'title' => $job->titleLine(),
-                'spec' => $job->specSummary(),
+                'spec' => ($job->service?->unit ?? 'pc') === 'sqft'
+                    ? $job->specSummary()
+                    : ($job->sizeLabel().(str_contains($job->specSummary(), ' · ') ? ' · '.substr($job->specSummary(), strpos($job->specSummary(), ' · ') + 3) : '')),
                 'status' => $job->statusLabel(),
                 'tone' => $this->statusTone($job->status),
                 'total' => '₱'.number_format($job->total / 100),
-                'url' => url('/shop/jobs/'.$job->id),
+                'url' => url('/shop/jobs/'.$job->getRouteKey()),
             ])
             ->all();
     }
@@ -328,7 +332,7 @@ class ConsoleController extends Controller
                 'issue' => $reason['issue'],
                 'waiting' => $this->waited($reason['since']),
                 'since' => $reason['since']->getTimestamp(),
-                'url' => url('/shop/jobs/'.$job->id),
+                'url' => url('/shop/jobs/'.$job->getRouteKey()),
             ];
         }
 

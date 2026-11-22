@@ -41,9 +41,14 @@ class LoginRedirectTest extends TestCase
         $this->login('kevin@inkwell.ph')->assertRedirect(route('console.dashboard'));
     }
 
-    public function test_an_admin_lands_on_the_admin_panel(): void
+    public function test_an_admin_is_refused_on_the_storefront_login(): void
     {
-        $this->login('sofia@tarpalink.ph')->assertRedirect(route('filament.admin.pages.dashboard'));
+        $this->from('/login')
+            ->login('sofia@tarpalink.ph')
+            ->assertRedirect('/login')
+            ->assertSessionHasErrors('email');
+
+        $this->assertGuest();
     }
 
     public function test_a_shop_owner_whose_shop_is_suspended_falls_back_to_the_storefront(): void
@@ -75,13 +80,17 @@ class LoginRedirectTest extends TestCase
         $this->login('jomar@tarpalink.ph')->assertRedirect(route('account'));
     }
 
-    public function test_an_admin_bounced_off_the_admin_panel_is_still_sent_back_to_it(): void
+    public function test_an_admin_bounced_off_the_admin_panel_is_refused_on_the_storefront_login(): void
     {
-        // The check must not break the case `intended` exists for.
+        // Admin accounts must sign in at /admin/login, never at /login.
         $this->get('/admin')->assertRedirect('/admin/login');
 
-        $this->login('sofia@tarpalink.ph')
-            ->assertRedirect(route('filament.admin.pages.dashboard'));
+        $this->from('/login')
+            ->login('sofia@tarpalink.ph')
+            ->assertRedirect('/login')
+            ->assertSessionHasErrors('email');
+
+        $this->assertGuest();
     }
 
     public function test_a_customer_bounced_off_the_shop_panel_is_not_sent_back_to_it(): void

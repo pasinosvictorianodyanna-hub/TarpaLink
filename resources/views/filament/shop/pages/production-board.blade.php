@@ -103,7 +103,7 @@
             color: var(--tpb-muted);
         }
 
-        /* Filament toggles dark mode with a class; the media query covers first paint. */
+        /* Filament toggles dark mode with a class on <html>. */
         .dark .tpb-wrap {
             --tpb-bg: #1C1F1E;
             --tpb-border: #2E3331;
@@ -113,19 +113,6 @@
             --tpb-count-bg: #2E3331;
             --tpb-empty: #3A403E;
             --tpb-late: #FF8A80;
-        }
-
-        @media (prefers-color-scheme: dark) {
-            .tpb-wrap {
-                --tpb-bg: #1C1F1E;
-                --tpb-border: #2E3331;
-                --tpb-ink: #F2F0EA;
-                --tpb-muted: #A8AEAA;
-                --tpb-card: #242827;
-                --tpb-count-bg: #2E3331;
-                --tpb-empty: #3A403E;
-                --tpb-late: #FF8A80;
-            }
         }
     </style>
 

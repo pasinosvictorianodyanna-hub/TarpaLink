@@ -74,17 +74,17 @@ const actionStyle = (action) => ({
                         {{ tab.label }} <em>{{ tab.count }}</em>
                     </a>
                 </div>
-                <form method="GET" :action="routes.account" class="field" style="width:250px">
+                <form method="GET" :action="routes.account" class="field jobs-search">
                     <input v-if="search.filter !== 'all'" type="hidden" name="status" :value="search.filter">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
-                    <input type="search" name="q" :value="search.q" placeholder="Search your jobs">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+                    <input type="search" name="q" :value="search.q" placeholder="Search your jobs" aria-label="Search your jobs">
                 </form>
             </div>
 
             <article v-for="(job, i) in jobs" :key="i" class="card job-row" :style="job.dim ? { opacity: 0.72 } : null">
                 <span class="job-thumb" :style="{ background: job.cover }"></span>
 
-                <div style="flex:1;min-width:0">
+                <div class="job-info">
                     <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
                         <b style="font-size:13.5px;letter-spacing:-.01em">{{ job.title }}</b>
                         <span :class="['status', 'st-' + job.tone]"><i></i>{{ job.status }}</span>
@@ -92,13 +92,13 @@ const actionStyle = (action) => ({
                     <div class="small" style="margin-top:4px">{{ job.shop }} · {{ job.meta }}</div>
                 </div>
 
-                <div style="text-align:right;flex:none;min-width:96px">
-                    <div style="font-size:14px;font-weight:600;letter-spacing:-.02em">{{ job.total }}</div>
+                <div class="job-price">
+                    <div class="mono" style="font-size:14px;font-weight:600;letter-spacing:-.02em">{{ job.total }}</div>
                     <div class="tiny" style="margin-top:3px">{{ job.next }}</div>
                 </div>
 
                 <a
-                    :class="['btn', 'btn-sm', job.action.style === 'ghost' ? 'btn-ghost' : '']"
+                    :class="['btn', 'btn-sm', 'job-act', job.action.style === 'ghost' ? 'btn-ghost' : '']"
                     :style="actionStyle(job.action)"
                     :href="job.action.url"
                 >{{ job.action.label }}</a>

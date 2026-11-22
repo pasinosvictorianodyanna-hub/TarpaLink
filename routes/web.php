@@ -28,6 +28,8 @@ Route::post('/shops/{shop}/checkout', [CheckoutController::class, 'store'])
 Route::get('/jobs/{job}', [JobController::class, 'show'])->name('jobs.show');
 Route::get('/jobs/{job}/receipt', [JobController::class, 'receipt'])->name('jobs.receipt');
 Route::get('/account', [AccountController::class, 'index'])->middleware('auth')->name('account');
+Route::redirect('/account/jobs', '/account')->middleware('auth');
+Route::redirect('/shop/plan-and-billing', '/shop/billing')->middleware('auth');
 
 // The shop console. Filament keeps the screens that are not ported yet, so this
 // is one route for now rather than a group with its own prefix.

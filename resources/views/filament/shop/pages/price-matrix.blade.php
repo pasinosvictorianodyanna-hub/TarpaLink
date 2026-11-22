@@ -22,7 +22,11 @@
         @if (! $service)
             <div class="tl-card"><div class="tl-empty">This shop has no services yet.</div></div>
         @else
-            <div style="display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr);gap:14px;align-items:start">
+            <style>
+                .pm-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 14px; align-items: start; }
+                @media (max-width: 900px) { .pm-grid { grid-template-columns: minmax(0, 1fr); } }
+            </style>
+            <div class="pm-grid">
 
                 {{-- Matrix --}}
                 <div style="display:grid;gap:14px">

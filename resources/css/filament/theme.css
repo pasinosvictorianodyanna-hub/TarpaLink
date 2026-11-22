@@ -100,6 +100,34 @@ body,
     font-variant-numeric: tabular-nums;
 }
 
+/* Keep stat overview cards from overflowing at tablet widths (768px–1024px) */
+.fi-wi-stats-overview-stat {
+    min-width: 0;
+    overflow: hidden;
+}
+.fi-wi-stats-overview-stat-value {
+    font-size: clamp(1.35rem, 2.2vw, 1.875rem);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+.fi-wi-stats-overview-stat-description {
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+/* Prevent duplicate native + custom arrows on Filament select elements */
+select.fi-select-input {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: none;
+}
+
+/* Ensure custom .tl-card tables scroll cleanly on mobile viewports */
+.tl-card {
+    overflow-x: auto;
+}
+
 /*
  * Declared again as plain custom properties, last in the file.
  *

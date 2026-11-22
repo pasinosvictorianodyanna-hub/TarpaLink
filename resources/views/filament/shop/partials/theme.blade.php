@@ -99,5 +99,12 @@
         .tl-col.is-current .tl-lbl { color: var(--tl-ink); font-weight: 650; }
         .tl-amt { font-size: 10.5px; color: var(--tl-muted); margin-top: 6px; white-space: nowrap; }
         .tl-lbl { font-size: 10.5px; color: var(--tl-muted); margin-top: 1px; white-space: nowrap; }
+        .tl-table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        @media (max-width: 640px) {
+            .tl-chart { gap: 4px; padding: 14px 8px 10px; }
+            .tl-amt { font-size: 8.5px; letter-spacing: -.03em; }
+            .tl-lbl { font-size: 9px; }
+            table.tl-tbl th, table.tl-tbl td { padding: 8px 10px; }
+        }
     </style>
 @endonce

@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use App\Models\Job;
 use App\Models\Payment;
+use App\Support\ReplyAddress;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -32,8 +33,11 @@ class PaymentReceipt extends Mailable
 
     public function envelope(): Envelope
     {
+        $replyTo = ReplyAddress::for($this->job);
+
         return new Envelope(
             subject: 'Receipt for '.$this->job->reference,
+            replyTo: $replyTo === null ? [] : [$replyTo],
         );
     }
 

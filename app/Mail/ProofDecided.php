@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\Job;
+use App\Support\ReplyAddress;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -31,8 +32,14 @@ class ProofDecided extends Mailable
 
     public function envelope(): Envelope
     {
+        // The shop answers a rejection by asking what to change, so this one is
+        // tagged as well — a reply files itself on the job instead of arriving
+        // as a loose email nobody can tie back to anything.
+        $replyTo = ReplyAddress::for($this->job);
+
         return new Envelope(
             subject: ($this->approved ? 'Proof approved — ' : 'Changes requested — ').$this->job->reference,
+            replyTo: $replyTo === null ? [] : [$replyTo],
         );
     }
 

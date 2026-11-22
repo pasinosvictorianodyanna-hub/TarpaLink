@@ -1,16 +1,18 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.3 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.4 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
 > profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
 > directory map, the customer navigation, the admin integrations screen, customer
 > registration, and the timezone fix. Version 1.2 recorded the seller-side pass: the
 > shop staff role, proof upload and customer approval, the multi-shop picker, and a
-> `job_activities` trail that no longer records a nudge as a status change. This revision
-> closes the three remaining security and durability gaps: sign-in throttling, password
-> recovery, a delete that can no longer reach settled money, and the notifications the
-> workflow was missing. The unmet items are stated in §11 rather than quietly dropped.
+> `job_activities` trail that no longer records a nudge as a status change. Version 1.3
+> closed the security and durability gaps: sign-in throttling, password recovery, a delete
+> that can no longer reach settled money, and the notifications the workflow was missing.
+> This revision closes the five functional gaps v1.3 still carried — geocoding, the shop
+> picker, inbound mail, an editable integrations screen, and checkout as a Vue island. The
+> two items that remain open are stated in §11 rather than quietly dropped.
 
 ---
 
@@ -61,6 +63,7 @@ marketplace-wide promotions, and any form of stock control.
 | **Shop staff** | Works the queue and the board, cannot change prices or billing. | Shop panel (`/shop`) |
 | **Administrator** | Approves shops, manages users and roles, edits site content, monitors money. | Admin panel (`/admin`) |
 | **PayMongo** | Payment processor. Creates intents; calls our webhook to confirm them. | `POST /webhooks/paymongo` |
+| **Mail provider** | Delivers our notifications, and forwards a customer's reply back to us. | `POST /webhooks/inbound` |
 
 A user has exactly one `users.role` — `customer`, `shop_owner`, `staff`, or `admin` — but a
 shop owner is linked to shops through `shop_users`, not through the role, so one person can
@@ -103,6 +106,8 @@ feature names.
 | FR-21 | The system shall render a shop profile with its services and starting prices, computed from that shop's live tiers. | #2 |
 | FR-22 | The system shall let a visitor open the job builder for a shop and configure size, quantity and options. | #4 |
 | FR-23 | The system shall render the landing page from CMS content, so an editor can change the hero, banner, FAQ, testimonials and footer blurb without a deploy. | #10 |
+| FR-24 | The system shall resolve a typed address to coordinates and show the directory measured from it, and shall say so plainly when the lookup fails or is switched off rather than leaving the map at a default. | #63 |
+| FR-25 | The system shall complete checkout without a page reload, shall show a rejected field beside the input that caused it, and shall keep working as a plain form submission when the bundle does not load. | #63 |
 
 ### 5.3 Quoting — FR-30 …
 
@@ -115,6 +120,7 @@ feature names.
 | FR-34 | The system shall return line items, subtotal, discount, total, and `matrix_version` from every quote. | #2 |
 | FR-35 | The system shall expose `POST /api/quote` for live preview, and shall recompute the price server-side at checkout; if the two differ, the server's number shall win and the client shall be told. | #4 |
 | FR-36 | The system shall record `matrix_version` on the job so that a later price edit does not alter an agreed price. | #4 |
+| FR-37 | The system shall send the total it displayed to the server with the order, and shall refuse to place the order — before any row is written — if the server's fresh quote disagrees, returning the new total so the customer can confirm it deliberately. | #63 |
 
 ### 5.4 Job lifecycle — FR-40 …
 
@@ -138,6 +144,7 @@ feature names.
 | FR-53 | The system shall let a shop owner edit a service's tiers and options, and shall increment the matrix version so the next quote reflects the change. | #4 |
 | FR-54 | The system shall show the shop a dashboard with today's revenue, open jobs, jobs due today, average job value, and a seven-day chart. | #17 |
 | FR-55 | The system shall surface jobs that have waited too long — proof unapproved 6 h, quote unconfirmed 24 h, ready but uncollected 48 h, or past due — longest wait first. | #17 |
+| FR-56 | The system shall let an owner attached to more than one shop switch between them without a full page reload, shall re-check membership and trading status at the moment of switching, and shall not follow a return address that points at another host. | #63 |
 
 ### 5.6 Money — FR-60 …
 
@@ -164,6 +171,9 @@ feature names.
 | FR-73 | The system shall let an administrator create and edit users and assign roles. | #9 |
 | FR-74 | The system shall let an administrator edit CMS sections and settings, and hiding or deleting a section shall remove the block from the page rather than leave a gap. | #10 |
 | FR-75 | The system shall refuse any delete that would destroy a payment, and shall refuse to delete a shop that still has jobs, at the database rather than only in the panel. | #61 |
+| FR-76 | The system shall let an administrator change a rotating credential — the PayMongo keys, the inbound mailbox — from the screen that reports on it, shall store it encrypted, and shall fall back to the environment value when none is saved. | #63 |
+| FR-77 | The system shall not expose a stored credential in the page it is edited on when the value came from the environment, and shall state which of the two sources is in force. | #63 |
+| FR-78 | The system shall keep deployment-shape settings — mail transport, queue driver, storage disk — out of the browser, because a form that can switch the queue to `sync` is a form that can stop payments settling. | #63 |
 
 ### 5.8 Notifications — FR-80 …
 
@@ -172,6 +182,10 @@ feature names.
 | FR-80 | The system shall email the customer when a proof is sent, and shall email the shop when that proof is approved or sent back with a reason. | #61 |
 | FR-81 | The system shall email the customer a receipt when a payment settles, and shall send it once even if the webhook is replayed. | #61 |
 | FR-82 | The system shall treat every notification as best-effort: a mail failure shall be reported and shall not undo the record it describes, fail the request, or retry money logic. | #61 |
+| FR-83 | The system shall put a reply address on every notification that names the job it is about, so a customer who answers files their reply on that job instead of writing to a mailbox nobody reads. | #63 |
+| FR-84 | The system shall accept an inbound reply only when it carries a valid signature over the exact bytes received, and shall refuse every delivery when no signing secret is configured. | #63 |
+| FR-85 | The system shall file an inbound reply once, deduplicated by the provider's message id, and shall answer a message it cannot match with **202** rather than a 4xx, so a provider does not retry it forever. | #63 |
+| FR-86 | The system shall never move a job on the strength of an inbound email: mail is unauthenticated, so it appends a note and nothing else. | #63 |
 
 ---
 
@@ -211,7 +225,7 @@ and may optimistically render, but it never becomes the source of truth.
 
 | ID | Requirement | How it is met |
 |---|---|---|
-| NFR-1 | **Security.** Every panel route is authorised by a policy; every write is CSRF-protected except the signed webhook. | 16 policies, `VerifyCsrfToken` excepted only for `/webhooks/paymongo` |
+| NFR-1 | **Security.** Every panel route is authorised by a policy; every write is CSRF-protected except the signed webhooks. | 16 policies; `ValidateCsrfToken` waived by path for `webhooks/*` only, because the signature is the credential |
 | NFR-2 | **Tenant isolation.** No query in the shop panel may cross shop boundaries. | `ScopesToShop`, policy checks, tests that assert 404 on forged ids |
 | NFR-3 | **Integrity.** A price, a transition or a payout must not be derivable two ways. | Single-service rule (BR-5), tests comparing against independent SQL |
 | NFR-4 | **Performance.** A quote is computed in a single request with no N+1; the dashboard aggregates in SQL. | Eager loading, aggregate queries, no per-row queries in widgets |
@@ -285,34 +299,41 @@ Two honest notes about this table:
 
 ## 11. Known gaps
 
-Stated plainly, because a specification that claims completeness is not credible:
+Stated plainly, because a specification that claims completeness is not credible. Version
+1.4 closed five items this section used to carry — geocoding, the form-post shop picker,
+inbound mail, the read-only integrations screen, and checkout as a Blade form. Two remain,
+and neither is a bug:
 
 - **Mail is sent inline, not queued.** Proof sent, proof decided, payment receipt, password
-  reset and the shop's nudge all leave through `Notifier`, which sends synchronously and
-  swallows failures so a mail problem can never break the workflow that triggered it. The
-  queue driver is `database` with no worker guaranteed, so queueing would have meant mail
-  sitting in a table forever — which looks exactly like a bug. With `MAIL_MAILER=log`
-  nothing leaves the machine at all; that is a deployment setting, not a code path.
-- **Maps have no geocoding.** A shop's `lat`/`lng` are seeded, and the customer positions
-  themselves with browser geolocation or by tapping the map. There is a live map view
-  (Leaflet + OpenStreetMap) with real pins and nearest-first sorting, but no
-  address-to-coordinate lookup and no Google Maps API key.
+  reset, the shop's nudge and the inbound acknowledgement all leave through `Notifier`,
+  which sends synchronously and swallows failures so a mail problem can never break the
+  workflow that triggered it. The queue driver is `database` with no worker guaranteed, so
+  queueing would have meant mail sitting in a table forever — which looks exactly like a
+  bug. With `MAIL_MAILER=log` nothing leaves the machine at all; that is a deployment
+  setting, not a code path.
 - **Proof storage defaults to the container's disk.** Proofs have a disk of their own
   (`PROOF_DISK_DRIVER`) so moving artwork to object storage is a configuration change
   rather than a code change, and the read and write paths both go through it. The default
   is still `local`, which is lost on rebuild — a deployment must set it to `s3` before a
   shop uploads anything it needs back.
-- **Checkout is still a Blade form.** The account screen is now a Vue island; checkout
-  still reloads the page where the builder does not.
-- **The admin integrations screen is informational.** `/admin/integrations` exists, but
-  PayMongo settings remain environment variables, not editable fields.
-- **The shop picker is a plain form post.** An owner attached to two shops switches from
-  the topbar, and the choice is re-checked against membership and trading status on every
-  read. Switching reloads the panel rather than patching it in place — deliberate, but it
-  is a full page load where the rest of the panel is Livewire.
-- **There is no inbound mail.** A reply to a proof notification goes to a mailbox nobody
-  reads. The customer's answer belongs on the job page, which is where the approve and
-  request-changes controls are.
+
+Three things are deliberately *not* gaps, and are recorded here so they are not read as
+omissions later:
+
+- **Geocoding is one provider.** `Geocoder` speaks Nominatim because it needs no key, and
+  a project that requires a card on file to place a pin is a project that ships with seeded
+  coordinates. Results are cached for 30 days and the address box is a deliberate submit,
+  which is what the usage policy requires. Swapping in a commercial geocoder means one
+  class, not one architecture.
+- **The shop picker still reloads the panel.** It is a Livewire component now — the choice
+  is re-checked server-side and the redirect is host-checked — but switching shops
+  navigates rather than patching the current screen, because every widget on every page is
+  scoped to the shop it was rendered for. Patching them in place would be a smaller
+  experience built on a much larger lie.
+- **Inbound mail needs a forwarder.** `/webhooks/inbound` takes a signed JSON body; it does
+  not speak IMAP. A provider's inbound rule (Mailgun, Postmark, or a five-line relay) has to
+  post to it with an `X-Inbound-Signature` HMAC. That is deliberate: an application that
+  polls a mailbox is an application with a second, unversioned copy of its own state.
 
 ---
 

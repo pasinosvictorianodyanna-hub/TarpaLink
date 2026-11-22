@@ -37,19 +37,24 @@ app/                      Laravel application
   Services/Billing.php            plan changes; never rewrites settled payouts
   Services/ShopApproval.php       approve / reject / suspend a shop, in one place
   Services/PayMongo.php           sandbox intents + webhook signature check
-  Models/                         16 models (17 domain tables — shop_users is a pivot)
+  Services/Geocoder.php           address lookup, cached; fails closed when off
+  Services/InboundMail.php        a customer's reply, filed on its job
+  Support/Credentials.php         the only reader of an API key (db, then env)
+  Support/ReplyAddress.php        reply+<reference>@ — the job, in an address
+  Support/Notifier.php            the one place a notification leaves
+  Models/                         17 models (18 domain tables — shop_users is a pivot)
   Policies/                       16 policies; one per model, no blanket admin bypass
-  Http/Controllers/               home, shops, quote, checkout, jobs, account, profile, auth, CSV export
+  Http/Controllers/               home, shops, quote, checkout, jobs, account, profile, auth, CSV export, webhooks
   Filament/Shop/                  shop panel: services, jobs, board, reports, billing
-  Filament/Admin/                 dashboard widgets, shops, users, CMS
+  Filament/Admin/                 dashboard widgets, shops, users, CMS, integrations
   Providers/Filament/             the two panel providers
 database/
-  migrations/             17 domain tables
+  migrations/             18 domain tables
   seeders/                7 shops, 17 services, 43 price tiers, 33 jobs in every status
 resources/
   css/app.css             design system, extracted from the prototype
   js/app.js               Vue island bootstrap
-  js/components/          OrderBuilder.vue, ProfileForm.vue
+  js/components/          OrderBuilder.vue, CheckoutForm.vue, ProfileForm.vue, ShopMap.vue
   views/                  Blade layouts and pages
   views/filament/         custom panel views (production board)
 design/

@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Livewire\ShopPicker;
 use App\Models\Job;
 use App\Models\Shop;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
@@ -51,6 +53,14 @@ class ShopSwitchTest extends TestCase
         return $second;
     }
 
+    /** Drive the topbar picker the way a click does. */
+    private function pick(?int $shopId): \Livewire\Features\SupportTesting\Testable
+    {
+        return Livewire::actingAs($this->owner())
+            ->test(ShopPicker::class)
+            ->set('shopId', $shopId);
+    }
+
     public function test_a_single_shop_owner_sees_no_picker(): void
     {
         $this->assertCount(1, $this->owner()->shops);
@@ -84,9 +94,7 @@ class ShopSwitchTest extends TestCase
             ->assertOk()
             ->assertSee($ourJob->reference);
 
-        $this->actingAs($this->owner())
-            ->post('/shop/switch-shop', ['shop_id' => $second->id])
-            ->assertRedirect();
+        $this->pick($second->id)->assertRedirect();
 
         $this->actingAs($this->owner())
             ->get('/shop/jobs')
@@ -99,9 +107,7 @@ class ShopSwitchTest extends TestCase
     {
         $second = $this->secondShop();
 
-        $this->actingAs($this->owner())
-            ->post('/shop/switch-shop', ['shop_id' => $second->id])
-            ->assertRedirect();
+        $this->pick($second->id)->assertRedirect();
 
         $this->actingAs($this->owner())
             ->get('/shop')
@@ -111,14 +117,12 @@ class ShopSwitchTest extends TestCase
 
     public function test_an_owner_cannot_switch_to_a_shop_they_do_not_run(): void
     {
-        $stranger = Shop::where('slug', 'inkwell-press')->firstOrFail();
+        $stranger = $this->inkwell();
 
-        // Somebody else's shop, chosen by id from a form the user controls.
+        // Somebody else's shop, chosen by id from a control the user owns.
         $foreign = Shop::where('id', '!=', $stranger->id)->firstOrFail();
 
-        $this->actingAs($this->owner())
-            ->post('/shop/switch-shop', ['shop_id' => $foreign->id])
-            ->assertForbidden();
+        $this->pick($foreign->id)->assertNotified();
 
         $this->assertSame($stranger->id, $this->owner()->fresh()->currentShop()?->id);
     }
@@ -144,7 +148,7 @@ class ShopSwitchTest extends TestCase
         $admin = User::where('email', 'sofia@tarpalink.ph')->firstOrFail();
 
         // The hook is registered app-wide so both panels get the same topbar.
-        // An administrator has no shops, so the view has to render nothing
+        // An administrator has no shops, so the component has to render nothing
         // rather than an empty dropdown on the platform's own dashboard.
         $this->actingAs($admin)->get('/admin')->assertOk()->assertDontSee('Switch shop');
     }
@@ -154,9 +158,7 @@ class ShopSwitchTest extends TestCase
         $second = $this->secondShop();
         $second->forceFill(['status' => 'suspended'])->save();
 
-        $this->actingAs($this->owner())
-            ->post('/shop/switch-shop', ['shop_id' => $second->id])
-            ->assertForbidden();
+        $this->pick($second->id)->assertNotified();
 
         // A switch that reported success and then did nothing would leave the
         // topbar naming one shop and the figures belonging to another.
@@ -167,9 +169,7 @@ class ShopSwitchTest extends TestCase
     {
         $second = $this->secondShop();
 
-        $this->actingAs($this->owner())
-            ->post('/shop/switch-shop', ['shop_id' => $this->inkwell()->id])
-            ->assertRedirect();
+        $this->pick($this->inkwell()->id)->assertRedirect();
 
         $this->inkwell()->forceFill(['status' => 'suspended'])->save();
 
@@ -179,5 +179,20 @@ class ShopSwitchTest extends TestCase
         $this->actingAs($this->owner())->get('/shop')->assertOk();
 
         $this->assertSame($second->id, $this->owner()->fresh()->currentShop()?->id);
+    }
+
+    /**
+     * `returnTo` makes a round trip through the browser, so by the time it comes
+     * back it is user input. Following it anywhere would be an open redirect.
+     */
+    public function test_a_tampered_return_url_is_not_followed_off_site(): void
+    {
+        $second = $this->secondShop();
+
+        Livewire::actingAs($this->owner())
+            ->test(ShopPicker::class)
+            ->set('returnTo', 'https://evil.example.com/steal')
+            ->set('shopId', $second->id)
+            ->assertRedirect(url('/shop'));
     }
 }

@@ -4,13 +4,48 @@ namespace App\Http\Controllers;
 
 use App\Models\Service;
 use App\Models\Shop;
+use App\Services\Geocoder;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class ShopController extends Controller
 {
-    public function index(Request $request): View
+    /**
+     * The directory.
+     *
+     * Returns a redirect when `?address=` was given and could be resolved: the
+     * lookup turns into a `?near=` URL, so the position is shareable and a
+     * refresh does not geocode the same address again.
+     */
+    public function index(Request $request): View|RedirectResponse
     {
+        // An address typed by the customer is looked up once and then treated
+        // exactly like a GPS fix: it becomes `?near=lat,lng`. Resolving it here
+        // rather than inside the map island keeps the result a shareable URL,
+        // and keeps the island unaware that addresses exist at all.
+        $address = trim((string) $request->query('address'));
+        $geocodeError = null;
+
+        if ($address !== '') {
+            $hit = app(Geocoder::class)->lookup($address);
+
+            if ($hit !== null) {
+                return redirect()->route('shops.index', array_merge($request->query(), [
+                    'near' => $hit['lat'].','.$hit['lng'],
+                    'src' => 'address',
+                    'place' => Str::limit($hit['label'], 90),
+                    // Dropped so a refresh does not re-geocode a resolved
+                    // address, and so the URL says where you are rather than
+                    // what you typed to get there.
+                    'address' => null,
+                ]));
+            }
+
+            $geocodeError = $address;
+        }
+
         $query = Shop::active()->with(['services.tiers', 'quantityDiscounts']);
 
         $search = trim((string) $request->query('q'));
@@ -110,6 +145,9 @@ class ShopController extends Controller
             'turnaround' => $turnaround,
             'options' => $options,
             'maxPrice' => $maxPrice,
+            'place' => trim((string) $request->query('place')),
+            'geocodeError' => $geocodeError,
+            'geocoderEnabled' => app(Geocoder::class)->enabled(),
         ]);
     }
 
@@ -150,7 +188,12 @@ class ShopController extends Controller
         return [
             'lat' => $lat,
             'lng' => $lng,
-            'src' => $request->query('src') === 'pin' ? 'pin' : 'gps',
+            // `address` is a position the customer typed and we looked up. It is
+            // not a GPS fix and must not be described as one — "the address you
+            // gave us" is the honest caption.
+            'src' => in_array($request->query('src'), ['pin', 'address'], true)
+                ? (string) $request->query('src')
+                : 'gps',
         ];
     }
 

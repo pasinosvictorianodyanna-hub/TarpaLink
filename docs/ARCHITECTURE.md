@@ -20,21 +20,23 @@ flowchart LR
     T["<b>TarpaLink</b><br/>storefront · quoting · job lifecycle<br/>settlement · billing"]
 
     P["PayMongo<br/>sandbox"]
-    M["Maps / tiles<br/>(not yet wired)"]
-    S["SMTP<br/>(not yet wired)"]
+    M["Nominatim<br/>address lookup + OSM tiles"]
+    S["SMTP<br/>transactional mail"]
 
     C -->|"configure job, check out,<br/>approve proof, track status"| T
     O -->|"maintain price matrix,<br/>work the board, export ledger"| T
-    A -->|"approve shops, assign roles,<br/>edit site content"| T
+    A -->|"approve shops, assign roles,<br/>edit site content, rotate keys"| T
 
     T -->|"create payment intent"| P
     P -->|"signed webhook: paid / failed"| T
-    T -.->|"geocode, map view"| M
-    T -.->|"receipts, proof notices"| S
+    T -.->|"geocode (cached 30 days)"| M
+    T -->|"receipts, proof notices, nudges"| S
+    S -->|"forwarded reply, signed"| T
 ```
 
-Dotted edges are designed for but **not implemented** — they are drawn so the gap is
-visible rather than discovered during a demo.
+Every edge is live. The dotted one is dotted because it is a *read-through cache*, not
+because it is missing: a failed lookup degrades to "we could not find that address", and
+`GEOCODER_ENABLED=false` removes the box entirely rather than leaving a control that hangs.
 
 ---
 
@@ -48,7 +50,7 @@ bundle.
 flowchart TB
     subgraph Browser["Browser"]
         direction LR
-        SB["Storefront<br/>Blade + 2 Vue islands"]
+        SB["Storefront<br/>Blade + 4 Vue islands"]
         SP["Shop panel<br/>Filament v4 / Livewire"]
         AP["Admin panel<br/>Filament v4 / Livewire"]
     end
@@ -213,11 +215,7 @@ no settled row reads that column again.
 stateDiagram-v2
     [*] --> quoted: checkout
     quoted --> awaiting_proof: shop uploads proof
-    awaiting_proof --> approved: customer approves
-    note right of awaiting_proof
-        approval happens off-system today
-        there is no screen for it yet
-    end note
+    awaiting_proof --> approved: customer approves on the job page
     approved --> in_production: shop starts
     in_production --> ready: printed
     ready --> collected: picked up, collected_at stamped
@@ -232,6 +230,39 @@ stateDiagram-v2
 `cancelled` is reachable from the first three states only. Once the press has run, the
 money is spent and the honest answer is "no", not a refund policy the system cannot
 enforce.
+
+Approval is a signed-in action on the job page, and it stays that way on purpose — see
+4.4. An email that says "looks good" is recorded on the job as a note the shop reads; it
+does not move the job, because anyone who learns a reference number can send an email.
+
+### 4.4 Credentials, and why mail cannot move a job
+
+Two decisions that look like plumbing but are not.
+
+**A credential has two homes.** The PayMongo keys and the inbound mailbox can be saved on
+the integrations screen or set in `.env`, and `App\Support\Credentials` is the only thing
+that reads them: database first, environment second, nothing third. Nothing calls
+`config('services.paymongo.secret')` directly any more, because a second reader is a second
+place the precedence rule can be forgotten — and the failure it produces (a key that is set
+but not in force) is invisible from every screen.
+
+The blob is encrypted with `APP_KEY`, so a database dump is not a set of live keys. The
+edit form fills from what is *saved*, never from the resolved value, so an environment
+secret is never copied into a page's HTML just because an administrator opened the modal.
+
+**Mail is inbound, and inbound is unauthenticated.** Every notification carries a
+`Reply-To` tagged with the job reference (`reply+TL-48213@…`), because that is the one part
+of an address every provider preserves through a reply. A reply comes back to
+`POST /webhooks/inbound`, is verified with an HMAC over the exact bytes, and is appended to
+the job's history.
+
+It cannot do more than that. The endpoint has no session and the sender is whoever the
+header says they are, so an inbound message appends a note and nothing else — no status
+change, no approval, no cancellation. The customer's own address is only attributed when it
+matches the job's customer or a member of the shop's staff; a stranger who guessed a
+reference gets their words recorded with no name on them. Deduplication is a unique index
+on a hash of the provider's message id, because every provider retries and two identical
+replies in a history reads like a person.
 
 ---
 
@@ -299,9 +330,14 @@ clone must run `npm run build` before anything looks right.
 
 ## 8. What is deliberately missing
 
-- **No API layer for a mobile client.** `POST /api/quote` and the two profile endpoints
-  are the only JSON surfaces; they exist because a Vue island needs them, not because an
-  API was designed first.
+- **No API layer for a mobile client.** `POST /api/quote`, the two profile endpoints and
+  the two webhooks are the only JSON surfaces; they exist because a Vue island or a provider
+  needs them, not because an API was designed first.
 - **No event sourcing.** `job_activities` is an audit log, not a source of truth.
 - **No microservices, no cache tier, no search engine.** At seven shops and a few hundred
   jobs, every one of those would be a cost with no measurable benefit.
+- **No IMAP poller.** Inbound mail arrives as a signed webhook. An application that polls a
+  mailbox keeps a second, unversioned copy of its own state and cannot be tested without one.
+- **No credential editing for deployment shape.** Mail transport, queue driver and storage
+  disk stay in `.env` on purpose: a form that can switch the queue to `sync` from a browser
+  is a form that can stop payments settling, and nobody would connect the two.

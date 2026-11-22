@@ -22,6 +22,15 @@ class Job extends Model
         'cancelled' => 'Cancelled',
     ];
 
+    /**
+     * The shape of a reference, for reading one back out of free text.
+     *
+     * Generation lives in `booted()`; this is the other direction, used by the
+     * reply address and by inbound mail matching a subject line. Kept in one
+     * place so the two can never drift.
+     */
+    public const REFERENCE_PATTERN = 'TL-\d{5}';
+
     protected function casts(): array
     {
         return [

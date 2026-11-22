@@ -56,9 +56,16 @@ Route::patch('/api/profile', [ProfileController::class, 'update'])->middleware('
 Route::put('/api/profile/password', [ProfileController::class, 'password'])->middleware('auth')->name('api.profile.password');
 
 // PayMongo calls this directly — no session, no CSRF token, signature instead.
+// CSRF is waived for `webhooks/*` in bootstrap/app.php, not here: a per-route
+// `withoutMiddleware` naming the wrong class fails silently.
 Route::post('/webhooks/paymongo', \App\Http\Controllers\PayMongoWebhookController::class)
-    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])
     ->name('webhooks.paymongo');
+
+// The other direction: a customer's reply comes back in, signed the same way.
+// Both webhooks are unauthenticated by design — the signature is the credential,
+// and a session cookie is not something a provider can hold.
+Route::post('/webhooks/inbound', \App\Http\Controllers\InboundMailController::class)
+    ->name('webhooks.inbound');
 
 Route::get('/login', [LoginController::class, 'show'])->name('login');
 Route::post('/login', [LoginController::class, 'store']);

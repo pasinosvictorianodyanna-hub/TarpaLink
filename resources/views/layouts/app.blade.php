@@ -179,6 +179,12 @@
           <a href="{{ route('page', 'contact') }}">Contact</a>
           <a href="{{ route('page', 'privacy') }}">Privacy</a>
           <a href="{{ route('page', 'terms') }}">Terms</a>
+          {{-- The CMS had no door. /admin existed and was reachable by typing
+               it, which is not a route — an administrator who is not already
+               signed in has no way to find it. This points at the panel's own
+               login: the footer only renders for guests, so it is never a
+               second "Admin panel" link competing with the header one. --}}
+          <a href="{{ route('filament.admin.auth.login') }}">Admin sign in</a>
         </div>
       </div>
       <div class="foot-bot">

@@ -52,6 +52,7 @@ class FooterLinksTest extends TestCase
             route('page', 'contact'),
             route('page', 'privacy'),
             route('page', 'terms'),
+            route('filament.admin.auth.login'),
         ];
 
         foreach ($expected as $href) {
@@ -105,6 +106,30 @@ class FooterLinksTest extends TestCase
         $this->get('/pricing')->assertOk();
         $this->get('/shops')->assertOk();
         $this->get('/login')->assertOk();
+    }
+
+    public function test_the_cms_has_a_door_from_the_public_site(): void
+    {
+        // /admin existed but nothing linked to it, so an administrator who was
+        // not already signed in could only reach it by typing the URL. The
+        // footer is guest-only, so this is the one place it belongs.
+        $html = $this->get('/')->assertOk()->getContent();
+
+        $this->assertStringContainsString('href="'.route('filament.admin.auth.login').'"', $html);
+        $this->assertStringContainsString('Admin sign in', $html);
+
+        $this->get(route('filament.admin.auth.login'))->assertOk();
+    }
+
+    public function test_a_signed_in_admin_is_offered_the_panel_not_the_login(): void
+    {
+        $admin = \App\Models\User::where('email', 'sofia@tarpalink.ph')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get('/')
+            ->assertOk()
+            ->assertSee(route('filament.admin.pages.dashboard'), false)
+            ->assertDontSee('Admin sign in');
     }
 
     public function test_the_landing_page_calls_to_action_point_somewhere(): void

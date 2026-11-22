@@ -130,6 +130,10 @@ h1,h2,h3,h4{margin:0;font-weight:400;letter-spacing:-.02em}
 .grid-paper{
   background-image:linear-gradient(var(--line-2) 1px,transparent 1px),linear-gradient(90deg,var(--line-2) 1px,transparent 1px);
   background-size:26px 26px;
+  /* Decoration, never a target. Stretched over a band it is a sibling of the
+     content, and a positioned element paints above static siblings — so without
+     this the "Open a shop account" button is visible, styled, and unclickable. */
+  pointer-events:none;
 }
 /* ============================================================
    MARKETING SITE

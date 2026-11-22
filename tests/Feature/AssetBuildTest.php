@@ -96,6 +96,41 @@ class AssetBuildTest extends TestCase
         $this->assertNotEmpty($map['css'] ?? [], 'The map chunk should carry Leaflet’s stylesheet');
     }
 
+    /**
+     * The decorative grid must never intercept a click.
+     *
+     * `.cta-band .grid-paper` is stretched over the band as a *sibling* of the
+     * content. A positioned element paints above a static one, so the "Open a
+     * shop account" button rendered perfectly — right size, right colour, right
+     * hover — and could not be clicked, because the click landed on an invisible
+     * sheet at 7% opacity. The heading and the paragraph survived only because
+     * they had been given `position:relative` for layering reasons.
+     *
+     * Nothing in the HTTP tests can see this: the page returns 200, the link is
+     * in the HTML with the right href, and the destination renders. It is a
+     * stacking question, so it is checked in the artefact.
+     */
+    public function test_the_decorative_grid_never_swallows_a_click(): void
+    {
+        $manifest = $this->manifest();
+
+        if ($manifest === null) {
+            $this->markTestSkipped('No built manifest in public/build — run `npm run build`.');
+        }
+
+        $entry = $manifest['resources/css/app.css'] ?? null;
+
+        $this->assertNotNull($entry, 'app.css should be a built entry');
+
+        $css = (string) file_get_contents(public_path('build/'.$entry['file']));
+
+        $this->assertMatchesRegularExpression(
+            '/\.grid-paper\{[^}]*pointer-events:none/',
+            $css,
+            'The grid overlay can receive clicks again — anything it covers becomes unclickable.',
+        );
+    }
+
     /** The build manifest, or null when nothing has been built. */
     private function manifest(): ?array
     {

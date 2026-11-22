@@ -12,7 +12,7 @@ A job-order platform for the Philippine printing industry. Customers find a prin
 |---|---|---|
 | Landing page | Dev A | done — CMS-driven hero, featured shops from DB |
 | Customer side | Dev A | done — directory, shop profile, builder, checkout, job status, my jobs, profile |
-| Shop panel (Filament) | done | issues #3–#6, #7 — panels, price matrix, jobs, production board, reports |
+| Shop console (Blade) | done | issues #3–#7, #66 — dashboard, jobs, board, price matrix, reports, billing, catalogue |
 | Admin panel (Filament) | done | issues #8–#9, #10 — dashboard, approvals, users & roles, CMS |
 | Integrations | partly done | PayMongo sandbox: intent + signed webhook + retry. SMTP/Maps/storage still open |
 
@@ -44,8 +44,9 @@ app/                      Laravel application
   Support/Notifier.php            the one place a notification leaves
   Models/                         17 models (18 domain tables — shop_users is a pivot)
   Policies/                       16 policies; one per model, no blanket admin bypass
+  Http/Controllers/Console/       the shop console: dashboard, jobs, board, prices, reports, billing, catalogue
   Http/Controllers/               home, shops, quote, checkout, jobs, account, profile, auth, CSV export, webhooks
-  Filament/Shop/                  shop panel: services, jobs, board, reports, billing
+  Filament/Shop/                  the old shop panel — still registered, no longer linked (see ISSUES #66)
   Filament/Admin/                 dashboard widgets, shops, users, CMS, integrations
   Providers/Filament/             the two panel providers
 database/
@@ -262,14 +263,20 @@ There are two tiers in the registry, and they differ only in size:
 |---|---|---|
 | Landing page | `/` | `pages/Home.vue` |
 | Customer dashboard | `/account` | `pages/Account.vue` |
-| Shop console dashboard | `/console` | `pages/ShopDashboard.vue` |
 | Order builder | `/shops/{shop}/build` | `components/OrderBuilder.vue` |
 | Profile form | `/account/profile` | `components/ProfileForm.vue` |
 
-The admin panel is Filament and stays Filament — that is the CMS, and it belongs
-on the admin side. The shop console is being moved out of Filament screen by
-screen; `/console` serves the dashboard and its sidebar links into `/shop/…` for
-the five screens that have not been ported yet.
+The shop console is **not** in that table because it has no island: it is Blade all
+the way down, rendered by the server, and it ships `console.css` plus fifteen lines of
+inline script. Its screens are `/console`, `/console/jobs`, `/console/production-board`,
+`/console/price-matrix`, `/console/reports`, `/console/billing`, `/console/services` and
+`/console/quantity-discounts` — one layout, one sidebar, no link between them that leaves
+the console.
+
+The admin panel is Filament and stays Filament — that is the CMS, and it belongs on the
+admin side. The console used to be half Filament, and the seam was a sidebar that changed
+under the click; `docs/ISSUES.md` #66 records what that cost and what fixed it. The old
+shop panel is still registered at `/shop` with nothing linking to it, pending its removal.
 
 The console has its own stylesheet (`resources/css/console.css`) and its own
 layout. It is a tool, not a page of the brochure: grey canvas, 246px sidebar,

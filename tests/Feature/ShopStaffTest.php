@@ -95,13 +95,11 @@ class ShopStaffTest extends TestCase
 
     public function test_the_console_hides_price_and_billing_links_from_staff(): void
     {
-        $html = $this->actingAs($this->staff())->get('/console')->assertOk()->getContent();
+        // The shell is server-rendered, so the sidebar is in the HTML — the
+        // assertion no longer has to decode a props blob to find it.
+        $response = $this->actingAs($this->staff())->get('/console')->assertOk();
 
-        preg_match('/data-props="(.*?)"/s', $html, $match);
-        $props = html_entity_decode(html_entity_decode($match[1] ?? ''));
-        $data = json_decode($props, true);
-
-        $labels = collect($data['shell']['groups'] ?? [])
+        $labels = collect($response->viewData('shell')['groups'])
             ->flatMap(fn (array $group) => array_column($group['items'], 'label'))
             ->all();
 

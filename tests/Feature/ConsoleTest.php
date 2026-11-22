@@ -8,16 +8,17 @@ use App\Models\User;
 use App\Support\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
- * The shop console dashboard, against its props contract.
+ * The shop console dashboard.
  *
- * The screen is a Vue component, so the server owns the numbers: the four stats,
- * the due-today rows, the seven bars and the attention list. Each figure here is
- * checked against a plain query over the same rows rather than against the
- * controller's own arithmetic — a test that recomputes the expression the code
- * computes proves nothing.
+ * The screen is server-rendered now, so the server still owns the numbers — the
+ * four stats, the due-today rows, the seven bars and the attention list. Each
+ * figure is checked against a plain query over the same rows rather than against
+ * the controller's own arithmetic: a test that recomputes the expression the
+ * code computes proves nothing.
  */
 class ConsoleTest extends TestCase
 {
@@ -39,34 +40,27 @@ class ConsoleTest extends TestCase
         return Shop::where('slug', 'inkwell-press')->firstOrFail();
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function props(): array
+    /** The dashboard as the owner sees it. */
+    private function dashboard(): TestResponse
     {
-        return $this->actingAs($this->owner())
-            ->get('/console')
-            ->assertOk()
-            ->viewData('props');
+        return $this->actingAs($this->owner())->get('/console')->assertOk();
     }
 
-    public function test_the_page_mounts_as_a_vue_component_with_serialisable_props(): void
+    public function test_the_dashboard_is_rendered_by_the_server_with_the_shell(): void
     {
-        $html = $this->actingAs($this->owner())->get('/console')->assertOk()->getContent();
+        $html = $this->dashboard()->getContent();
 
-        $this->assertStringContainsString('data-component="shop-dashboard"', $html);
-
-        preg_match('/data-props="([^"]*)"/', $html, $match);
-        $this->assertNotEmpty($match, 'The mount host is missing data-props.');
-
-        $decoded = json_decode(html_entity_decode($match[1], ENT_QUOTES), true);
-        $this->assertIsArray($decoded, 'data-props is not valid JSON.');
-        $this->assertCount(4, $decoded['stats']);
+        // The shell used to be a Vue component, which meant the console could
+        // only ever have one screen. It is a layout now, and the sidebar is in
+        // the HTML before any JavaScript runs.
+        $this->assertStringContainsString('aria-label="Shop console navigation"', $html);
+        $this->assertStringContainsString('Inkwell Press', $html);
+        $this->assertStringNotContainsString('data-component="shop-dashboard"', $html);
     }
 
     public function test_the_console_has_its_own_stylesheet_and_no_storefront_shell(): void
     {
-        $html = $this->actingAs($this->owner())->get('/console')->assertOk()->getContent();
+        $html = $this->dashboard()->getContent();
 
         // The console is a tool, not a page of the brochure: it must not carry
         // the marketing app bar or the storefront footer, and it must load the
@@ -74,6 +68,15 @@ class ConsoleTest extends TestCase
         $this->assertStringContainsString('/build/assets/console-', $html);
         $this->assertStringNotContainsString('class="appbar"', $html);
         $this->assertStringNotContainsString('class="footer"', $html);
+    }
+
+    public function test_the_console_ships_no_storefront_javascript(): void
+    {
+        $html = $this->dashboard()->getContent();
+
+        // The dashboard has no island, so the page must not pull the Vue bundle
+        // in "just in case" — that is a runtime a drawer does not need.
+        $this->assertStringNotContainsString('/build/assets/app-', $html);
     }
 
     public function test_revenue_today_equals_a_plain_sum_over_paid_payments(): void
@@ -85,7 +88,7 @@ class ConsoleTest extends TestCase
             ->whereBetween('payments.paid_at', [Carbon::today(), Carbon::today()->endOfDay()])
             ->sum('payments.amount');
 
-        $stat = collect($this->props()['stats'])->firstWhere('label', 'Revenue today');
+        $stat = collect($this->dashboard()->viewData('stats'))->firstWhere('label', 'Revenue today');
 
         $this->assertSame(Money::short($expected), $stat['value']);
     }
@@ -98,11 +101,11 @@ class ConsoleTest extends TestCase
             ->whereBetween('due_at', [Carbon::today(), Carbon::today()->endOfDay()])
             ->count();
 
-        $props = $this->props();
+        $response = $this->dashboard();
 
-        $this->assertSame((string) $openCount, collect($props['stats'])->firstWhere('label', 'Open jobs')['value']);
-        $this->assertSame($dueToday, $props['dueToday']['count']);
-        $this->assertCount($dueToday, $props['dueToday']['rows']);
+        $this->assertSame((string) $openCount, collect($response->viewData('stats'))->firstWhere('label', 'Open jobs')['value']);
+        $this->assertSame($dueToday, $response->viewData('dueToday')['count']);
+        $this->assertCount($dueToday, $response->viewData('dueToday')['rows']);
     }
 
     public function test_the_on_time_rate_counts_collected_jobs_only(): void
@@ -111,7 +114,7 @@ class ConsoleTest extends TestCase
         $total = (clone $collected)->count();
         $onTime = (clone $collected)->whereColumn('collected_at', '<=', 'due_at')->count();
 
-        $stat = collect($this->props()['stats'])->firstWhere('label', 'On-time rate');
+        $stat = collect($this->dashboard()->viewData('stats'))->firstWhere('label', 'On-time rate');
 
         $this->assertSame((int) round($onTime / $total * 100).'%', $stat['value']);
         $this->assertSame($onTime.' of '.$total.' collected on time', $stat['note']);
@@ -124,7 +127,7 @@ class ConsoleTest extends TestCase
             ->where('created_at', '>=', now()->subDays(30))
             ->avg('total'));
 
-        $stat = collect($this->props()['stats'])->firstWhere('label', 'Avg. job value');
+        $stat = collect($this->dashboard()->viewData('stats'))->firstWhere('label', 'Avg. job value');
 
         $this->assertSame(Money::short($expected), $stat['value']);
     }
@@ -134,7 +137,7 @@ class ConsoleTest extends TestCase
         // An arrow is a direction of change. "↑ 7 of 7 collected on time" is not
         // a direction, it is a sentence, and the design's fourth card reads wrong
         // with one.
-        $arrows = collect($this->props()['stats'])->pluck('arrow', 'label');
+        $arrows = collect($this->dashboard()->viewData('stats'))->pluck('arrow', 'label');
 
         $this->assertContains($arrows['Revenue today'], ['up', 'down']);
 
@@ -145,7 +148,7 @@ class ConsoleTest extends TestCase
 
     public function test_the_week_has_seven_bars_ending_today(): void
     {
-        $days = $this->props()['week']['days'];
+        $days = $this->dashboard()->viewData('week')['days'];
 
         $this->assertCount(7, $days);
         $this->assertTrue($days[6]['current'], 'The last bar is today.');
@@ -165,12 +168,12 @@ class ConsoleTest extends TestCase
             ->whereBetween('payments.paid_at', [Carbon::today()->subDays(6)->startOfDay(), Carbon::today()->endOfDay()])
             ->sum('payments.amount');
 
-        $this->assertSame(Money::short($expected), $this->props()['week']['total']);
+        $this->assertSame(Money::short($expected), $this->dashboard()->viewData('week')['total']);
     }
 
     public function test_needs_attention_lists_the_stuck_jobs_oldest_first(): void
     {
-        $rows = $this->props()['attention']['rows'];
+        $rows = $this->dashboard()->viewData('attention')['rows'];
 
         $this->assertNotEmpty($rows);
 
@@ -184,7 +187,7 @@ class ConsoleTest extends TestCase
             $this->assertArrayHasKey('reference', $row);
             $this->assertArrayHasKey('issue', $row);
             $this->assertArrayHasKey('waiting', $row);
-            $this->assertStringContainsString('/shop/jobs/', $row['url']);
+            $this->assertStringContainsString('/console/jobs/', $row['url']);
         }
     }
 
@@ -199,7 +202,7 @@ class ConsoleTest extends TestCase
         $job->proofs()->update(['created_at' => now()->subHour()]);
         $job->forceFill(['updated_at' => now()->subHour()])->save();
 
-        $references = collect($this->props()['attention']['rows'])->pluck('reference');
+        $references = collect($this->dashboard()->viewData('attention')['rows'])->pluck('reference');
 
         $this->assertNotContains($job->reference, $references);
     }
@@ -213,7 +216,7 @@ class ConsoleTest extends TestCase
         $job->proofs()->update(['created_at' => now()->subHours(14)]);
         $job->forceFill(['updated_at' => now()->subHours(14)])->save();
 
-        $row = collect($this->props()['attention']['rows'])->firstWhere('reference', $job->reference);
+        $row = collect($this->dashboard()->viewData('attention')['rows'])->firstWhere('reference', $job->reference);
 
         $this->assertNotNull($row);
         $this->assertStringContainsString("customer hasn't approved", $row['issue']);
@@ -228,7 +231,7 @@ class ConsoleTest extends TestCase
 
         $job->forceFill(['due_at' => now()->subDays(3)])->save();
 
-        $rows = $this->props()['attention']['rows'];
+        $rows = $this->dashboard()->viewData('attention')['rows'];
 
         $this->assertSame($job->reference, $rows[0]['reference']);
         $this->assertSame('Past its pickup date', $rows[0]['issue']);
@@ -236,23 +239,23 @@ class ConsoleTest extends TestCase
 
     public function test_the_sidebar_marks_exactly_one_item_as_current(): void
     {
-        $groups = collect($this->props()['shell']['groups']);
+        $groups = collect($this->dashboard()->viewData('shell')['groups']);
         $active = $groups->flatMap(fn (array $group) => $group['items'])->where('active', true);
 
         $this->assertCount(1, $active);
         $this->assertSame('Dashboard', $active->first()['label']);
     }
 
-    public function test_the_sidebar_links_to_the_panel_screens_that_are_not_ported_yet(): void
+    public function test_every_sidebar_link_stays_inside_the_console(): void
     {
-        $items = collect($this->props()['shell']['groups'])
+        $items = collect($this->dashboard()->viewData('shell')['groups'])
             ->flatMap(fn (array $group) => $group['items'])
             ->pluck('url', 'label');
 
-        // These five are still Filament. The link is the bridge, and it is what
-        // keeps the console usable while the port is half done.
-        foreach (['Jobs', 'Production board', 'Price matrix', 'Reports', 'Billing'] as $label) {
-            $this->assertStringContainsString('/shop/', $items[$label], "{$label} should still point into the panel.");
+        // The whole point of the port: no nav item may leave for the Filament
+        // panel, because that is the click that used to change the shell.
+        foreach ($items as $label => $url) {
+            $this->assertStringContainsString('/console', $url, "{$label} still points into the panel.");
         }
     }
 
@@ -260,7 +263,7 @@ class ConsoleTest extends TestCase
     {
         $open = $this->shop()->jobs()->whereNotIn('status', ['collected', 'cancelled'])->count();
 
-        $jobs = collect($this->props()['shell']['groups'])
+        $jobs = collect($this->dashboard()->viewData('shell')['groups'])
             ->flatMap(fn (array $group) => $group['items'])
             ->firstWhere('label', 'Jobs');
 
@@ -290,16 +293,16 @@ class ConsoleTest extends TestCase
     {
         $other = Shop::where('slug', '!=', 'inkwell-press')->firstOrFail();
 
-        $props = $this->props();
+        $response = $this->dashboard();
 
-        $this->assertSame('Inkwell Press', $props['shell']['brand']);
+        $this->assertSame('Inkwell Press', $response->viewData('shell')['brand']);
         $this->assertSame(
             (string) $this->shop()->jobs()->whereNotIn('status', ['collected', 'cancelled'])->count(),
-            collect($props['stats'])->firstWhere('label', 'Open jobs')['value'],
+            collect($response->viewData('stats'))->firstWhere('label', 'Open jobs')['value'],
         );
         $this->assertNotSame(
             $other->jobs()->whereNotIn('status', ['collected', 'cancelled'])->count(),
-            (int) collect($props['stats'])->firstWhere('label', 'Open jobs')['value'],
+            (int) collect($response->viewData('stats'))->firstWhere('label', 'Open jobs')['value'],
         );
     }
 }

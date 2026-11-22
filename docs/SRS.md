@@ -1,6 +1,6 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.4 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.5 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
 > profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
@@ -10,9 +10,13 @@
 > `job_activities` trail that no longer records a nudge as a status change. Version 1.3
 > closed the security and durability gaps: sign-in throttling, password recovery, a delete
 > that can no longer reach settled money, and the notifications the workflow was missing.
-> This revision closes the five functional gaps v1.3 still carried — geocoding, the shop
-> picker, inbound mail, an editable integrations screen, and checkout as a Vue island. The
-> two items that remain open are stated in §11 rather than quietly dropped.
+> Version 1.4 closed the five functional gaps v1.3 still carried — geocoding, the shop
+> picker, inbound mail, an editable integrations screen, and checkout as a Vue island.
+> This revision is structural rather than functional: the shop surface now has **one
+> shell**. The dashboard had a console layout of its own while the other seven screens were
+> still Filament, so every link out of the dashboard changed the product underneath the
+> click. All eight screens are in the console now (§5.9). The two items that remain open
+> are stated in §11 rather than quietly dropped.
 
 ---
 
@@ -187,6 +191,18 @@ feature names.
 | FR-85 | The system shall file an inbound reply once, deduplicated by the provider's message id, and shall answer a message it cannot match with **202** rather than a 4xx, so a provider does not retry it forever. | #63 |
 | FR-86 | The system shall never move a job on the strength of an inbound email: mail is unauthenticated, so it appends a note and nothing else. | #63 |
 
+### 5.9 The shop console — FR-87 …
+
+| ID | Requirement | Issue |
+|---|---|---|
+| FR-87 | The shop surface shall present one shell across every screen: the sidebar, the top bar, the page header and the type scale shall not change when the owner moves from one screen to another. | #66 |
+| FR-88 | The shell shall be rendered by the server, so the navigation is usable before any JavaScript runs and a screen needs no client runtime to exist. | #66 |
+| FR-89 | The console shall own every screen a shop needs to run its day — dashboard, jobs, production board, price matrix, reports, billing — and shall not link into the administrative CMS for any of them. | #66 |
+| FR-90 | The console shall let the shop read, filter and search its jobs, open one, send a proof and change its status, and shall refuse a status change the workflow does not allow. | #66 |
+| FR-91 | The console shall let the shop edit its catalogue — services, size tiers, finishing add-ons and quantity-discount bands — and shall apply an edit to the next quote without changing jobs already priced. | #66 |
+| FR-92 | The console shall let an account that owns more than one shop switch between them, and shall accept a shop only when it belongs to the account and is trading. | #66 |
+| FR-93 | The console shall hide the price, catalogue and billing screens from shop staff and shall refuse them at the route, so hiding the link is a courtesy and not the rule. | #66 |
+
 ---
 
 ## 6. Business rules
@@ -284,12 +300,15 @@ given so a reader can open it; several issues are covered by more than one file.
 | #61 | FR-15, FR-16 | `LoginThrottleTest`, `PasswordResetTest` |
 | #61 | FR-75 | `DeleteSafetyTest` — the database refuses, and the panel agrees with it |
 | #61 | FR-80 … FR-82 | `TransactionalMailTest` — including mail failure leaving the record intact |
+| #63 | FR-83 … FR-86 | `InboundMailTest` — signature, provider shapes, dedupe, and mail never moving a job |
+| #66 | FR-87 … FR-93 | `ConsoleTest`, `ConsoleScreensTest` — every screen, every permission, and no nav link out of the console |
 
 Two honest notes about this table:
 
-- **There is no rate limiting on login.** It is the one place where a requirement a
-  reviewer would expect to find is simply absent, and it is listed in §11 rather than
-  quietly dropped from the list.
+- **The console's coverage is one test file per claim, not one per screen.** `ConsoleTest`
+  owns the dashboard's arithmetic and `ConsoleScreensTest` owns everything else; both walk
+  the routes as an owner, as staff and as a customer, because the failure that matters is
+  a screen that opens for the wrong account, not a screen that fails to render.
 - **`AuthorizationTest` is the spine of the traceability claim.** It is the file that
   proves BR-6 (no `Gate::before`) and BR-7 (404, not 403, across tenants) rather than
   assuming them — including a test literally named
@@ -317,6 +336,12 @@ and neither is a bug:
   is still `local`, which is lost on rebuild — a deployment must set it to `s3` before a
   shop uploads anything it needs back.
 
+One piece of tidying is outstanding rather than open: the **Filament shop panel is still
+registered at `/shop`**. Nothing in the product links to it any more, and every screen it
+serves is now a duplicate of §5.9, but deleting it means moving the ten test files that
+still assert `/shop` URLs. It is recorded here and in `ISSUES.md` under #66 rather than pretended
+away — an unlinked duplicate is untidy, a half-deleted one is broken.
+
 Three things are deliberately *not* gaps, and are recorded here so they are not read as
 omissions later:
 
@@ -325,9 +350,9 @@ omissions later:
   coordinates. Results are cached for 30 days and the address box is a deliberate submit,
   which is what the usage policy requires. Swapping in a commercial geocoder means one
   class, not one architecture.
-- **The shop picker still reloads the panel.** It is a Livewire component now — the choice
-  is re-checked server-side and the redirect is host-checked — but switching shops
-  navigates rather than patching the current screen, because every widget on every page is
+- **The shop picker still navigates.** It is a plain form POST to `/console/shop`, and the
+  choice is re-checked server-side against the account's own active shops. Switching shops
+  reloads rather than patching the current screen, because every figure on every screen is
   scoped to the shop it was rendered for. Patching them in place would be a smaller
   experience built on a much larger lie.
 - **Inbound mail needs a forwarder.** `/webhooks/inbound` takes a signed JSON body; it does

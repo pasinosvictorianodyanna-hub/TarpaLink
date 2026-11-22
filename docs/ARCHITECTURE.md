@@ -51,7 +51,7 @@ flowchart TB
     subgraph Browser["Browser"]
         direction LR
         SB["Storefront<br/>Blade + 4 Vue islands"]
-        SP["Shop panel<br/>Filament v4 / Livewire"]
+        SC["Shop console<br/>Blade shell, server-rendered"]
         AP["Admin panel<br/>Filament v4 / Livewire"]
     end
 
@@ -69,7 +69,7 @@ flowchart TB
     FS[["Disk<br/>proof files"]]
 
     SB -->|"form posts + JSON"| R
-    SP -->|"Livewire"| R
+    SC -->|"HTTP"| R
     AP -->|"Livewire"| R
     R --> POL --> SVC
     SVC --> FIL
@@ -85,10 +85,17 @@ engine, one lifecycle and one set of tables. Splitting them would mean either du
 `PriceCalculator` — the exact failure BR-5 exists to prevent — or turning a single
 in-process call into a network call for no benefit at this scale.
 
-**Why Filament on two surfaces and Blade on the third.** Filament is an admin toolkit: it
-is excellent at "list these rows, edit this one, gate it by policy", and it is the wrong
-tool for a public page that must look like a print shop rather than a database client.
-The storefront is hand-written Blade for that reason.
+**Why Filament on one surface and Blade on the other two.** Filament is an admin toolkit:
+it is excellent at "list these rows, edit this one, gate it by policy", and it is the wrong
+tool for a public page that must look like a print shop rather than a database client. The
+storefront is hand-written Blade for that reason, and so is the shop console.
+
+The console was a hybrid for one release — a Blade page with a Vue shell for the dashboard
+and Filament for the other seven screens — and the seam was visible to the user as a
+different sidebar the moment they clicked *Jobs*. Two frameworks do not share a shell, and
+a shell that exists once per screen is not a shell. It is a Blade layout now, rendered
+server-side, with no client runtime at all: the drawer is fifteen lines of inline script
+and every other control is a form.
 
 ---
 
@@ -101,7 +108,7 @@ flowchart LR
     subgraph Callers
         c1["CheckoutController"]
         c2["QuoteController"]
-        c3["Filament JobResource"]
+        c3["Console JobController"]
         c4["Board drop"]
         c5["PayMongoWebhookController"]
         c6["Billing page"]

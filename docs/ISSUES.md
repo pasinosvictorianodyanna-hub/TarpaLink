@@ -446,6 +446,57 @@ asserts the exclusion.
 
 ---
 
+## #66 — The shop had two shells, and a click changed between them
+
+**Symptom.** Signing in as a shop owner landed on `/console` — a paper-white sidebar, a
+queue, four stat cards. Clicking *Jobs* landed on `/shop/jobs`, which is the Filament panel:
+a different sidebar, different navigation groups, a different page header, a different type
+scale. Every link out of the dashboard changed the product underneath the click.
+
+**Cause.** The console was built as one screen, not as a surface. Its shell lived inside
+`ShopDashboard.vue`, so it existed exactly once; the other seven screens were still Filament
+resources and the sidebar linked into them as a deliberate "bridge" while the port was half
+done. `ConsoleTest` even asserted the bridge, which is how a temporary state becomes a
+permanent one.
+
+**Fix.** The console is the shop surface, and the shell is a layout
+(`resources/views/layouts/console.blade.php`) rather than a component, so a screen cannot
+invent its own chrome. All seven remaining screens moved:
+
+| Screen | Was | Now |
+|---|---|---|
+| Jobs list + detail | `JobResource` (Filament) | `/console/jobs` — filters, search, upload proof, change status |
+| Production board | `ProductionBoard` page | `/console/production-board` — same `JobWorkflow` transitions, drag or the job screen |
+| Price matrix | `PriceMatrix` page | `/console/price-matrix` — same `PriceCalculator` preview |
+| Reports | `Reports` page | `/console/reports` — same payment-derived totals, ledger, CSV |
+| Billing | `Billing` page | `/console/billing` — same crossover maths |
+| Services | `ServiceResource` | `/console/services` — tiers and add-ons on one form |
+| Quantity discounts | `QuantityDiscountResource` | `/console/quantity-discounts` |
+
+The dashboard is server-rendered too. It had one piece of state — the mobile drawer — and a
+Vue runtime for that was 115 kB the shop did not need; the console now loads only
+`console.css` and fifteen lines of inline script.
+
+**The shop switcher moved with it.** It only existed in the panel's topbar, so an owner of
+two shops would have had to go back to the panel to change shops — the last click that
+changed the shell. `POST /console/shop` stores the session preference, checks the posted id
+against the user's own active shops, and refuses a `return_to` that is not a `/console` path.
+
+**Also fixed:** `ServiceController`'s tier/option sync. `Relation::__call` forwards to the
+underlying builder and mutates it, so `$relation->whereKey($id)->first()` left `id = 1` on
+the relation; the cleanup delete then ran `id = 1 AND id not in (1)`, matched nothing, and
+silently kept every tier the owner removed. It builds a fresh query per operation now.
+
+**Proven by:** `ConsoleTest` (21) rewritten against the rendered page rather than a props
+blob, `ConsoleScreensTest` (35) walking every screen including tenancy, permissions and the
+switcher, and `ShopStaffTest` / `SignOutTest` updated where they decoded Vue props.
+
+**Still true, deliberately:** the Filament shop panel is registered and its tests still
+pass. Nothing links to it any more, but deleting it — with the ten test files that reference
+`/shop` — is its own change, and a half-deleted panel would be worse than an unlinked one.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

@@ -5,10 +5,19 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\CheckoutController;
-use App\Http\Controllers\ConsoleController;
+use App\Http\Controllers\Console\BillingController as ConsoleBillingController;
+use App\Http\Controllers\Console\BoardController as ConsoleBoardController;
+use App\Http\Controllers\Console\DashboardController as ConsoleDashboardController;
+use App\Http\Controllers\Console\JobController as ConsoleJobController;
+use App\Http\Controllers\Console\PriceMatrixController as ConsolePriceMatrixController;
+use App\Http\Controllers\Console\QuantityDiscountController as ConsoleDiscountController;
+use App\Http\Controllers\Console\ReportsController as ConsoleReportsController;
+use App\Http\Controllers\Console\ServiceController as ConsoleServiceController;
+use App\Http\Controllers\Console\ShopSwitchController as ConsoleShopSwitchController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\JobController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\PayoutExportController;
 use App\Http\Controllers\ProofController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuoteController;
@@ -42,11 +51,48 @@ Route::get('/account', [AccountController::class, 'index'])->middleware('auth')-
 Route::redirect('/account/jobs', '/account')->middleware('auth');
 Route::redirect('/shop/plan-and-billing', '/shop/billing')->middleware('auth');
 
-// The shop console. Filament keeps the screens that are not ported yet, so this
-// is one route for now rather than a group with its own prefix.
-Route::get('/console', [ConsoleController::class, 'dashboard'])
-    ->middleware('auth')
-    ->name('console.dashboard');
+// The shop console — the whole shop surface, not one screen of it.
+//
+// It used to be a single route because Filament still owned the other seven
+// screens, so every link out of the dashboard changed the shell. One group now,
+// one layout, one place where the nav is decided.
+Route::middleware('auth')->prefix('console')->name('console.')->group(function (): void {
+    Route::get('/', ConsoleDashboardController::class)->name('dashboard');
+
+    // Which shop the console is looking at. A session preference, checked
+    // against the user's own shops every time it is set.
+    Route::post('/shop', ConsoleShopSwitchController::class)->name('shop');
+
+    Route::get('/jobs', [ConsoleJobController::class, 'index'])->name('jobs');
+    Route::get('/jobs/{job}', [ConsoleJobController::class, 'show'])->name('jobs.show');
+    Route::post('/jobs/{job}/status', [ConsoleJobController::class, 'advance'])->name('jobs.status');
+    Route::post('/jobs/{job}/proof', [ConsoleJobController::class, 'sendProof'])->name('jobs.proof');
+
+    Route::get('/production-board', [ConsoleBoardController::class, 'index'])->name('board');
+    Route::post('/production-board/{job}', [ConsoleBoardController::class, 'move'])->name('board.move');
+
+    Route::get('/price-matrix', [ConsolePriceMatrixController::class, 'index'])->name('prices');
+
+    Route::get('/reports', ConsoleReportsController::class)->name('reports');
+    // Declared before the page so `/reports/export` is never read as a report id.
+    Route::get('/reports/export', PayoutExportController::class)->name('reports.export');
+
+    Route::get('/billing', [ConsoleBillingController::class, 'index'])->name('billing');
+    Route::post('/billing', [ConsoleBillingController::class, 'choose'])->name('billing.choose');
+
+    Route::get('/services', [ConsoleServiceController::class, 'index'])->name('services');
+    Route::get('/services/create', [ConsoleServiceController::class, 'create'])->name('services.create');
+    Route::post('/services', [ConsoleServiceController::class, 'store'])->name('services.store');
+    Route::get('/services/{service}/edit', [ConsoleServiceController::class, 'edit'])->name('services.edit');
+    Route::put('/services/{service}', [ConsoleServiceController::class, 'update'])->name('services.update');
+
+    Route::get('/quantity-discounts', [ConsoleDiscountController::class, 'index'])->name('discounts');
+    Route::get('/quantity-discounts/create', [ConsoleDiscountController::class, 'create'])->name('discounts.create');
+    Route::post('/quantity-discounts', [ConsoleDiscountController::class, 'store'])->name('discounts.store');
+    Route::get('/quantity-discounts/{discount}/edit', [ConsoleDiscountController::class, 'edit'])->name('discounts.edit');
+    Route::put('/quantity-discounts/{discount}', [ConsoleDiscountController::class, 'update'])->name('discounts.update');
+    Route::delete('/quantity-discounts/{discount}', [ConsoleDiscountController::class, 'destroy'])->name('discounts.destroy');
+});
 
 Route::get('/account/profile', [ProfileController::class, 'edit'])->middleware('auth')->name('profile.edit');
 

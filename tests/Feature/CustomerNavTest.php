@@ -87,12 +87,46 @@ class CustomerNavTest extends TestCase
     public function test_order_status_becomes_a_link_once_there_is_a_job(): void
     {
         $me = $this->customer();
-        $job = $me->jobs()->firstOrFail();
 
         $bar = $this->bar($this->actingAs($me)->get('/account')->assertOk()->getContent());
 
-        $this->assertSame(route('jobs.show', $job), $this->linkFor($bar, 'Order status'));
+        // Which job is deliberately not pinned here: the bar resumes the most
+        // useful unfinished one, and a test that names a specific row turns any
+        // change to that ranking into a failure about the ranking rather than
+        // about the link. What must hold is that it goes somewhere real and
+        // that it is the customer's own work.
+        $link = $this->linkFor($bar, 'Order status');
+
+        $this->assertNotNull($link, 'Order status should be a link once the customer has a job');
+        $this->assertTrue(
+            $me->jobs()->get()->contains(fn ($job) => route('jobs.show', $job) === $link),
+            'Order status should point at one of the customer\'s own jobs.',
+        );
         $this->assertFalse($this->isOff($bar, 'Order status'));
+    }
+
+    public function test_the_resumed_job_is_the_newest_when_two_were_placed_at_once(): void
+    {
+        $me = $this->customer();
+
+        // Two jobs in the same second is not a contrived case: the seeder
+        // produces them, and so does anybody who places an order and then
+        // corrects it. Without an id tie-break the database picks arbitrarily,
+        // so the chip pointed at one job and then the other on consecutive
+        // requests.
+        $quoted = $me->jobs()->where('status', 'quoted')->orderByDesc('id')->get();
+
+        $this->assertGreaterThanOrEqual(2, $quoted->count(), 'This test needs two quoted jobs to compare');
+
+        $newest = $quoted->first();
+        $other = $quoted->last();
+
+        $newest->forceFill(['created_at' => '2026-01-01 09:00:00'])->save();
+        $other->forceFill(['created_at' => '2026-01-01 09:00:00'])->save();
+
+        $bar = $this->bar($this->actingAs($me)->get('/account')->assertOk()->getContent());
+
+        $this->assertSame(route('jobs.show', $newest), $this->linkFor($bar, 'Order status'));
     }
 
     public function test_a_customer_with_no_jobs_sees_order_status_dimmed_not_linked(): void
@@ -168,6 +202,14 @@ class CustomerNavTest extends TestCase
         $unpaid = $jobs[0];
         $proof = $jobs[1];
 
+        // Distinct timestamps on purpose. `User::jobs()` carries a `latest()`,
+        // so a ranking that is appended rather than applied becomes a tie-break
+        // — and this test passed for months on the seeded database only because
+        // several seeded jobs share a `created_at` second. Forcing the unpaid
+        // order to be unambiguously newer is what makes the ranking prove itself.
+        $unpaid->forceFill(['created_at' => '2026-06-02 09:00:00'])->save();
+        $proof->forceFill(['created_at' => '2026-06-01 09:00:00'])->save();
+
         $unpaid->update(['status' => 'quoted']);
         $proof->update(['status' => 'awaiting_proof']);
 
@@ -181,7 +223,10 @@ class CustomerNavTest extends TestCase
     public function test_an_unpaid_order_is_named_rather_than_promised(): void
     {
         $me = $this->customer();
-        $job = $me->jobs()->where('status', 'quoted')->firstOrFail();
+
+        // The newest unpaid order, because that is the one the bar resumes: the
+        // ranking is status first and then newest, with the id as the tie-break.
+        $job = $me->jobs()->where('status', 'quoted')->orderByDesc('id')->firstOrFail();
 
         $html = $this->actingAs($me)->get('/account')->assertOk()->getContent();
 

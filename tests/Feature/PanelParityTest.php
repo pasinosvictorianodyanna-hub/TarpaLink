@@ -8,26 +8,23 @@ use App\Filament\Admin\Resources\PageSections\Pages\ListPageSections as AdminLis
 use App\Filament\Admin\Resources\Shops\Pages\ListShops as AdminListShops;
 use App\Filament\Admin\Resources\Users\Pages\ListUsers as AdminListUsers;
 use App\Filament\Admin\Widgets\JobsPerDay;
-use App\Filament\Shop\Pages\PriceMatrix;
-use App\Filament\Shop\Resources\Jobs\Pages\ListJobs;
-use App\Filament\Shop\Widgets\NeedsAttention;
-use App\Models\Job;
-use App\Models\JobActivity;
 use App\Models\Payment;
 use App\Models\Shop;
 use App\Models\User;
-use Filament\Facades\Filament;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
- * The screens and actions the design promises on the two panels.
+ * The screens and actions the design promises on the admin panel.
  *
  * Each test here corresponds to something the prototype shows that the build
- * did not have: an export on the admin dashboard, a jobs-per-day chart, row
- * actions on "Needs attention", and the integrations board.
+ * did not have: an export on the admin dashboard, a jobs-per-day chart, and the
+ * integrations board.
+ *
+ * This used to cover both panels. The shop half — the needs-attention nudge, the
+ * jobs list, the price-matrix preview — moved to `ConsoleTest`,
+ * `ConsoleScreensTest` and `JobNudgeTest` when the shop panel was retired.
  */
 class PanelParityTest extends TestCase
 {
@@ -50,18 +47,6 @@ class PanelParityTest extends TestCase
         return User::where('email', 'kevin@inkwell.ph')->firstOrFail();
     }
 
-    /**
-     * Shop-panel widgets build URLs with JobResource::getUrl(), which resolves
-     * against whichever panel is current. A test that renders one after an
-     * admin test would otherwise look for an admin jobs resource that does not
-     * exist.
-     */
-    private function actAsShop(): void
-    {
-        Filament::setCurrentPanel(Filament::getPanel('shop'));
-
-        $this->actingAs($this->owner());
-    }
 
     public function test_the_admin_dashboard_renders_in_the_design_system(): void
     {
@@ -138,41 +123,7 @@ class PanelParityTest extends TestCase
             ->assertNotified();
     }
 
-    public function test_a_shop_can_nudge_a_customer_on_a_stuck_job(): void
-    {
-        $job = $this->owner()->currentShop()->jobs()->firstOrFail();
-        $statusBefore = $job->status;
 
-        $this->actAsShop();
-
-        Livewire::test(NeedsAttention::class)->call('nudge', $job->id);
-
-        $this->assertDatabaseHas('job_activities', [
-            'job_id' => $job->id,
-            'note' => 'Shop nudged the customer',
-        ]);
-
-        // A nudge is not a move. Writing it as `from_status = to_status` made
-        // the history claim "Quoted → Quoted", which cannot happen and skews
-        // any count of how often a job actually changed hands.
-        $nudge = $job->activities()->where('note', 'Shop nudged the customer')->firstOrFail();
-
-        $this->assertSame(JobActivity::NOTE, $nudge->kind);
-        $this->assertNull($nudge->from_status);
-        $this->assertNull($nudge->to_status);
-        $this->assertSame($statusBefore, $job->fresh()->status);
-    }
-
-    public function test_a_shop_cannot_nudge_another_shops_job(): void
-    {
-        $foreign = Shop::where('slug', 'halftone-hub')->firstOrFail()->jobs()->firstOrFail();
-
-        $this->expectException(ModelNotFoundException::class);
-
-        $this->actAsShop();
-
-        Livewire::test(NeedsAttention::class)->call('nudge', $foreign->id);
-    }
 
     public function test_only_an_administrator_can_open_the_integrations_screen(): void
     {
@@ -181,125 +132,13 @@ class PanelParityTest extends TestCase
         $this->actingAs($this->owner())->get('/admin/integrations')->assertForbidden();
     }
 
-    public function test_the_nudge_is_recorded_even_when_mail_is_not_configured(): void
-    {
-        // The suite runs with MAIL_MAILER=array, so the send succeeds but the
-        // point is that the activity row exists regardless.
-        $job = Job::where('shop_id', $this->owner()->currentShop()->id)->firstOrFail();
 
-        $this->actAsShop();
 
-        Livewire::test(NeedsAttention::class)->call('nudge', $job->id);
 
-        $this->assertSame(
-            1,
-            $job->activities()->where('note', 'Shop nudged the customer')->count(),
-        );
-    }
 
-    public function test_the_jobs_screen_renders_the_designed_list(): void
-    {
-        $this->actAsShop();
 
-        Livewire::test(ListJobs::class)
-            ->assertOk()
-            ->assertSee('Customer')
-            ->assertSee('Service')
-            ->assertSee('Status');
-    }
 
-    public function test_the_jobs_screen_filters_by_status(): void
-    {
-        $this->actAsShop();
 
-        $ready = Job::where('shop_id', $this->owner()->currentShop()->id)
-            ->where('status', 'ready')
-            ->first();
-
-        if (! $ready) {
-            $this->markTestSkipped('No ready job in the seeded data.');
-        }
-
-        Livewire::test(ListJobs::class)
-            ->set('status', 'ready')
-            ->assertSee($ready->reference);
-    }
-
-    public function test_the_jobs_screen_only_lists_this_shops_jobs(): void
-    {
-        $this->actAsShop();
-
-        $foreign = Job::where('shop_id', '!=', $this->owner()->currentShop()->id)->firstOrFail();
-
-        Livewire::test(ListJobs::class)->assertDontSee($foreign->reference);
-    }
-
-    public function test_the_price_matrix_renders_with_a_live_preview(): void
-    {
-        $this->actAsShop();
-
-        Livewire::test(PriceMatrix::class)
-            ->assertOk()
-            ->assertSee('Size tiers')
-            ->assertSee('Customer sees');
-    }
-
-    public function test_the_preview_prices_the_sample_spec_with_the_real_engine(): void
-    {
-        $this->actAsShop();
-
-        $component = Livewire::test(PriceMatrix::class);
-        $quote = $component->instance()->preview();
-
-        $this->assertArrayNotHasKey('error', $quote);
-        $this->assertGreaterThan(0, $quote['total']);
-        $this->assertNotEmpty($quote['lines']);
-    }
-
-    public function test_the_preview_never_throws_when_the_engine_rejects_the_spec(): void
-    {
-        $this->actAsShop();
-
-        // A service whose only tier stops at 10 inches: asking for 500 must come
-        // back as a message, not a 500.
-        $service = $this->owner()->currentShop()->services()->create([
-            'name' => 'Tiny stickers',
-            'slug' => 'tiny-stickers-'.uniqid(),
-            'unit' => 'pc',
-            'sort' => 99,
-            'active' => true,
-        ]);
-
-        $service->tiers()->create([
-            'label' => 'Up to 10 in',
-            'min_width' => 0,
-            'max_width' => 10,
-            'unit_price' => 1000,
-            'sort' => 0,
-        ]);
-
-        $component = Livewire::test(PriceMatrix::class)
-            ->call('selectService', $service->id)
-            ->set('width', 500)
-            ->set('height', 500);
-
-        $quote = $component->instance()->preview();
-
-        $this->assertArrayHasKey('error', $quote);
-        $component->assertOk();
-    }
-
-    public function test_the_matrix_only_offers_this_shops_services(): void
-    {
-        $this->actAsShop();
-
-        $shopId = $this->owner()->currentShop()->id;
-
-        $offered = Livewire::test(PriceMatrix::class)->instance()->services();
-
-        $this->assertNotEmpty($offered);
-        $this->assertSame([$shopId], $offered->pluck('shop_id')->unique()->values()->all());
-    }
 
     public function test_the_admin_shops_screen_renders_the_queue_first(): void
     {

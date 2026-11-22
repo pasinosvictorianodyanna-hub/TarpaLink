@@ -1,6 +1,6 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.5 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.6 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
 > profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
@@ -12,11 +12,13 @@
 > that can no longer reach settled money, and the notifications the workflow was missing.
 > Version 1.4 closed the five functional gaps v1.3 still carried — geocoding, the shop
 > picker, inbound mail, an editable integrations screen, and checkout as a Vue island.
-> This revision is structural rather than functional: the shop surface now has **one
-> shell**. The dashboard had a console layout of its own while the other seven screens were
-> still Filament, so every link out of the dashboard changed the product underneath the
-> click. All eight screens are in the console now (§5.9). The two items that remain open
-> are stated in §11 rather than quietly dropped.
+> Version 1.5 was structural rather than functional: the shop surface got **one shell**.
+> The dashboard had a console layout of its own while the other seven screens were still
+> Filament, so every link out of the dashboard changed the product underneath the click.
+> All eight screens moved into the console (§5.9).
+> Version 1.6 finishes that job — the panel the screens came from is deleted, so Filament
+> is the admin side only, and the two capabilities that lived only in the panel were
+> carried across before it went (§11).
 
 ---
 
@@ -170,7 +172,7 @@ feature names.
 | ID | Requirement | Issue |
 |---|---|---|
 | FR-70 | The system shall let an administrator approve, reject with a reason, suspend and reinstate a shop, writing the reason and the acting user in one place. | #8 |
-| FR-71 | The system shall block a pending or suspended shop's owner from the shop panel while leaving their account intact. | #8 |
+| FR-71 | The system shall block a pending or suspended shop's owner from the shop console while leaving their account intact. | #8 |
 | FR-72 | The system shall give an administrator a dashboard of platform-wide money and volume, and a list of payments needing attention. | #8 |
 | FR-73 | The system shall let an administrator create and edit users and assign roles. | #9 |
 | FR-74 | The system shall let an administrator edit CMS sections and settings, and hiding or deleting a section shall remove the block from the page rather than leave a gap. | #10 |
@@ -241,8 +243,8 @@ and may optimistically render, but it never becomes the source of truth.
 
 | ID | Requirement | How it is met |
 |---|---|---|
-| NFR-1 | **Security.** Every panel route is authorised by a policy; every write is CSRF-protected except the signed webhooks. | 16 policies; `ValidateCsrfToken` waived by path for `webhooks/*` only, because the signature is the credential |
-| NFR-2 | **Tenant isolation.** No query in the shop panel may cross shop boundaries. | `ScopesToShop`, policy checks, tests that assert 404 on forged ids |
+| NFR-1 | **Security.** Every console and panel route is authorised by a policy; every write is CSRF-protected except the signed webhooks. | 16 policies; `ValidateCsrfToken` waived by path for `webhooks/*` only, because the signature is the credential |
+| NFR-2 | **Tenant isolation.** No query in the shop console may cross shop boundaries. | Every screen scopes through `$shop->jobs()` / `$shop->services()`, and route-model binding is re-checked (`abort_unless($job->shop_id === $shop->id, 404)`); tests assert 404 on forged ids |
 | NFR-3 | **Integrity.** A price, a transition or a payout must not be derivable two ways. | Single-service rule (BR-5), tests comparing against independent SQL |
 | NFR-4 | **Performance.** A quote is computed in a single request with no N+1; the dashboard aggregates in SQL. | Eager loading, aggregate queries, no per-row queries in widgets |
 | NFR-5 | **Portability.** Local development runs on SQLite; production on MySQL 8, with no code change beyond `DB_CONNECTION`. | Portable migrations, no raw SQL dialect dependencies |
@@ -280,10 +282,10 @@ given so a reader can open it; several issues are covered by more than one file.
 | Issue | Requirements | Tests |
 |---|---|---|
 | #2 | FR-30 … FR-34 | `CheckoutSmokeTest` (size outside every tier, shop with no catalogue) |
-| #3 | FR-11, FR-52 | `AuthorizationTest`, `ShopPanelTest`, `ShopStaffTest` (staff inside the panel, outside the money) |
-| #4 | FR-22, FR-35, FR-36, FR-53 | `ShopPanelTest::editing_a_tier_changes_the_next_quote_and_the_matrix_version`, `CheckoutSmokeTest` |
-| #5 | FR-40 … FR-43, FR-46 | `ShopPanelTest` (illegal skip, legal transition recorded, cancel blocked on press), `ProofExchangeTest`, `PanelParityTest` (a nudge is a note, not a move) |
-| #6 | FR-50, FR-51 | `ShopPanelTest` (board drop, illegal column, another shop's job) |
+| #3 | FR-11, FR-52 | `AuthorizationTest`, `ShopStaffTest` (staff inside the console, outside the money), `ConsoleScreensTest` |
+| #4 | FR-22, FR-35, FR-36, FR-53 | `ShopWorkflowTest::editing_a_tier_changes_the_next_quote_and_the_matrix_version`, `ConsoleScreensTest` (the preview is the real quote), `CheckoutSmokeTest` |
+| #5 | FR-40 … FR-43, FR-46 | `ShopWorkflowTest` (illegal skip, legal transition recorded, cancel blocked on press), `ProofExchangeTest`, `JobNudgeTest` (a nudge is a note, not a move) |
+| #6 | FR-50, FR-51 | `ConsoleScreensTest` (board drop, illegal column, another shop's job) |
 | #7 | FR-64 … FR-68 | `ReportsTest`, `ExportTest` (streamed ledger, query count flat) |
 | #8 | FR-70 … FR-72 | `AdminDashboardTest` |
 | #9 | FR-10, FR-73 | `AuthorizationTest` (incl. `there_is_no_blanket_administrator_bypass`) |
@@ -336,11 +338,17 @@ and neither is a bug:
   is still `local`, which is lost on rebuild — a deployment must set it to `s3` before a
   shop uploads anything it needs back.
 
-One piece of tidying is outstanding rather than open: the **Filament shop panel is still
-registered at `/shop`**. Nothing in the product links to it any more, and every screen it
-serves is now a duplicate of §5.9, but deleting it means moving the ten test files that
-still assert `/shop` URLs. It is recorded here and in `ISSUES.md` under #66 rather than pretended
-away — an unlinked duplicate is untidy, a half-deleted one is broken.
+Version 1.6 retired the **Filament shop panel**. It had been registered at `/shop` with
+nothing linking to it since §5.9 moved every screen to the console, and it is gone now —
+along with its provider, its seventeen routes, the `ShopPicker` topbar component and the
+`/shop/plan-and-billing` redirect. Two capabilities had to be carried across first, because
+they lived only there: the **nudge** on a stuck job (`JobNudge`, reachable from the
+dashboard's Needs attention list and from the job page) and the **paid/unpaid split in the
+attention copy**, which the console port had quietly reverted to wording §5.9 had already
+corrected. A route assertion in `SmokeTest` fails if a panel is ever registered on that
+prefix again.
+
+Filament now serves the admin panel only, which is what §1 said it was for.
 
 Three things are deliberately *not* gaps, and are recorded here so they are not read as
 omissions later:

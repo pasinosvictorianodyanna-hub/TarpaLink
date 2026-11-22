@@ -12,7 +12,7 @@ A job-order platform for the Philippine printing industry. Customers find a prin
 |---|---|---|
 | Landing page | Dev A | done — CMS-driven hero, featured shops from DB |
 | Customer side | Dev A | done — directory, shop profile, builder, checkout, job status, my jobs, profile |
-| Shop console (Blade) | done | issues #3–#7, #66 — dashboard, jobs, board, price matrix, reports, billing, catalogue |
+| Shop console (Blade) | done | issues #3–#7, #66, #71 — dashboard, jobs, board, price matrix, reports, billing, catalogue |
 | Admin panel (Filament) | done | issues #8–#9, #10 — dashboard, approvals, users & roles, CMS |
 | Integrations | partly done | PayMongo sandbox: intent + signed webhook + retry. SMTP/Maps/storage still open |
 
@@ -22,7 +22,7 @@ A job-order platform for the Philippine printing industry. Customers find a prin
 
 - **PHP 8.2+ / Laravel 12** — the whole application, one repo, one deploy
 - **Vue 3 (Composition API) + Vite** — the interactive storefront (order builder, checkout, job status, account)
-- **Filament v4 (Livewire 3 + Alpine)** — admin panel and shop panel; this is the CMS
+- **Filament v4 (Livewire 3 + Alpine)** — the admin panel only; this is the CMS. The shop surface is the console
 - **MySQL 8** — 17 domain tables (25 with framework tables)
 - **PayMongo (sandbox)** — payments, no live charges
 
@@ -46,9 +46,8 @@ app/                      Laravel application
   Policies/                       16 policies; one per model, no blanket admin bypass
   Http/Controllers/Console/       the shop console: dashboard, jobs, board, prices, reports, billing, catalogue
   Http/Controllers/               home, shops, quote, checkout, jobs, account, profile, auth, CSV export, webhooks
-  Filament/Shop/                  the old shop panel — still registered, no longer linked (see ISSUES #66)
   Filament/Admin/                 dashboard widgets, shops, users, CMS, integrations
-  Providers/Filament/             the two panel providers
+  Providers/Filament/             the admin panel provider
 database/
   migrations/             18 domain tables
   seeders/                7 shops, 17 services, 43 price tiers, 33 jobs in every status
@@ -102,7 +101,7 @@ exports). If `composer install` fails on `ext-zip`, uncomment `extension=zip` in
 | Customer | `jomar@tarpalink.ph` |
 | Customer | `marisol@example.com` |
 | Shop owner | `kevin@inkwell.ph` (Inkwell Press, Growth plan) |
-| Shop owner | `lia@meridian.ph` (Meridian Press — **pending**, cannot sign in to `/shop`) |
+| Shop owner | `lia@meridian.ph` (Meridian Press — **pending**, cannot sign in to `/console`) |
 | Admin | `sofia@tarpalink.ph` |
 
 Shops are seeded on different plans — Inkwell Press and Tinta & Co. on Growth (3%),
@@ -111,26 +110,33 @@ tested against more than one rate. Meridian Press exists so the approval queue h
 something in it on a fresh clone: approve it as `sofia@tarpalink.ph` and `lia@meridian.ph`
 can sign in; reject it and she stays locked out.
 
-## The two panels
+## The shop console, and the admin panel
 
-Both panels run on the **single `web` guard**. There is no second guard and no second
-user table: a shop owner is a normal `users` row, and which shop they operate comes
-from the `shop_users` pivot. Access is decided in `User::canAccessPanel()`.
+Three surfaces, two of them signed in, all on the **single `web` guard**. There is no
+second guard and no second user table: a shop owner is a normal `users` row, and which
+shop they operate comes from the `shop_users` pivot.
 
-| Panel | URL | Who | Contents |
+| Surface | URL | Who | Contents |
 |---|---|---|---|
-| Shop | `/shop` | `role = shop_owner`, shop `active` | Dashboard (revenue today, queue, due today, 7-day takings, stuck jobs), services + size tiers, finishing options, quantity discounts, jobs, production board, reports & payout ledger, plan & billing |
-| Admin | `/admin` | `role = admin` | Dashboard (GMV, commission, approvals, latest jobs), shops & approvals, users & roles, site content (CMS), site settings |
+| Shop console | `/console` | `role = shop_owner` or staff, shop `active` | Dashboard (revenue today, queue, due today, 7-day takings, stuck jobs), services + size tiers, finishing options, quantity discounts, jobs, production board, price matrix, reports & payout ledger, plan & billing |
+| Admin panel | `/admin` | `role = admin` | Dashboard (GMV, commission, approvals, latest jobs), shops & approvals, users & roles, site content (CMS), site settings |
 
-Sign in at `/shop/login` as `kevin@inkwell.ph`. Every query is scoped to that owner's
-`shop_id`, so a shop owner sees only Inkwell Press — and `/admin` returns 403 for them.
+Sign in at `/login` as `kevin@inkwell.ph` and you land on the console. Every query is
+scoped to that owner's `shop_id`, so a shop owner sees only Inkwell Press — and `/admin`
+returns 403 for them. The admin panel has its own door at `/admin/login`.
 
-**A shop that has not been approved has no panel.** `User::canAccessPanel()` requires
+**Filament is the admin side only.** The shop panel that used to sit at `/shop` was
+retired in #71: it was a second shell over the same data, and the console is the shop
+surface. Filament's job is the CMS and the platform dashboard, which is what it is good
+at. `SmokeTest` asserts no route is registered on the `shop` prefix, so the panel cannot
+come back by accident.
+
+**A shop that has not been approved has no console.** `ConsoleController::shop()` requires
 the shop to be `active`, so a `pending` or `suspended` owner is refused at the door —
 there is no page to forget the check on. Approving from `/admin` opens it immediately;
 rejecting stores the reason on the shop and keeps it closed.
 
-**The shop panel never invents a price.** It edits the matrix; `PriceCalculator` is
+**The shop console never invents a price.** It edits the matrix; `PriceCalculator` is
 still the only thing that quotes. Change a tier rate and the storefront quotes the new
 price immediately, with no deploy and no cache clear — the matrix fingerprint changes,
 so new jobs get a new `matrix_version` while old jobs keep theirs.
@@ -141,7 +147,7 @@ it re-checks on save — hiding a button is not a rule. Collecting a job stamps
 `jobs.collected_at` there too, so the dashboard's on-time rate has a column it can
 trust instead of reading the activity log.
 
-**The dashboard counts; it does not cache.** `/shop` is four cards, today's queue, the
+**The dashboard counts; it does not cache.** `/console` is four cards, today's queue, the
 last seven days and a "needs attention" list, each computed from this shop's rows on
 every request. The cards are not decoration: revenue today is a `SUM()` over `payments`
 paid today, and on-time rate is collected jobs whose `collected_at` is not later than
@@ -169,7 +175,7 @@ policy is ever consulted. Every grant is written out where it belongs.
 
 | Rule | Where it is enforced |
 |---|---|
-| A customer cannot open `/shop` | `User::canAccessPanel()` → 403 |
+| A customer cannot open `/console` | `ConsoleController::shop()` → 403 |
 | A shop owner cannot touch another shop's matrix | `ServicePolicy`, `PriceTierPolicy`, `PriceOptionPolicy` |
 | A customer cannot read another customer's job | `JobPolicy::view` + `Gate::authorize` in `JobController` |
 | Only an admin may approve a shop | `ShopPolicy::approve` |
@@ -196,8 +202,8 @@ disagree with the payment it describes.
 
 **Settlement is a second lifecycle.** `payments.status` says whether the *customer*
 paid; `payments.payout_status` says whether *we* have paid the shop. One column for both
-would lose the difference between money in and money still owed out. `/shop/reports`
-shows the split — held vs released — and `GET /shop/reports/export` streams the same rows
+would lose the difference between money in and money still owed out. `/console/reports`
+shows the split — held vs released — and `GET /console/reports/export` streams the same rows
 as CSV.
 
 **A plan change only moves the rate forward.** `Billing::subscribe()` writes
@@ -275,8 +281,9 @@ the console.
 
 The admin panel is Filament and stays Filament — that is the CMS, and it belongs on the
 admin side. The console used to be half Filament, and the seam was a sidebar that changed
-under the click; `docs/ISSUES.md` #66 records what that cost and what fixed it. The old
-shop panel is still registered at `/shop` with nothing linking to it, pending its removal.
+under the click; `docs/ISSUES.md` #66 records what that cost and what fixed it. The panel
+itself was retired in #71, which also had to carry the nudge and the attention copy across
+first — two things the console had quietly lost or reverted.
 
 The console has its own stylesheet (`resources/css/console.css`) and its own
 layout. It is a tool, not a page of the brochure: grey canvas, 246px sidebar,

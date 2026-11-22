@@ -32,7 +32,7 @@ class ExportTest extends TestCase
 
     public function test_the_owner_downloads_a_payout_csv(): void
     {
-        $response = $this->actingAs($this->owner())->get('/shop/reports/export');
+        $response = $this->actingAs($this->owner())->get('/console/reports/export');
 
         $response->assertOk();
         $response->assertDownload();
@@ -60,7 +60,7 @@ class ExportTest extends TestCase
         $foreignJob = $paid($foreign->jobs())->firstOrFail()->reference;
 
         $csv = $this->actingAs($owner)
-            ->get('/shop/reports/export')
+            ->get('/console/reports/export')
             ->streamedContent();
 
         $this->assertStringContainsString($ownJob, $csv);
@@ -69,7 +69,7 @@ class ExportTest extends TestCase
 
     public function test_a_guest_is_redirected_rather_than_served_the_file(): void
     {
-        $this->get('/shop/reports/export')->assertRedirect();
+        $this->get('/console/reports/export')->assertRedirect();
     }
 
     public function test_a_customer_cannot_download_a_shops_payouts(): void
@@ -77,16 +77,16 @@ class ExportTest extends TestCase
         $customer = User::where('email', 'jomar@tarpalink.ph')->firstOrFail();
 
         $this->actingAs($customer)
-            ->get('/shop/reports/export')
+            ->get('/console/reports/export')
             ->assertForbidden();
     }
 
     public function test_the_reports_page_links_to_the_export(): void
     {
         $this->actingAs($this->owner())
-            ->get('/shop/reports')
+            ->get('/console/reports')
             ->assertOk()
-            ->assertSee('/shop/reports/export');
+            ->assertSee('/console/reports/export');
     }
 
     /**
@@ -131,7 +131,7 @@ class ExportTest extends TestCase
         DB::enableQueryLog();
 
         $this->actingAs($this->owner())
-            ->get('/shop/reports/export')
+            ->get('/console/reports/export')
             ->streamedContent();
 
         $count = count(DB::getQueryLog());

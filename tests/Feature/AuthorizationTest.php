@@ -42,10 +42,10 @@ class AuthorizationTest extends TestCase
         return Shop::where('slug', 'halftone-hub')->firstOrFail();
     }
 
-    public function test_a_customer_cannot_open_the_shop_panel(): void
+    public function test_a_customer_cannot_open_the_shop_console(): void
     {
         $this->actingAs($this->user('jomar@tarpalink.ph'))
-            ->get('/shop')
+            ->get('/console')
             ->assertForbidden();
     }
 
@@ -59,7 +59,7 @@ class AuthorizationTest extends TestCase
 
         // And the panel's scoped query turns the direct URL into a 404.
         $this->actingAs($owner)
-            ->get("/shop/services/{$otherService->id}/edit")
+            ->get("/console/services/{$otherService->id}/edit")
             ->assertNotFound();
 
         // Their own service is editable, so the rule is not "nobody can".
@@ -152,7 +152,7 @@ class AuthorizationTest extends TestCase
 
     public function test_a_guest_sees_nothing_protected(): void
     {
-        $this->get('/shop')->assertRedirect('/shop/login');
+        $this->get('/console')->assertRedirect('/login');
 
         $job = Job::firstOrFail();
         $this->get("/jobs/{$job->reference}")->assertNotFound();

@@ -1,5 +1,10 @@
 {{--
-    One set of tokens and primitives for every custom shop-panel screen.
+    One set of tokens and primitives for every custom panel screen.
+
+    Shared, not owned: it started life under `filament/shop` because the shop
+    panel had the most custom screens, and the admin dashboard, shops list and
+    users list were including it across the fence. It lives here now that the
+    shop panel is gone and the admin side is the only panel left.
 
     `@once` keeps the rules out of the DOM when several widgets on the same page
     include this partial. Each consumer only needs a root element carrying

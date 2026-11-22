@@ -49,7 +49,6 @@ Route::post('/jobs/{job}/proofs/{proof}/reject', [ProofController::class, 'rejec
     ->middleware('auth')->name('jobs.proof.reject');
 Route::get('/account', [AccountController::class, 'index'])->middleware('auth')->name('account');
 Route::redirect('/account/jobs', '/account')->middleware('auth');
-Route::redirect('/shop/plan-and-billing', '/shop/billing')->middleware('auth');
 
 // The shop console — the whole shop surface, not one screen of it.
 //
@@ -67,6 +66,9 @@ Route::middleware('auth')->prefix('console')->name('console.')->group(function (
     Route::get('/jobs/{job}', [ConsoleJobController::class, 'show'])->name('jobs.show');
     Route::post('/jobs/{job}/status', [ConsoleJobController::class, 'advance'])->name('jobs.status');
     Route::post('/jobs/{job}/proof', [ConsoleJobController::class, 'sendProof'])->name('jobs.proof');
+    // The chase that used to live only in the Filament panel's Needs attention
+    // widget. Retiring the panel would otherwise have quietly removed it.
+    Route::post('/jobs/{job}/nudge', [ConsoleJobController::class, 'nudge'])->name('jobs.nudge');
 
     Route::get('/production-board', [ConsoleBoardController::class, 'index'])->name('board');
     Route::post('/production-board/{job}', [ConsoleBoardController::class, 'move'])->name('board.move');

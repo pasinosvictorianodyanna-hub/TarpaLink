@@ -86,7 +86,13 @@
                             <td class="t">{{ $row['reference'] }}</td>
                             <td>{{ $row['issue'] }}</td>
                             <td style="color:#6B7280;white-space:nowrap">{{ $row['waiting'] }}</td>
-                            <td class="r"><a class="fb fb-y" href="{{ $row['url'] }}">Open job</a></td>
+                            <td class="r" style="white-space:nowrap">
+                                <form method="POST" action="{{ $row['nudge'] }}" style="display:inline">
+                                    @csrf
+                                    <button type="submit" class="fb fb-n">Nudge</button>
+                                </form>
+                                <a class="fb fb-y" href="{{ $row['url'] }}">Open job</a>
+                            </td>
                         </tr>
                     @empty
                         <tr><td colspan="4" style="color:#6B7280">Nothing is stuck. Everything is either moving or finished.</td></tr>

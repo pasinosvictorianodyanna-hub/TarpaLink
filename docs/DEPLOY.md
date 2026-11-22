@@ -192,7 +192,7 @@ Built and run on Docker Desktop (Windows, engine 29.9.3), from a clean volume:
 | `docker compose up -d` | db healthy → app healthy → worker started, in that order |
 | Migrations on MySQL 8.4 | all applied on first boot |
 | `GET /up` | 200 |
-| `/`, `/shops`, `/admin/login`, `/shop/login` | 200 |
+| `/`, `/shops`, `/login`, `/admin/login` | 200 |
 | Vite CSS from `public/build` | 200 |
 | `ProductionSeeder` | 3 plans, 6 sections, 1 admin |
 | Admin credentials | password verifies, `canAccessPanel` allows |

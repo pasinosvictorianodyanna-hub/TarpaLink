@@ -57,7 +57,7 @@ flowchart TB
 
     subgraph App["Laravel 12 application"]
         direction TB
-        R["Routes<br/>web · api · panels"]
+        R["Routes<br/>web · api · admin panel"]
         POL["16 policies<br/>no Gate::before"]
         SVC["Services<br/>the decisions"]
         FIL["Filament resources<br/>the editing"]
@@ -323,7 +323,7 @@ clone must run `npm run build` before anything looks right.
 | Decision | Alternative rejected | Why |
 |---|---|---|
 | **Blade + Vue islands** | SPA, or Inertia | The landing page and directory ship **no JavaScript**. A router would make every page pay for the one interactive screen. |
-| **Filament only for admin and shop** | Filament everywhere | Filament cannot be made to look like a print shop's storefront without fighting it. |
+| **Filament for the admin panel only** | Filament on the shop side too | Filament cannot be made to look like a print shop without fighting it, and a shop owner running a queue is not editing content. The shop surface is the console (§2). |
 | **Integer centavos + basis points** | decimals, floats | `₱0.1 + ₱0.2` is not `₱0.3`. Money that is stored as a float is money that will disagree with itself. |
 | **`matrix_version` on the job** | recompute on read | A price the customer agreed to must not change because the shop raised its rates. |
 | **Commission as an absolute amount per payment** | compute from current rate | Otherwise a plan upgrade silently rewrites last month's payouts. |

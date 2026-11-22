@@ -129,21 +129,19 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
-     * Panel access. Both panels share the single `web` guard, so the only thing
-     * separating an admin from a shop owner is this method — not a second guard,
+     * Panel access. Filament runs on the admin side only, and it shares the
+     * single `web` guard with the storefront and the console — so the only thing
+     * separating an admin from a shop owner is this method, not a second guard
      * and not a second users table.
      *
-     * A shop owner whose shop is pending or suspended gets nothing: admission is
-     * checked here rather than inside each page, so a new panel page can never
-     * forget to check it.
+     * There used to be a `'shop'` branch here for the shop panel. The shop
+     * surface is the console now, which asks `worksInShop()` and
+     * `currentShop()` directly in `ConsoleController::shop()` rather than
+     * routing the question through a panel that no longer exists.
      */
     public function canAccessPanel(Panel $panel): bool
     {
-        return match ($panel->getId()) {
-            'admin' => $this->isAdmin(),
-            'shop' => $this->worksInShop() && $this->currentShop()?->isActive() === true,
-            default => false,
-        };
+        return $panel->getId() === 'admin' && $this->isAdmin();
     }
 
     /**
@@ -154,7 +152,7 @@ class User extends Authenticatable implements FilamentUser
      *
      * The session is a preference, never a permission: a shop id this user is
      * not attached to is ignored rather than obeyed. A shop that is not trading
-     * is ignored too — the panel refuses a suspended shop at the door, so
+     * is ignored too — the console refuses a suspended shop at the door, so
      * honouring one here would strand the owner on a page they cannot open.
      *
      * The last resort still returns a non-trading shop rather than null, so the

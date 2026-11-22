@@ -6,6 +6,10 @@ the platform see.
 
 > **Status:** every task in both tables below is built. This document stays as the
 > record of how the work was divided and why the spine had to come first.
+>
+> One thing has changed since: the Filament shop panel Dev B built was retired in #71,
+> and the shop surface is the Blade console (§5.9 of the SRS). Read "shop panel" below
+> as "the shop side", which is where the work landed even though the framework moved.
 
 | | Dev A | Dev B |
 |---|---|---|

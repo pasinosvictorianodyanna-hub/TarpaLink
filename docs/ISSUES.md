@@ -535,6 +535,65 @@ itself and the one that forgets is silently dead.
 
 ---
 
+## #71 — Retiring the shop panel, and the two things it was still holding
+
+**Symptom.** Nothing. That was the problem: `/shop` had been registered, themed,
+permissioned and tested since #66 moved every screen out of it, and no click in the product
+led there. An unlinked duplicate of the entire shop surface, kept alive by its own test
+suite.
+
+**Why it could not just be deleted.** Two capabilities lived only in the panel.
+
+*The nudge.* `NeedsAttention::nudge()` — the button that emails a customer about a job that
+is waiting on them — existed on the panel's dashboard widget and nowhere else. The console
+rendered the same *Needs attention* list with no action on it, so deleting the panel would
+have removed the feature without a single failing test.
+
+*The attention copy.* The panel's `classify()` splits `quoted` by payment — *Paid, proof not
+sent yet* at six hours, *Unpaid, payment not confirmed* at twenty-four — which is what #32
+fixed. The console's copy read *"Quote sent, customer hasn't ordered"*: the exact wording
+#32 removed, because `quoted` is the state a job is born in at checkout and there is no
+"ordering" step left. The port in #66 reintroduced the regression, and the three tests that
+pinned it were not carried across, so nothing caught it.
+
+**Fix.** Both moved first, then the panel went.
+
+| Moved | To |
+|---|---|
+| The nudge | `App\Services\JobNudge` + `JobNudged` mailable; `POST /console/jobs/{job}/nudge`; buttons on the attention rows and the job page |
+| The paid/unpaid split | `DashboardController::classify()` |
+
+The nudge keeps the order that made it honest: the activity row is written first, the mail
+is best-effort through `Notifier`, and the banner says which of the two happened rather
+than claiming a send that failed. `Mail::raw` became a mailable, so it is `Mail::assertSent`
+now instead of untestable.
+
+**Deleted:** `app/Filament/Shop/**` (31 files), `resources/views/filament/shop/**` (9),
+`ShopPanelProvider`, `ShopPicker` and its topbar hook, the `/shop/plan-and-billing`
+redirect, and the `'shop'` branch of `User::canAccessPanel()`.
+
+One file moved rather than died: `filament/shop/partials/theme.blade.php` was being
+included by three *admin* screens, so it is `filament/partials/theme.blade.php` now. Deleting
+the shop panel took the admin dashboard down with it until that was spotted — the tests said
+`View [filament.shop.partials.theme] not found`, which is exactly the kind of coupling an
+"unused" directory hides.
+
+**Proven by:** `JobNudgeTest` (9) for the carried-across feature; three restored
+classification tests and two arithmetic tests in `ConsoleTest`; board tenancy, the
+price-matrix refusal path and two switcher behaviours in `ConsoleScreensTest`; and two
+guards in `SmokeTest` — no route may be registered on the `shop` prefix, and no console
+page may link into it. The first was verified to be non-vacuous by running the same filter
+against `admin`, which finds sixteen routes.
+
+`ShopPanelTest` became `ShopWorkflowTest` and kept only what was never about the panel: the
+transition rules and the matrix-version bump. `ShopDashboardTest` and `ShopSwitchTest` were
+deleted once their coverage existed on the console.
+
+**Verified:** 448 tests / 2136 assertions, `npm run build` clean, `route:list` shows zero
+`shop/*` routes.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

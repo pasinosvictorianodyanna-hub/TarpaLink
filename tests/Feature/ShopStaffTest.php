@@ -48,16 +48,16 @@ class ShopStaffTest extends TestCase
             ->get('/console')->assertOk()
             ->assertSee('Shop staff');
 
-        $this->actingAs($this->staff())->get('/shop')->assertOk();
-        $this->actingAs($this->staff())->get('/shop/jobs')->assertOk();
-        $this->actingAs($this->staff())->get('/shop/production-board')->assertOk();
+        $this->actingAs($this->staff())->get('/console')->assertOk();
+        $this->actingAs($this->staff())->get('/console/jobs')->assertOk();
+        $this->actingAs($this->staff())->get('/console/production-board')->assertOk();
     }
 
     public function test_staff_cannot_open_price_or_billing_screens(): void
     {
         $staff = $this->actingAs($this->staff());
 
-        foreach (['/shop/price-matrix', '/shop/billing', '/shop/services', '/shop/quantity-discounts'] as $path) {
+        foreach (['/console/price-matrix', '/console/billing', '/console/services', '/console/quantity-discounts'] as $path) {
             $response = $staff->get($path);
 
             $this->assertContains($response->status(), [403], "{$path} should refuse staff");
@@ -114,7 +114,7 @@ class ShopStaffTest extends TestCase
         $owner = User::where('email', 'kevin@inkwell.ph')->firstOrFail();
 
         $this->assertTrue($owner->canManagePrices());
-        $this->actingAs($owner)->get('/shop/price-matrix')->assertOk();
-        $this->actingAs($owner)->get('/shop/billing')->assertOk();
+        $this->actingAs($owner)->get('/console/price-matrix')->assertOk();
+        $this->actingAs($owner)->get('/console/billing')->assertOk();
     }
 }

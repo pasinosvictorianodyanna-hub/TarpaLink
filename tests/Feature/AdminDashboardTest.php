@@ -105,10 +105,10 @@ class AdminDashboardTest extends TestCase
             ->assertSee('Meridian Press');
     }
 
-    public function test_a_pending_owner_cannot_reach_the_shop_panel(): void
+    public function test_a_pending_owner_cannot_reach_the_shop_console(): void
     {
         $this->actingAs($this->pendingOwner())
-            ->get('/shop')
+            ->get('/console')
             ->assertForbidden();
     }
 
@@ -128,7 +128,7 @@ class AdminDashboardTest extends TestCase
         $this->assertSame($this->admin()->id, $shop->approved_by);
 
         $this->actingAs(User::find($this->pendingOwner()->id))
-            ->get('/shop')
+            ->get('/console')
             ->assertSuccessful();
     }
 
@@ -147,7 +147,7 @@ class AdminDashboardTest extends TestCase
         $this->assertSame('Business permit could not be verified.', $shop->status_reason);
 
         $this->actingAs(User::find($this->pendingOwner()->id))
-            ->get('/shop')
+            ->get('/console')
             ->assertForbidden();
     }
 

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Shop\Resources\Jobs\Pages\ViewJob;
 use App\Mail\ProofSent;
 use App\Models\Job;
 use App\Models\JobActivity;
@@ -447,10 +446,10 @@ class InboundMailTest extends TestCase
             'body-plain' => "The logo is low.\nCan you lift it by an inch?",
         ]))->assertStatus(202);
 
-        Filament::setCurrentPanel(Filament::getPanel('shop'));
-
-        Livewire::actingAs($this->owner())
-            ->test(ViewJob::class, ['record' => $job->getRouteKey()])
+        // The console's job page is the shop's view of the history now; the
+        // panel's job screen is gone with the panel.
+        $this->actingAs($this->owner())
+            ->get('/console/jobs/'.$job->getRouteKey())
             ->assertOk()
             ->assertSee('Reply by email from '.$this->customer()->name)
             ->assertSee('Can you lift it by an inch?');

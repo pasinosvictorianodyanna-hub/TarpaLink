@@ -169,6 +169,25 @@
                 </div>
             @endif
 
+            {{-- The customer owns the next move on these, so the only thing the
+                 shop can usefully do is chase. Written as its own card rather
+                 than a link in the status form: it changes nothing about the
+                 job's state, and putting it beside "Change status" would read
+                 as one more way to move the job. --}}
+            @if (in_array($job->status, ['quoted', 'awaiting_proof', 'ready'], true))
+                <div class="fil-card">
+                    <div class="fil-toolbar"><b style="font-size:12.5px">Waiting on the customer</b></div>
+
+                    <form method="POST" action="{{ route('console.jobs.nudge', $job) }}" style="padding:14px 16px;display:grid;gap:9px">
+                        @csrf
+                        <p style="margin:0;font-size:12px;color:#6B7280">
+                            Emails {{ $job->user?->name ?? 'the customer' }} about this job and records it on the history.
+                        </p>
+                        <button class="fbtn fbtn-ghost" type="submit" style="justify-content:center">Nudge the customer</button>
+                    </form>
+                </div>
+            @endif
+
             @if ($canProof)
                 <div class="fil-card">
                     <div class="fil-toolbar"><b style="font-size:12.5px">Send a proof</b></div>

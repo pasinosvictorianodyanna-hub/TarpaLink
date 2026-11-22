@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Filament\Shop\Pages\Billing;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Plan;
@@ -11,7 +10,6 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Services\Billing as BillingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 class BillingTest extends TestCase
@@ -109,14 +107,24 @@ class BillingTest extends TestCase
         $this->assertSame(0, Invoice::where('shop_id', $shop->id)->count());
     }
 
-    public function test_the_billing_page_renders_and_can_switch_plans(): void
+    /**
+     * The page has to show the money, not just the plan names: a plan card with
+     * no price on it is a card an owner cannot choose from.
+     */
+    public function test_the_billing_page_renders_the_prices_and_can_switch_plans(): void
     {
-        Livewire::actingAs($this->owner())
-            ->test(Billing::class)
-            ->assertSuccessful()
+        $growth = Plan::where('code', 'growth')->firstOrFail();
+        $pro = Plan::where('code', 'pro')->firstOrFail();
+
+        $this->actingAs($this->owner())
+            ->get('/console/billing')
+            ->assertOk()
             ->assertSee('Growth')
-            ->assertSee('29,950')
-            ->call('choose', 'pro');
+            ->assertSee(\App\Support\Money::format($growth->price));
+
+        $this->actingAs($this->owner())
+            ->post('/console/billing', ['code' => $pro->code])
+            ->assertRedirect();
 
         $this->assertSame('pro', $this->inkwell()->fresh()->plan);
     }

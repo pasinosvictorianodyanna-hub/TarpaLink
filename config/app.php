@@ -59,13 +59,22 @@ return [
     | Application Timezone
     |--------------------------------------------------------------------------
     |
-    | Here you may specify the default timezone for your application, which
-    | will be used by the PHP date and date-time functions. The timezone
-    | is set to "UTC" by default as it is suitable for most use cases.
+    | TarpaLink prints for shops in the Philippines. "5 PM" on a job card has
+    | to mean 5 PM to the person collecting it, so the application clock is
+    | Manila time — not UTC, which put a 17:00 due date at 1 AM the next day
+    | in the shop's calendar and moved the "due today" boundary to 8 AM.
+    |
+    | MySQL TIMESTAMP columns are converted using the connection's session
+    | time zone, so this must match DB_TIMEZONE in config/database.php. Change
+    | both together, or stored wall-clock times will drift on the way back out.
+    |
+    | Switching on an existing database does not rewrite stored rows: times
+    | captured with now() under UTC will read eight hours later than the
+    | instant they recorded. Do this before real data, or migrate deliberately.
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'Asia/Manila'),
 
     /*
     |--------------------------------------------------------------------------

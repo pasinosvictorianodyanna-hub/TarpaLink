@@ -843,6 +843,7 @@ textarea.finp{height:auto;padding:8px 10px;line-height:1.5;resize:vertical}
 .qty-inp{width:74px;height:32px;text-align:center}
 .sum-error{margin:0 18px;padding:12px 14px;font-size:12.5px;line-height:1.5;color:var(--red);background:var(--tint-m);border-radius:9px}
 .alert{padding:12px 16px;border:1px solid #ABEFC6;background:#ECFDF3;color:#067647;border-radius:10px;font-size:13px}
+.alert-err{border-color:#F8CBD8;background:var(--tint-m);color:#B31745;margin-bottom:16px;line-height:1.5}
 .btn.disabled{opacity:.4;pointer-events:none}
 .field-error{color:var(--red);font-size:11.5px;margin-top:5px;display:block}
 

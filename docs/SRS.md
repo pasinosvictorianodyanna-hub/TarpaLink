@@ -1,6 +1,6 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.7 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.8 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
 > profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
@@ -22,6 +22,8 @@
 > Version 1.7 adds the missing first step: a shop can now **ask** for an account (§5.10).
 > The public page had always described that step and nothing implemented it, so the only
 > way a shop could join was for a developer to seed one.
+> Version 1.8 adds the handover's second chance: an approved request can be **re-invited**,
+> because the first link is shown once, expires in an hour, and is stored hashed (§5.10).
 
 ---
 
@@ -218,10 +220,18 @@ feature names.
 | FR-97 | The system shall never create, store or transmit a plaintext password: the owner sets their own through a single-use, expiring link, and the same link is shown to the administrator once when mail is not configured. | #73 |
 | FR-98 | The system shall rate-limit the public request form and shall silently discard a submission whose hidden field is filled, answering the same way it answers a person. | #73 |
 | FR-99 | The system shall reuse and promote an existing account that matches the applicant's email rather than create a second one, and shall refuse to approve a request whose email belongs to an administrator. | #73 |
+| FR-100 | The system shall let an administrator re-send the invitation for an approved request, minting a fresh single-use link that replaces the previous one and creating or altering no account and no shop. | #75 |
+| FR-101 | The system shall refuse to re-send an invitation when the account or the shop behind the request no longer exists, and shall say which. | #75 |
 
 A request is **not** a pending shop. It has no owner, no matrix and no storefront, so it
 lives in its own table until an administrator decides — otherwise every enquiry would put an
 unowned row in the shop list and in every count that says "shops".
+
+Re-sending exists because the handover is deliberately fragile in one direction: the link is
+flashed once, expires in an hour, and is stored **hashed**, so nothing can read it back. An
+administrator who approves and then closes the page would otherwise leave a live shop with an
+owner locked out of it. Re-sending mints a new token from the same broker, which means the
+previous link stops working — one account, one way in, never a growing set of live links.
 
 ---
 
@@ -323,6 +333,7 @@ given so a reader can open it; several issues are covered by more than one file.
 | #63 | FR-83 … FR-86 | `InboundMailTest` — signature, provider shapes, dedupe, and mail never moving a job |
 | #66 | FR-87 … FR-93 | `ConsoleTest`, `ConsoleScreensTest` — every screen, every permission, and no nav link out of the console |
 | #73 | FR-94 … FR-99 | `ShopRequestTest` — the form creates nothing but a request, approval creates the account and the shop in one go, and the invite link really sets a working password |
+| #75 | FR-100, FR-101 | `ShopRequestTest` — a re-send mints a new link, the old one stops working, and an approved request with no shop is refused |
 
 Two honest notes about this table:
 

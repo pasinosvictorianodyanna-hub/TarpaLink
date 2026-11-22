@@ -131,8 +131,10 @@ returns 403 for them. The admin panel has its own door at `/admin/login`.
 for what is waiting. Approving creates the `shop_owner` account and the shop in one
 transaction, on the free Starter plan, and emails a single-use link so the owner sets their
 own password; no plaintext password is ever stored or sent. When mail is not configured the
-same link is shown to the administrator once, on the request page, to pass on by hand. That
-is `ShopOnboarding` — the only place a shop is created from a request.
+same link is shown to the administrator once, on the request page, to pass on by hand — and
+because that link expires in an hour and is stored hashed, an approved request can be
+**re-invited**: `Resend invitation` mints a fresh one and retires the old. That is
+`ShopOnboarding` — the only place a shop is created from a request.
 
 **Filament is the admin side only.** The shop panel that used to sit at `/shop` was
 retired in #71: it was a second shell over the same data, and the console is the shop

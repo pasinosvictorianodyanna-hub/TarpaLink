@@ -60,6 +60,7 @@ class ShopRequestsTable
             ->recordActions([
                 ShopRequestActions::approve(),
                 ShopRequestActions::reject(),
+                ShopRequestActions::resend(),
                 ViewAction::make(),
             ])
             ->defaultSort('created_at', 'asc')

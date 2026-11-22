@@ -15,6 +15,7 @@ class ViewShopRequest extends ViewRecord
         return [
             ShopRequestActions::approve(),
             ShopRequestActions::reject(),
+            ShopRequestActions::resend(),
         ];
     }
 }

@@ -14,10 +14,14 @@ export default defineConfig({
             ],
             refresh: true,
         }),
-        // Without this the panel theme is shipped as written: `@import` of
-        // Filament's own theme never expands, and `@theme` / `@apply` reach the
-        // browser as raw directives it does not understand. The file is 200 OK
-        // and 376 KB, and it styles nothing — the panels render unstyled.
+        // The panel theme is the only stylesheet that speaks Tailwind. Without
+        // this plugin `@import 'tailwindcss' source(none)` falls through to
+        // postcss-import, which reads `source(none)` as a media query and emits
+        // `@media source(none){...}` — a parse error that makes the browser drop
+        // the entire stylesheet, leaving both panels unstyled.
+        //
+        // app.css is hand-written CSS with no Tailwind directives, so it is
+        // unaffected by this plugin.
         tailwindcss(),
         vue(),
     ],

@@ -1,6 +1,21 @@
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@400;500;600;700&display=swap');
 
-@import '../../../vendor/filament/filament/resources/css/theme.css';
+/*
+ * Filament's own theme.css is `@import 'tailwindcss' source(none);` followed by
+ * `@import './index.css'`. Importing *that file* looks like the documented
+ * approach, but the `source(none)` modifier only means anything to Tailwind's
+ * plugin — postcss-import treats it as a media query and emits
+ *
+ *     @media source(none) { @layer theme, base, components, utilities; }
+ *
+ * which is a parse error, and a parse error at the top of a stylesheet makes the
+ * browser drop everything after it. The panel then renders with no CSS at all.
+ *
+ * So the two directives are written out here instead, at the top level, where
+ * Tailwind processes them itself.
+ */
+@import 'tailwindcss' source(none);
+@import '../../../vendor/filament/filament/resources/css/index.css';
 
 @source '../../../app/Filament/**/*.php';
 @source '../../../resources/views/filament/**/*.blade.php';

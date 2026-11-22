@@ -59,6 +59,11 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
+            // Laravel writes Carbon's wall-clock value into TIMESTAMP columns.
+            // MySQL converts that using the session time zone, so the session
+            // has to agree with app.timezone or a 17:00 due date comes back as
+            // 09:00. Keep this in step with APP_TIMEZONE.
+            'timezone' => env('DB_TIMEZONE', '+08:00'),
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],

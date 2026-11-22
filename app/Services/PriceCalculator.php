@@ -89,13 +89,18 @@ class PriceCalculator
             ->orderByDesc('min_qty')
             ->value('percent') ?? 0);
 
-        $discount = $percent > 0 ? (int) round($subtotal * $percent / 100) : 0;
+        // The Filament form caps a discount at 90%, but the form is not the rule:
+        // a seeded or imported row must not be able to price a job below zero.
+        // Clamp here, where the price is decided, so FR-33 holds for every caller.
+        $discount = $percent > 0
+            ? min($subtotal, (int) round($subtotal * $percent / 100))
+            : 0;
 
         return [
             'lines' => $lines,
             'subtotal' => $subtotal,
             'discount' => $discount,
-            'total' => $subtotal - $discount,
+            'total' => max(0, $subtotal - $discount),
             'currency' => 'PHP',
             'matrix_version' => $this->matrixVersion($service),
             'tier' => $tier->label,

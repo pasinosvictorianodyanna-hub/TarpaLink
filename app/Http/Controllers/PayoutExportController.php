@@ -21,7 +21,9 @@ class PayoutExportController extends Controller
         abort_if($shop === null, 403);
 
         $payments = $shop->payments()
-            ->with('job')
+            // Each row prints the service name through its job. Without this
+            // the export issued one query per row while streaming the CSV.
+            ->with('job.service')
             ->where('payments.status', 'paid')
             ->orderBy('payments.paid_at')
             ->get();

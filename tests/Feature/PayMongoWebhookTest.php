@@ -159,7 +159,7 @@ class PayMongoWebhookTest extends TestCase
         config(['services.paymongo.webhook_secret' => 'whsec_test']);
 
         $payload = '{"hello":"world"}';
-        $timestamp = '1700000000';
+        $timestamp = (string) time();
         $signature = hash_hmac('sha256', $timestamp.'.'.$payload, 'whsec_test');
 
         $paymongo = app(PayMongo::class);
@@ -167,5 +167,25 @@ class PayMongoWebhookTest extends TestCase
         $this->assertTrue($paymongo->verifySignature($payload, "t={$timestamp},te={$signature}"));
         $this->assertFalse($paymongo->verifySignature($payload, "t={$timestamp},te=bad"));
         $this->assertFalse($paymongo->verifySignature($payload, null));
+
+        // A correct signature on an old payload is a replay, not a payment.
+        $old = '1700000000';
+        $oldSignature = hash_hmac('sha256', $old.'.'.$payload, 'whsec_test');
+
+        $this->assertFalse($paymongo->verifySignature($payload, "t={$old},te={$oldSignature}"));
+    }
+
+    public function test_a_malformed_event_cannot_fail_unrelated_payments(): void
+    {
+        $payment = $this->pendingPayment();
+
+        // With no intent in the payload the guard returns before touching the
+        // table. Without it, `where('intent_id', null)` becomes `IS NULL` and a
+        // garbage event issues a bulk update on a half-configured deployment.
+        $job = new ProcessPayMongoWebhook(['data' => ['attributes' => []]]);
+        $job->failed(new RuntimeException('No intent in this event'));
+
+        $this->assertSame('pending', $payment->fresh()->status);
+        $this->assertNull($payment->fresh()->failed_at);
     }
 }

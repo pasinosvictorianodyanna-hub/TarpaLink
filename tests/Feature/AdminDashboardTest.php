@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Filament\Admin\Widgets\PendingApprovals;
 use App\Filament\Admin\Widgets\PlatformStats;
+use App\Models\Job;
 use App\Models\Payment;
 use App\Models\Shop;
 use App\Models\User;
@@ -53,6 +54,33 @@ class AdminDashboardTest extends TestCase
             ->assertSee('Commission earned')
             ->assertSee('Active shops')
             ->assertSee('Waiting for approval');
+    }
+
+    public function test_the_live_feed_shows_the_spec_and_not_just_the_service_name(): void
+    {
+        $job = Job::where('status', 'ready')->firstOrFail();
+
+        $html = $this->actingAs($this->admin())->get('/admin')->assertSuccessful()->getContent();
+
+        // A 36×48 tarpaulin and a 72×96 one are the same service and eight times
+        // the money. The feed is only readable if it says which one it was.
+        $this->assertStringContainsString($job->titleLine(), $html);
+    }
+
+    public function test_each_status_in_the_live_feed_gets_its_own_pill(): void
+    {
+        $html = $this->actingAs($this->admin())->get('/admin')->assertSuccessful()->getContent();
+
+        // The feed shows the eight newest jobs, so those are the statuses on the
+        // page. One class for every status made "Ready for pickup" and "Quoted"
+        // the same colour, which is the one thing the feed exists to distinguish.
+        foreach (Job::orderByDesc('created_at')->limit(8)->get() as $job) {
+            $this->assertStringContainsString(
+                'tl-pill '.$job->statusTone(),
+                $html,
+                "No pill for {$job->reference} ({$job->status}).",
+            );
+        }
     }
 
     public function test_commission_is_the_sum_of_commissions_not_gmv_times_one_rate(): void

@@ -1,6 +1,6 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.9 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.10 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
 > profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
@@ -26,6 +26,9 @@
 > because the first link is shown once, expires in an hour, and is stored hashed (§5.10).
 > Version 1.9 inverts who creates the account: the applicant registers as they apply, and
 > approval **activates** that account instead of creating one and mailing a link (§5.10).
+> Version 1.10 makes the processor fee a deduction from somebody. It had been recorded on
+> every payment since #7 and subtracted from nobody, so the shop was credited money the
+> processor had already taken (FR-66, BR-3).
 
 ---
 
@@ -169,7 +172,7 @@ feature names.
 | FR-63 | The system shall record a failed attempt with its error and count, and shall flag a payment for attention after three failures. | #11 |
 | FR-64 | The system shall store the commission as an absolute centavo amount on the payment row at settlement time. | #7 |
 | FR-65 | The system shall track payout as a **second, independent** status: the customer paid us (`payments.status`) and we paid the shop (`payments.payout_status`). | #7 |
-| FR-66 | The system shall compute a payout as gross − commission = net, and the ledger shall balance to zero discrepancy. | #7 |
+| FR-66 | The system shall compute a payout as gross − commission − processor fee = net, on one row, so the ledger's totals are a plain `SUM()` over the payments themselves and cannot disagree with them. | #7 · #81 |
 | FR-67 | The system shall never rewrite a settled payout when a shop changes plan; only future payments use the new rate. | #7 |
 | FR-68 | The system shall let a shop export its payout ledger as CSV, and shall refuse the export to anyone who does not own that shop. | #7 |
 | FR-69 | The system shall bill subscriptions on three tiers — Starter (free, 5%), Growth (₱599, 3%), Pro (₱1,499, 1.5%) — and shall show the crossover point where the next tier becomes cheaper. | #12 |
@@ -261,7 +264,12 @@ after the fact. Formatting happens once, in the view. Rates are basis points.
 configured a service has no price, and the system says so.
 
 **BR-3 — The customer pays the shop's price.** The platform adds nothing on top.
-Commission is deducted from the shop's payout, never charged to the customer.
+Commission and the processor's fee are both deducted from the shop's payout, never charged
+to the customer. The shop therefore nets `gross − commission − fee`. The platform's own
+margin is `commission − fee`, which is negative on a job small enough that the fixed part
+of the fee outweighs the percentage we keep — the ₱24 job on the books earns ₱0.36 of
+commission against ₱15.60 of fee. That is the platform's loss to carry, not a cost to pass
+to the shop.
 
 **BR-4 — History is append-only.** A settled payment, an issued invoice and a recorded
 transition are facts. They are never updated to reflect a new policy.

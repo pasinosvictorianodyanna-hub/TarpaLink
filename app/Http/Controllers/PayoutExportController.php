@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Payment;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -44,6 +45,7 @@ class PayoutExportController extends Controller
                 'payments.paid_at',
                 'payments.amount',
                 'payments.commission',
+                'payments.processing_fee',
                 'payments.payout_status',
                 'payments.payout_date',
                 'jobs.reference as job_reference',
@@ -56,7 +58,7 @@ class PayoutExportController extends Controller
         return response()->streamDownload(function () use ($rows): void {
             $out = fopen('php://output', 'w');
 
-            fputcsv($out, ['Paid at', 'Job', 'Service', 'Gross', 'Commission', 'Net', 'Payout status', 'Payout date']);
+            fputcsv($out, ['Paid at', 'Job', 'Service', 'Gross', 'Commission', 'Fee', 'Net', 'Payout status', 'Payout date']);
 
             foreach ($rows as $row) {
                 fputcsv($out, [
@@ -65,7 +67,8 @@ class PayoutExportController extends Controller
                     $row->service_name ?? '',
                     number_format($row->amount / 100, 2, '.', ''),
                     number_format($row->commission / 100, 2, '.', ''),
-                    number_format(($row->amount - $row->commission) / 100, 2, '.', ''),
+                    number_format($row->processing_fee / 100, 2, '.', ''),
+                    number_format(Payment::netFrom($row->amount, $row->commission, $row->processing_fee) / 100, 2, '.', ''),
                     $row->payout_status,
                     $row->payout_date ? substr((string) $row->payout_date, 0, 10) : '',
                 ]);

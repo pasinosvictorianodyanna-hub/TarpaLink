@@ -58,11 +58,41 @@ class ReportsTest extends TestCase
 
         foreach ($rows as $payment) {
             $this->assertSame(
-                $payment->amount - $payment->commission,
+                $payment->amount - $payment->commission - $payment->processing_fee,
                 $payment->net(),
                 "Row {$payment->id} does not balance"
             );
         }
+    }
+
+    /**
+     * The decision behind #81: the shop bears the processor's fee, so the net is
+     * gross − commission − fee. A real ₱217.23 job earns ₱10.86 of commission
+     * against ₱20.43 of fee — the shop is paid the difference, not the gross
+     * minus commission.
+     */
+    public function test_the_processor_fee_comes_out_of_the_payout(): void
+    {
+        $payment = Payment::create([
+            'job_id' => $this->inkwell()->jobs()->firstOrFail()->id,
+            'provider' => 'paymongo',
+            'intent_id' => 'pi_fee_arithmetic',
+            'amount' => 21723,
+            'commission' => 1086,
+            'processing_fee' => 2043,
+            'status' => 'paid',
+            'paid_at' => now(),
+        ]);
+
+        $this->assertSame(18594, $payment->net());
+        $this->assertSame('₱185.94', \App\Support\Money::format($payment->net()));
+    }
+
+    /** A margin that has gone negative is a state, not a typo. */
+    public function test_a_negative_figure_puts_the_sign_before_the_symbol(): void
+    {
+        $this->assertSame('−₱9.57', \App\Support\Money::signed(-957));
+        $this->assertSame('₱9.57', \App\Support\Money::signed(957));
     }
 
     public function test_the_totals_agree_with_a_plain_sum_over_payments(): void
@@ -80,9 +110,17 @@ class ReportsTest extends TestCase
             ->where('status', 'paid')
             ->sum('commission');
 
+        $expectedFees = (int) Payment::whereIn('job_id', $shop->jobs()->select('id'))
+            ->where('status', 'paid')
+            ->sum('processing_fee');
+
         $this->assertSame($expectedGross, $totals['gross']);
         $this->assertSame($expectedCommission, $totals['commission']);
-        $this->assertSame($expectedGross - $expectedCommission, $totals['net']);
+        $this->assertSame($expectedFees, $totals['fees']);
+
+        // The processor's fee is deducted before the shop is paid, so the net is
+        // gross − commission − fee. Leaving it out overstates what the shop gets.
+        $this->assertSame($expectedGross - $expectedCommission - $expectedFees, $totals['net']);
 
         $monthSum = (int) Payment::whereIn('job_id', $shop->jobs()->select('id'))
             ->where('status', 'paid')
@@ -132,7 +170,7 @@ class ReportsTest extends TestCase
 
         $body = $response->streamedContent();
 
-        $this->assertStringContainsString('Gross,Commission,Net', $body);
+        $this->assertStringContainsString('Gross,Commission,Fee,Net', $body);
         $this->assertStringContainsString('TL-', $body);
     }
 

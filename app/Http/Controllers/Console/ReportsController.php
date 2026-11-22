@@ -58,22 +58,28 @@ class ReportsController extends ConsoleController
     }
 
     /**
-     * @return array{gross: int, commission: int, net: int, awaiting: int, jobs: int}
+     * @return array{gross: int, commission: int, fees: int, net: int, awaiting: int, jobs: int}
      */
     private function totals(Shop $shop): array
     {
         $row = $this->paymentsOf($shop)
             ->where('payments.status', 'paid')
-            ->selectRaw('coalesce(sum(payments.amount), 0) as gross, coalesce(sum(payments.commission), 0) as commission, count(payments.id) as jobs')
+            ->selectRaw('coalesce(sum(payments.amount), 0) as gross, coalesce(sum(payments.commission), 0) as commission, coalesce(sum(payments.processing_fee), 0) as fees, count(payments.id) as jobs')
             ->first();
 
         $gross = (int) ($row->gross ?? 0);
         $commission = (int) ($row->commission ?? 0);
+        $fees = (int) ($row->fees ?? 0);
 
         return [
             'gross' => $gross,
             'commission' => $commission,
-            'net' => $gross - $commission,
+            // The processor takes its cut out of the money as it arrives, so the
+            // shop was never owed it. It is a deduction, not a platform charge.
+            'fees' => $fees,
+            // Summing the columns and subtracting the totals gives the same
+            // answer as summing each row's net(), and lets one query do it.
+            'net' => Payment::netFrom($gross, $commission, $fees),
             'awaiting' => (int) $this->paymentsOf($shop)->awaitingPayout()->sum('payments.amount'),
             'jobs' => (int) ($row->jobs ?? 0),
         ];

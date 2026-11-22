@@ -234,6 +234,6 @@ class CheckoutFlowTest extends TestCase
             ->firstOrFail();
 
         $this->assertSame('pending', $payment->payout_status);
-        $this->assertSame($payment->amount - $payment->commission, $payment->net());
+        $this->assertSame($payment->amount - $payment->commission - $payment->processing_fee, $payment->net());
     }
 }

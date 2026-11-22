@@ -73,7 +73,11 @@ class PayMongoWebhookTest extends TestCase
 
         // Inkwell is on Growth: 3% of ₱2,036.80 = ₱61.10.
         $this->assertSame(6110, $payment->commission);
-        $this->assertSame(203680 - 6110, $payment->net());
+
+        // The processor takes 2.5% + ₱15: 5092 + 1500 = ₱65.92, and the shop
+        // bears it, so it comes out of the payout.
+        $this->assertSame(6592, $payment->processing_fee);
+        $this->assertSame(203680 - 6110 - 6592, $payment->net());
     }
 
     /** Issue #11 acceptance: a replayed webhook must not double-credit. */

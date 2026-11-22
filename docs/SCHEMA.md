@@ -321,7 +321,7 @@ The most important table to understand, because it carries **two lifecycles**.
 | `provider` | string | `paymongo`. |
 | `intent_id` | string, unique | The idempotency key. A replayed webhook finds this row and stops. |
 | `amount` | integer | What the customer paid, centavos. |
-| `processing_fee` | integer | What the processor kept. |
+| `processing_fee` | integer | What the processor kept. The **shop** bears it: it comes off the payout, like commission. |
 | `commission` | integer | What the platform kept — **an absolute amount**, written at settlement. |
 | `status` | string | Did the **customer** pay: `pending` · `paid` · `failed` · `refunded`. |
 | `payout_status` | string | Did **we** pay the shop: `pending` · `paid`. |
@@ -330,6 +330,13 @@ The most important table to understand, because it carries **two lifecycles**.
 
 Net to the shop = `amount − processing_fee − commission`. The ledger's totals are checked
 against a plain `SUM()` over these columns, not against the ledger's own arithmetic.
+
+Because both deductions live on this row, the subtraction is written once — `Payment::net()`,
+and `Payment::netFrom()` for the payout CSV, which streams flat rows through a cursor and
+never builds a model. The reports screen, the export and every per-payment figure go through
+those two. The platform's own margin is a different quantity, `commission − processing_fee`,
+and it is signed: on a small job the fixed part of the processor's cut can exceed the
+percentage we keep.
 
 ### 2.12 `job_activities`
 

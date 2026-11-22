@@ -32,13 +32,24 @@ class DataIntegrityTest extends TestCase
         $this->seed();
     }
 
-    public function test_every_captured_payment_splits_into_commission_and_net(): void
+    /**
+     * Every captured payment reconciles: gross = commission + processor fee +
+     * what the shop is actually paid. The fee is part of the split because the
+     * shop bears it — see #81.
+     */
+    public function test_every_captured_payment_splits_into_commission_fee_and_net(): void
     {
         foreach (Payment::where('status', 'paid')->get() as $payment) {
             $this->assertSame(
-                $payment->amount - $payment->commission,
+                $payment->amount - $payment->commission - $payment->processing_fee,
                 $payment->net(),
-                "Payment {$payment->id}: net does not equal amount - commission.",
+                "Payment {$payment->id}: net does not equal amount - commission - fee.",
+            );
+
+            $this->assertSame(
+                $payment->amount,
+                $payment->commission + $payment->processing_fee + $payment->net(),
+                "Payment {$payment->id}: the split does not add back up to the gross.",
             );
         }
     }

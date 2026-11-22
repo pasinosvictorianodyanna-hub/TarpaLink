@@ -38,7 +38,7 @@
 
         <div class="page-head">
             <div>
-                <h3 class="h3">{{ $shops->count() }} {{ Str::plural('print shop', $shops->count()) }}</h3>
+                <h1 class="h3">{{ $shops->count() }} {{ Str::plural('print shop', $shops->count()) }}</h1>
                 <p>
                     @if ($origin)
                         Closest first, measured from {{ $origin['src'] === 'pin' ? 'the pin you dropped' : 'your location' }}.
@@ -53,7 +53,7 @@
                         <input type="hidden" name="{{ is_array($value) ? $key.'[]' : $key }}" value="{{ $item }}">
                     @endforeach
                 @endforeach
-                <input type="text" name="q" value="{{ $search }}" placeholder="Shop name or area…">
+                <input type="search" name="q" value="{{ $search }}" placeholder="Shop name or area…" aria-label="Search print shops by name or area">
                 <button class="btn btn-primary btn-sm" type="submit">Search</button>
             </form>
         </div>
@@ -105,8 +105,8 @@
                     </div>
 
                     <div class="rail-group">
-                        <h5>City</h5>
-                        <select name="city" class="rail-select" onchange="this.form.submit()">
+                        <h5><label for="dir-city-select">City</label></h5>
+                        <select id="dir-city-select" name="city" class="rail-select" onchange="this.form.submit()">
                             <option value="">All cities</option>
                             @foreach ($cities as $option)
                                 <option value="{{ $option }}" @selected($city === $option)>{{ $option }}</option>
@@ -115,12 +115,13 @@
                     </div>
 
                     <div class="rail-group">
-                        <h5>Max price <span class="rail-note">from ₱{{ $maxPrice ?: $priceCeiling }} / unit</span></h5>
-                        <input type="range" name="max" min="10" max="{{ $priceCeiling }}" step="5"
+                        <h5><label for="dir-max-range">Max price</label> <span class="rail-note" id="dir-max-label">up to ₱{{ $maxPrice ?: $priceCeiling }} / unit</span></h5>
+                        <input id="dir-max-range" type="range" name="max" min="10" max="{{ $priceCeiling }}" step="5"
                                value="{{ $maxPrice ?: $priceCeiling }}" class="rail-range"
-                               oninput="this.nextElementSibling.textContent = '₱' + this.value"
+                               aria-label="Maximum base price per unit"
+                               oninput="document.getElementById('dir-max-label').textContent = 'up to ₱' + this.value + ' / unit'"
                                onchange="this.form.submit()">
-                        <div class="rail-scale"><span>₱10</span><span>₱{{ $maxPrice ?: $priceCeiling }}</span><span>₱{{ $priceCeiling }}</span></div>
+                        <div class="rail-scale"><span>₱10</span><span>₱{{ $priceCeiling }}</span></div>
                     </div>
 
                     <div class="rail-group">

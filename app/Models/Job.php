@@ -107,7 +107,8 @@ class Job extends Model
     /** "8 pcs · Eyelets, Hemming" — quantity plus the finishing the customer chose. */
     public function specSummary(): string
     {
-        $parts = [(int) ($this->spec['qty'] ?? 0).' pcs'];
+        $qty = (int) ($this->spec['qty'] ?? 0);
+        $parts = [$qty.' '.($qty === 1 ? 'pc' : 'pcs')];
 
         // Option ids are stored, not names: a shop can rename "Hemming" to
         // "Hem & stitch" without rewriting every job already on file.
@@ -147,7 +148,9 @@ class Job extends Model
             return $name.' '.str_replace('×', ' × ', $this->sizeLabel());
         }
 
-        return $name.' · '.(int) ($this->spec['qty'] ?? 0).' pcs';
+        $qty = (int) ($this->spec['qty'] ?? 0);
+
+        return $name.' · '.$qty.' '.($qty === 1 ? 'pc' : 'pcs');
     }
 
     /** The quiet line under the price: what happens next, or who is holding it up. */

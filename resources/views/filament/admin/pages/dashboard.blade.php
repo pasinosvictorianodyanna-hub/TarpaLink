@@ -48,7 +48,7 @@
                             --}}
                             <div
                                 class="tl-bar"
-                                style="height:{{ max((int) round(sqrt($chart['placed'][$i] / $chart['max']) * 100), 4) }}%;width:5px"
+                                style="height:{{ max((int) round(sqrt($chart['placed'][$i] / $chart['max']) * 100), 4) }}%;width:5px;background:var(--tl-ink)"
                                 title="{{ $label }}: {{ $chart['placed'][$i] }} placed"
                             ></div>
                             <div
@@ -81,7 +81,7 @@
                                 <tr>
                                     <td>
                                         <div style="font-weight:600">{{ $shop->name }}</div>
-                                        <div style="font-size:11px;color:var(--tl-muted)">{{ $shop->city }} · {{ $shop->services_count }} services</div>
+                                        <div style="font-size:11px;color:var(--tl-muted)">{{ $shop->city }} · {{ $shop->services_count }} {{ $shop->services_count === 1 ? 'service' : 'services' }}</div>
                                     </td>
                                     <td style="text-align:right">
                                         <button

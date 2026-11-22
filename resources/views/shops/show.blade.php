@@ -66,7 +66,7 @@
                             </span>
                             <div style="min-width:0">
                                 <b>{{ $service->name }} — {{ $service->blurb }}</b>
-                                <span class="d">{{ $service->tiers->count() }} size tiers · {{ $service->options->count() }} finishing options</span>
+                                <span class="d">{{ $service->tiers->count() }} {{ Str::plural('size tier', $service->tiers->count()) }} · {{ $service->options->count() }} {{ Str::plural('finishing option', $service->options->count()) }}</span>
                             </div>
                             <div class="rate">
                                 <b>₱{{ number_format($from / 100, 2) }}/{{ $unit($service->unit) }}</b>

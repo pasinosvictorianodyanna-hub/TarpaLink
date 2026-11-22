@@ -333,6 +333,27 @@ class DatabaseSeeder extends Seeder
 
         $shops[0]->staff()->attach($owner->id, ['role' => 'owner']);
 
+        $otherOwners = [
+            ['slug' => 'halftone-hub', 'name' => 'Marco Santos', 'email' => 'marco@halftone.ph', 'city' => 'Makati'],
+            ['slug' => 'studio-sampaguita', 'name' => 'Clara Reyes', 'email' => 'clara@sampaguita.ph', 'city' => 'Pasig'],
+            ['slug' => 'presswork-mnl', 'name' => 'Arturo Tan', 'email' => 'arturo@presswork.ph', 'city' => 'Manila'],
+            ['slug' => 'tinta-and-co', 'name' => 'Bianca Lim', 'email' => 'bianca@tinta.ph', 'city' => 'Caloocan'],
+            ['slug' => 'northline-print', 'name' => 'Paolo Garcia', 'email' => 'paolo@northline.ph', 'city' => 'Valenzuela'],
+        ];
+
+        foreach ($otherOwners as $meta) {
+            $shopOwner = User::create([
+                'name' => $meta['name'],
+                'email' => $meta['email'],
+                'role' => 'shop_owner',
+                'city' => $meta['city'],
+                'password' => bcrypt('password'),
+            ]);
+
+            collect($shops)->firstWhere('slug', $meta['slug'])
+                ?->staff()->attach($shopOwner->id, ['role' => 'owner']);
+        }
+
         // The owner of the shop that is still pending. He can log in to the site
         // but not to the shop panel until an admin approves Meridian Press.
         $pendingOwner = User::create([

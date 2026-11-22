@@ -18,17 +18,6 @@
             --pb-accent: #F2F0EA;
             --pb-good: #6EE7A8;
         }
-        @media (prefers-color-scheme: dark) {
-            .tpb-wrap {
-                --pb-paper: #1C1F1E;
-                --pb-rule: #2E3331;
-                --pb-ink: #F2F0EA;
-                --pb-muted: #A8AEAA;
-                --pb-card: #242827;
-                --pb-accent: #F2F0EA;
-                --pb-good: #6EE7A8;
-            }
-        }
 
         .pb-current {
             display: flex; flex-wrap: wrap; gap: 28px; align-items: baseline;
@@ -146,7 +135,13 @@
             <h3>Invoices</h3>
             @php($invoices = $this->invoices())
             @if ($invoices->isEmpty())
-                <div class="pb-empty">No invoices yet. The Starter plan has no monthly fee.</div>
+                <div class="pb-empty">
+                    @if ($current?->isFree())
+                        No invoices yet. The {{ $current->name }} plan has no monthly fee.
+                    @else
+                        No billing invoices issued yet. Switching or renewing a paid plan records an invoice here.
+                    @endif
+                </div>
             @else
                 <table class="pb-tbl">
                     <thead>

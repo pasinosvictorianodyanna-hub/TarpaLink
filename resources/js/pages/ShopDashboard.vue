@@ -1,4 +1,6 @@
 <script setup>
+import { ref } from 'vue';
+
 /**
  * The shop dashboard.
  *
@@ -19,6 +21,8 @@ defineProps({
     routes: { type: Object, required: true },
 });
 
+const drawerOpen = ref(false);
+
 /** The design's icon set, keyed so the server can name an icon without markup. */
 const icons = {
     grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
@@ -33,17 +37,29 @@ const logo = '<path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/><path d="M9.5 12
 </script>
 
 <template>
-    <div class="fil">
-        <aside class="fil-side">
-            <a class="fil-brand" :href="routes.dashboard">
-                <span class="lm">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" v-html="logo"></svg>
-                </span>
-                {{ shell.brand }}
-                <small>{{ shell.badge }}</small>
-            </a>
+    <div class="fil" :class="{ 'is-drawer-open': drawerOpen }">
+        <div v-if="drawerOpen" class="fil-backdrop" @click="drawerOpen = false"></div>
 
-            <nav class="fil-nav">
+        <aside id="console-sidebar" class="fil-side" :class="{ open: drawerOpen }">
+            <div class="fil-brand">
+                <a class="fil-brand-link" :href="routes.dashboard">
+                    <span class="lm">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true" v-html="logo"></svg>
+                    </span>
+                    {{ shell.brand }}
+                </a>
+                <small>{{ shell.badge }}</small>
+                <button
+                    type="button"
+                    class="fil-close"
+                    aria-label="Close navigation menu"
+                    @click="drawerOpen = false"
+                >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <nav class="fil-nav" aria-label="Shop console navigation">
                 <template v-for="group in shell.groups" :key="group.label">
                     <div class="fil-group">{{ group.label }}</div>
                     <a
@@ -51,8 +67,9 @@ const logo = '<path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/><path d="M9.5 12
                         :key="item.label"
                         :class="['fil-item', item.active ? 'on' : '']"
                         :href="item.url"
+                        @click="drawerOpen = false"
                     >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" v-html="icons[item.icon] || ''"></svg>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true" v-html="icons[item.icon] || ''"></svg>
                         {{ item.label }}
                         <span v-if="item.badge" class="bdg">{{ item.badge }}</span>
                     </a>
@@ -75,7 +92,7 @@ const logo = '<path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/><path d="M9.5 12
                 <form method="POST" :action="routes.logout">
                     <input type="hidden" name="_token" :value="csrf">
                     <button class="out" type="submit" title="Sign out" aria-label="Sign out">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
                             <path d="M15 17l5-5-5-5" /><path d="M20 12H9" />
                             <path d="M12 20H5a2 2 0 01-2-2V6a2 2 0 012-2h7" />
                         </svg>
@@ -86,19 +103,31 @@ const logo = '<path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/><path d="M9.5 12
 
         <div class="fil-main">
             <div class="fil-top">
+                <button
+                    type="button"
+                    class="fil-burger"
+                    aria-label="Open navigation menu"
+                    aria-controls="console-sidebar"
+                    :aria-expanded="drawerOpen"
+                    @click="drawerOpen = !drawerOpen"
+                >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                        <path d="M4 7h16M4 12h16M4 17h16" />
+                    </svg>
+                </button>
                 <div class="fil-crumb">
                     <span>{{ shell.brand }}</span>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 18l6-6-6-6" /></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M9 18l6-6-6-6" /></svg>
                     <b>{{ heading.title }}</b>
                 </div>
                 <div class="fil-top-right">
-                    <div class="fil-search">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
-                        Search
-                        <span style="margin-left:auto;font-size:10px;border:1px solid #E5E7EB;border-radius:4px;padding:0 4px">⌘K</span>
-                    </div>
-                    <a class="fil-ico" :href="routes.export" title="Export payouts">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12" /><path d="M7 10l5 5 5-5" /><path d="M4 21h16" /></svg>
+                    <a class="fil-search" :href="routes.jobs || '/shop/jobs'" aria-label="Search jobs in queue">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+                        <span>Search jobs</span>
+                        <span class="fil-kbd">Queue</span>
+                    </a>
+                    <a class="fil-ico" :href="routes.export" title="Export payouts CSV" aria-label="Export payouts CSV">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3v12" /><path d="M7 10l5 5 5-5" /><path d="M4 21h16" /></svg>
                     </a>
                 </div>
             </div>
@@ -106,12 +135,12 @@ const logo = '<path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/><path d="M9.5 12
             <div class="fil-page">
                 <div class="fil-ph">
                     <div>
-                        <h3>{{ heading.title }}</h3>
+                        <h1>{{ heading.title }}</h1>
                         <p>{{ heading.sub }}</p>
                     </div>
                     <div class="fil-actions">
-                        <a class="fbtn fbtn-ghost" :href="routes.export">Export</a>
-                        <a class="fbtn fbtn-primary" :href="routes.newJob">+ New job</a>
+                        <a class="fbtn fbtn-ghost" :href="routes.export">Export CSV</a>
+                        <a class="fbtn fbtn-primary" :href="routes.board || '/shop/production-board'">Production board</a>
                     </div>
                 </div>
 
@@ -130,38 +159,40 @@ const logo = '<path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/><path d="M9.5 12
                     <div class="fil-card">
                         <div class="fil-toolbar">
                             <b style="font-size:12.5px">Due today</b>
-                            <span style="margin-left:auto;font-size:11px;color:#9CA3AF">
+                            <span style="margin-left:auto;font-size:11px;color:#6B7280">
                                 {{ dueToday.count }} {{ dueToday.count === 1 ? 'job' : 'jobs' }}
                             </span>
                         </div>
-                        <table class="ftbl">
-                            <thead>
-                                <tr><th>Job</th><th>Customer</th><th>Spec</th><th>Status</th><th class="r">Amount</th></tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="row in dueToday.rows" :key="row.reference">
-                                    <td class="t">{{ row.reference }}</td>
-                                    <td>{{ row.customer }}</td>
-                                    <td>
-                                        <div class="fil-mini">
-                                            <span class="th2" :style="{ background: row.cover }"></span>
-                                            <div><b>{{ row.title }}</b><span>{{ row.spec }}</span></div>
-                                        </div>
-                                    </td>
-                                    <td><span :class="['fb', 'fb-' + row.tone]">{{ row.status }}</span></td>
-                                    <td class="r" style="font-weight:600">{{ row.total }}</td>
-                                </tr>
-                                <tr v-if="!dueToday.rows.length">
-                                    <td colspan="5" style="color:#9CA3AF">Nothing due today.</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                        <div class="ftbl-wrap">
+                            <table class="ftbl">
+                                <thead>
+                                    <tr><th>Job</th><th>Customer</th><th>Spec</th><th>Status</th><th class="r">Amount</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="row in dueToday.rows" :key="row.reference">
+                                        <td class="t"><a :href="row.url" class="ftbl-link">{{ row.reference }}</a></td>
+                                        <td>{{ row.customer }}</td>
+                                        <td>
+                                            <div class="fil-mini">
+                                                <span class="th2" :style="{ background: row.cover }"></span>
+                                                <div><b>{{ row.title }}</b><span>{{ row.spec }}</span></div>
+                                            </div>
+                                        </td>
+                                        <td><span :class="['fb', 'fb-' + row.tone]">{{ row.status }}</span></td>
+                                        <td class="r" style="font-weight:600;font-variant-numeric:tabular-nums">{{ row.total }}</td>
+                                    </tr>
+                                    <tr v-if="!dueToday.rows.length">
+                                        <td colspan="5" style="color:#6B7280">Nothing due today.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
                     <div class="fil-card">
                         <div class="fil-toolbar">
                             <b style="font-size:12.5px">Last 7 days</b>
-                            <span style="margin-left:auto;font-size:11px;color:#9CA3AF">{{ week.total }}</span>
+                            <span style="margin-left:auto;font-size:11px;color:#6B7280;font-variant-numeric:tabular-nums">{{ week.total }}</span>
                         </div>
                         <div style="padding:14px 16px">
                             <div class="bars" style="height:96px">
@@ -179,20 +210,22 @@ const logo = '<path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/><path d="M9.5 12
                         <b style="font-size:12.5px">Needs attention</b>
                         <span :class="['fb', 'fb-r']">{{ attention.count }}</span>
                     </div>
-                    <table class="ftbl">
-                        <thead><tr><th>Job</th><th>Issue</th><th>Waiting</th><th></th></tr></thead>
-                        <tbody>
-                            <tr v-for="row in attention.rows" :key="row.reference">
-                                <td class="t">{{ row.reference }}</td>
-                                <td>{{ row.issue }}</td>
-                                <td style="color:#9CA3AF">{{ row.waiting }}</td>
-                                <td class="r"><a :class="['fb', 'fb-y']" :href="row.url">Open job</a></td>
-                            </tr>
-                            <tr v-if="!attention.rows.length">
-                                <td colspan="4" style="color:#9CA3AF">Nothing is stuck. Everything is either moving or finished.</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div class="ftbl-wrap">
+                        <table class="ftbl">
+                            <thead><tr><th>Job</th><th>Issue</th><th>Waiting</th><th></th></tr></thead>
+                            <tbody>
+                                <tr v-for="row in attention.rows" :key="row.reference">
+                                    <td class="t">{{ row.reference }}</td>
+                                    <td>{{ row.issue }}</td>
+                                    <td style="color:#6B7280;white-space:nowrap">{{ row.waiting }}</td>
+                                    <td class="r"><a :class="['fb', 'fb-y']" :href="row.url">Open job</a></td>
+                                </tr>
+                                <tr v-if="!attention.rows.length">
+                                    <td colspan="4" style="color:#6B7280">Nothing is stuck. Everything is either moving or finished.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>

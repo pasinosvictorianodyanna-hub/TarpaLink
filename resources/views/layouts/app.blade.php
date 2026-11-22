@@ -267,21 +267,20 @@
 
 @yield('content')
 
-@guest
 <footer class="footer">
     <div class="wrap">
       <div class="foot-grid">
         <div class="foot-brand">
           <a class="logo" href="{{ route('home') }}">
             <span class="logo-mark">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/><path d="M9.5 12h5"/></svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/><path d="M9.5 12h5"/></svg>
             </span>
             TarpaLink
           </a>
           @if (! empty($footerBlurb))
             <p>{{ $footerBlurb }}</p>
           @endif
-          <div class="cmyk"><i style="background:#0092E4"></i><i style="background:#E8265E"></i><i style="background:#F5B700"></i><i style="background:#0C0F0E"></i></div>
+          <div class="cmyk" aria-hidden="true"><i style="background:#0092E4"></i><i style="background:#E8265E"></i><i style="background:#F5B700"></i><i style="background:#0C0F0E"></i></div>
         </div>
         <div>
           <h5>Customers</h5>
@@ -310,9 +309,11 @@
           {{-- The CMS had no door. /admin existed and was reachable by typing
                it, which is not a route — an administrator who is not already
                signed in has no way to find it. This points at the panel's own
-               login: the footer only renders for guests, so it is never a
+               login: the link only renders for guests, so it is never a
                second "Admin panel" link competing with the header one. --}}
-          <a href="{{ route('filament.admin.auth.login') }}">Admin sign in</a>
+          @guest
+            <a href="{{ route('filament.admin.auth.login') }}">Admin sign in</a>
+          @endguest
         </div>
       </div>
       <div class="foot-bot">
@@ -321,7 +322,6 @@
       </div>
     </div>
   </footer>
-@endguest
 
 </body>
 </html>

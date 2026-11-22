@@ -211,8 +211,8 @@ html{scroll-behavior:smooth}
 .qc-live i{width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 1.8s infinite}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
 .qc-tabs{display:flex;gap:3px;background:var(--paper);padding:3px;border-radius:9px;margin-bottom:16px}
-.qc-tabs span{flex:1;text-align:center;font-size:11px;font-weight:600;padding:6px 4px;border-radius:7px;color:var(--muted);cursor:pointer;transition:.16s}
-.qc-tabs span.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.qc-tabs span,.qc-tabs button{flex:1;text-align:center;font-size:11px;font-weight:600;padding:6px 4px;border-radius:7px;color:var(--muted);cursor:pointer;transition:background-color .16s,color .16s,box-shadow .16s}
+.qc-tabs span.on,.qc-tabs button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
 .qc-preview{
   height:112px;border-radius:10px;position:relative;overflow:hidden;
   background:
@@ -352,6 +352,7 @@ html{scroll-behavior:smooth}
 .foot-grid h5{margin:0 0 14px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .foot-grid a{display:block;font-size:13px;color:var(--ink-2);padding:5px 0;transition:color .16s}
 .foot-grid a:hover{color:var(--magenta)}
+.foot-brand .logo{display:inline-flex}
 .foot-brand p{font-size:13px;color:var(--muted);max-width:30ch;margin:14px 0 0;line-height:1.6}
 .cmyk{display:flex;gap:5px;margin-top:18px}
 .cmyk i{width:13px;height:13px;border-radius:50%;display:block}
@@ -565,7 +566,7 @@ html{scroll-behavior:smooth}
 .sb-num{width:20px;height:20px;border-radius:50%;background:var(--ink);color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;flex:none}
 .sb-num.done{background:var(--green)}
 .step-block .sb-head b{font-size:13px}
-.step-block .sb-head .opt{margin-left:auto;font-size:11px;color:var(--muted)}
+.step-block .sb-head .opt,.step-block .sb-head .sb-meta{margin-left:auto;font-size:11px;color:var(--muted);border:0;padding:0;background:none;cursor:default;font-weight:500}
 .opt-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .opt{
   border:1.5px solid var(--line);border-radius:10px;padding:11px 10px;text-align:center;
@@ -782,7 +783,7 @@ textarea.finp{height:auto;padding:8px 10px;line-height:1.5;resize:vertical}
   .shops,.dir-results{grid-template-columns:repeat(2,1fr)}
   .steps{grid-template-columns:1fr}
   .step{border-right:0;border-bottom:1px solid var(--line)}
-  .split,.cta-band,.build-grid,.co-grid,.track-grid,.detail-grid{grid-template-columns:1fr;gap:28px}
+  .split,.cta-band,.build-grid,.co-grid,.track-grid,.detail-grid,.shop-grid{grid-template-columns:1fr;gap:28px}
   .quotes{grid-template-columns:1fr}
   .foot-grid{grid-template-columns:1fr 1fr}
   .dir-grid,.acct-grid,.cms-grid{grid-template-columns:1fr}
@@ -828,7 +829,16 @@ textarea.finp{height:auto;padding:8px 10px;line-height:1.5;resize:vertical}
 /* The shop page kept a fixed 300px sidebar column on a phone, which pushed the
    whole page sideways. It was the only grid that never got a mobile rule. */
 .shop-grid{grid-template-columns:1fr}
-.hero-art{display:none}
+.shop-hero{height:185px;padding:16px 16px 52px}
+.shop-hero-name{font-size:clamp(30px,8vw,44px);text-align:center}
+.shop-hero-pills{left:14px;right:14px;bottom:12px;justify-content:center;flex-wrap:wrap}
+.co-steps{max-width:100%;flex-wrap:wrap;gap:6px}
+.co-steps .co-line{width:18px !important;margin:0 4px}
+.dir-search{width:100%}
+.dir-search input{min-width:0;flex:1}
+.quick-quote .qq-field:nth-of-type(2){display:flex}
+.hero-art{padding:10px 0 24px}
+.hero-art .qc-float{display:none}
 .kpis{grid-template-columns:1fr}
 .foot-grid{grid-template-columns:1fr}
 .tbl{display:block;overflow-x:auto;white-space:nowrap}
@@ -1051,6 +1061,9 @@ textarea.finp{height:auto;padding:8px 10px;line-height:1.5;resize:vertical}
 .counter .l{display:block;font-size:11.5px;color:var(--muted);margin-top:6px}
 .job-row{display:flex;align-items:center;gap:16px;padding:14px 16px;margin-bottom:10px}
 .job-thumb{width:52px;height:52px;border-radius:10px;flex:none}
+.job-info{flex:1;min-width:0}
+.job-price{text-align:right;flex:none;min-width:96px}
+.jobs-search{width:250px}
 
 /* ---------- customer app shell ---------- */
 .page-title{font-family:var(--serif);font-size:34px;line-height:1.05;letter-spacing:-.022em}
@@ -1084,7 +1097,20 @@ textarea.finp{height:auto;padding:8px 10px;line-height:1.5;resize:vertical}
 .jobs-tab.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 .jobs-tab em{font-style:normal;opacity:.55;font-variant-numeric:tabular-nums}
 
-@media(max-width:760px){.counters{grid-template-columns:1fr}.job-row{flex-wrap:wrap}}
+@media(max-width:760px){
+  .counters{grid-template-columns:1fr}
+  .jobs-search{width:100%}
+  .job-row{display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px 12px;align-items:start}
+  .job-thumb{width:44px;height:44px}
+  .job-price{text-align:left;min-width:0;grid-column:2 / 3;display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding-top:6px;border-top:1px dashed var(--line-2)}
+  .job-act{grid-column:2 / 3;justify-self:start}
+}
+
+.qq-field:focus-within,.field:focus-within{border-color:var(--ink);box-shadow:0 0 0 3px rgba(12,15,14,.08)}
+.btn:focus-visible,.selpill:focus-visible,.opt:focus-visible,.chip-btn:focus-visible,.jobs-tab:focus-visible,.icon-btn:focus-visible,a:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;scroll-behavior:auto !important}
+}
 
 /* ---------- job detail ---------- */
 .job-head{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:20px 24px;margin-bottom:16px;flex-wrap:wrap}

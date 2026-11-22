@@ -318,11 +318,19 @@ class ShopController extends Controller
                 'services' => $shop->services->map(fn ($service) => [
                     'id' => $service->id,
                     'name' => $service->name,
+                    'slug' => $service->slug,
                     'unit' => $service->unit,
                     'blurb' => $service->blurb,
                     // Cheapest tier, so the card can say "from ₱45 / sq ft" the way
                     // the directory does. The exact price still comes from /api/quote.
                     'from' => $service->tiers->min('unit_price'),
+                    'tiers' => $service->tiers->sortBy('sort')->map(fn ($t) => [
+                        'id' => $t->id,
+                        'label' => $t->label,
+                        'min_width' => (float) $t->min_width,
+                        'max_width' => $t->max_width !== null ? (float) $t->max_width : null,
+                        'unit_price' => $t->unit_price,
+                    ])->values(),
                     'options' => $service->options->map(fn ($o) => [
                         'id' => $o->id,
                         'name' => $o->name,

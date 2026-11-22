@@ -10,9 +10,12 @@
             <a href="{{ route('shops.show', $shop) }}">{{ $shop->name }}</a> <span>/</span> New order
         </div>
 
+        @php
+            $initialService = $shop->services->firstWhere('id', $payload['initialServiceId']) ?? $shop->services->first();
+        @endphp
         <div class="page-head">
             <div>
-                <h3 class="h3">Build your {{ strtolower($shop->services->first()->name) }}</h3>
+                <h1 class="h3" id="builder-title">Build your {{ strtolower($initialService->name) }}</h1>
                 <p>Every change updates the price instantly — this is the shop's actual matrix.</p>
             </div>
             <div class="co-steps" style="margin:0">

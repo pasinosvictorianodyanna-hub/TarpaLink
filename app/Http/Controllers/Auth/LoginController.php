@@ -24,6 +24,16 @@ class LoginController extends Controller
             'password' => ['required', 'string'],
         ]);
 
+        $user = User::where('email', $credentials['email'])->first();
+
+        // Administrators must authenticate exclusively through /admin/login,
+        // never through the customer/shop storefront sign-in page (/login).
+        if ($user?->isAdmin()) {
+            throw ValidationException::withMessages([
+                'email' => 'Administrator accounts cannot sign in here. Please use the admin login at /admin/login.',
+            ]);
+        }
+
         if (! Auth::attempt($credentials, $request->boolean('remember'))) {
             throw ValidationException::withMessages([
                 'email' => 'Those credentials do not match our records.',

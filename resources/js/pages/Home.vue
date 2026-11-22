@@ -1,4 +1,6 @@
 <script setup>
+import { computed, ref } from 'vue';
+
 /**
  * The landing page, as a Vue page rather than a Blade view.
  *
@@ -16,6 +18,58 @@ const props = defineProps({
     faq: { type: Object, default: null },
     routes: { type: Object, required: true },
 });
+
+const heroSpecimens = [
+    {
+        tab: 'Tarpaulin',
+        art: 'Grand Opening',
+        rows: [
+            ['36 × 24 in · 13oz vinyl', '6 sq ft'],
+            ['Eyelets · hemming', '₱120'],
+            ['Quantity', '3 pcs'],
+        ],
+        total: '1,485',
+        sub: 'All-in price\nincl. rush fee',
+    },
+    {
+        tab: 'Sticker',
+        art: 'Coffee Roasters',
+        rows: [
+            ['3 × 3 in · Die-cut vinyl', 'Waterproof'],
+            ['Matte lamination', '₱200'],
+            ['Quantity', '250 pcs'],
+        ],
+        total: '1,650',
+        sub: 'Bulk tier (−10%)\nincl. lamination',
+    },
+    {
+        tab: 'Flyer',
+        art: 'Summer Menu',
+        rows: [
+            ['A5 (5.8 × 8.3 in) · 120gsm', 'Full colour'],
+            ['Matte finish', '₱200'],
+            ['Quantity', '500 pcs'],
+        ],
+        total: '1,870',
+        sub: 'Bulk tier (−15%)\nsame-day ready',
+    },
+    {
+        tab: 'Shirt',
+        art: 'Crew 2026',
+        rows: [
+            ['Front + back · DTF transfer', '12 × 12 in'],
+            ['Individual bagging', 'Included'],
+            ['Quantity', '24 pcs'],
+        ],
+        total: '5,304',
+        sub: 'Bulk tier (−15%)\n₱221 per shirt',
+    },
+];
+
+const activeHeroTab = ref('Tarpaulin');
+const activeSpecimen = computed(
+    () => heroSpecimens.find((s) => s.tab === activeHeroTab.value) ?? heroSpecimens[0],
+);
 
 const marquee = [
     'Tarpaulin', 'Stickers & Labels', 'Flyers', 'Business Cards', 'DTF Shirts',
@@ -50,7 +104,8 @@ const matrix = [
     { size: '72 × 96', sqft: '48.0', rate: '₱38', subtotal: '₱1,824', hl: false },
 ];
 
-const tints = ['#0C0F0E', '#E8265E', '#0092E4', '#F5B700'];
+const tints = ['#0C0F0E', '#B3174A', '#05649B', '#F5B700'];
+const tintFg = ['#FFFFFF', '#FFFFFF', '#FFFFFF', '#0C0F0E'];
 
 const initialsOf = (name) =>
     String(name || '')
@@ -61,6 +116,7 @@ const initialsOf = (name) =>
         .join('');
 
 const tintOf = (index) => tints[index % tints.length];
+const tintFgOf = (index) => tintFg[index % tintFg.length];
 </script>
 
 <template>
@@ -88,35 +144,35 @@ const tintOf = (index) => tints[index % tints.length];
 
                 <form class="quick-quote" method="GET" :action="routes.shops">
                     <label class="qq-field">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
-                        <input type="text" name="q" placeholder="Tarpaulin, stickers, flyers…">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+                        <input type="text" name="q" placeholder="Tarpaulin, stickers, flyers…" aria-label="Search service or product">
                     </label>
                     <label class="qq-field" style="max-width:150px">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 21s7-5.4 7-11a7 7 0 10-14 0c0 5.6 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>
-                        <input type="text" name="city" placeholder="Quezon City">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 21s7-5.4 7-11a7 7 0 10-14 0c0 5.6 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>
+                        <input type="text" name="city" placeholder="Quezon City" aria-label="City or area">
                     </label>
                     <button class="btn btn-primary" type="submit">Quote</button>
                 </form>
 
                 <div class="hero-trust">
-                    <div class="avatars">
+                    <div class="avatars" aria-hidden="true">
                         <span style="background:#0C0F0E">JM</span>
-                        <span style="background:#E8265E">AR</span>
-                        <span style="background:#0092E4">KC</span>
+                        <span style="background:#B3174A">AR</span>
+                        <span style="background:#05649B">KC</span>
                         <span style="background:#F5B700;color:#0C0F0E">DL</span>
                     </div>
                     <div>
-                        <span class="num">128</span>
+                        <span class="num mono">128</span>
                         <span class="lbl">verified shops</span>
                     </div>
                     <div class="sep"></div>
                     <div>
-                        <span class="num">4.8★</span>
+                        <span class="num mono">4.8★</span>
                         <span class="lbl">avg. shop rating</span>
                     </div>
                     <div class="sep"></div>
                     <div>
-                        <span class="num">36h</span>
+                        <span class="num mono">36h</span>
                         <span class="lbl">avg. turnaround</span>
                     </div>
                 </div>
@@ -130,21 +186,29 @@ const tintOf = (index) => tints[index % tints.length];
                             <span class="qc-title">Instant quote</span>
                             <span class="qc-live"><i></i>Live pricing</span>
                         </div>
-                        <div class="qc-tabs">
-                            <span class="on">Tarpaulin</span><span>Sticker</span><span>Flyer</span><span>Shirt</span>
+                        <div class="qc-tabs" role="tablist" aria-label="Sample print quotes">
+                            <button
+                                v-for="spec in heroSpecimens"
+                                :key="spec.tab"
+                                type="button"
+                                role="tab"
+                                :aria-selected="activeHeroTab === spec.tab"
+                                :class="{ on: activeHeroTab === spec.tab }"
+                                @click="activeHeroTab = spec.tab"
+                            >{{ spec.tab }}</button>
                         </div>
                         <div class="qc-preview">
                             <div class="eyelets"></div>
-                            <div class="art-frame"><b>Grand Opening</b></div>
+                            <div class="art-frame"><b>{{ activeSpecimen.art }}</b></div>
                         </div>
                         <div class="qc-rows">
-                            <div class="qc-row"><span>36 × 24 in · 13oz vinyl</span><b>6 sq ft</b></div>
-                            <div class="qc-row"><span>Eyelets · hemming</span><b>₱120</b></div>
-                            <div class="qc-row"><span>Quantity</span><b>3 pcs</b></div>
+                            <div v-for="([k, v], rIdx) in activeSpecimen.rows" :key="rIdx" class="qc-row">
+                                <span>{{ k }}</span><b class="mono">{{ v }}</b>
+                            </div>
                         </div>
                         <div class="qc-total">
-                            <div><span class="cur">₱</span><span class="amt">1,485</span></div>
-                            <div class="lbl">All-in price<br>incl. rush fee</div>
+                            <div><span class="cur">₱</span><span class="amt mono">{{ activeSpecimen.total }}</span></div>
+                            <div class="lbl" style="white-space:pre-line">{{ activeSpecimen.sub }}</div>
                         </div>
                     </div>
                 </div>
@@ -316,7 +380,7 @@ const tintOf = (index) => tints[index % tints.length];
                     </div>
                     <p>&ldquo;{{ item.quote }}&rdquo;</p>
                     <div class="who">
-                        <span class="av" :style="{ background: tintOf(i) }">{{ initialsOf(item.name) }}</span>
+                        <span class="av" :style="{ background: tintOf(i), color: tintFgOf(i) }">{{ initialsOf(item.name) }}</span>
                         <div><b>{{ item.name }}</b><span>{{ item.role }}</span></div>
                     </div>
                 </div>

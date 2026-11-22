@@ -5,9 +5,11 @@ namespace App\Filament\Admin\Resources\PageSections\Pages;
 use App\Filament\Admin\Resources\PageSections\PageSectionResource;
 use App\Models\PageSection;
 use Filament\Actions\CreateAction;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Route;
 
 /**
  * The site content screen from the prototype.
@@ -96,6 +98,56 @@ class ListPageSections extends ListRecords
         }
 
         return count($content).' fields';
+    }
+
+    /**
+     * Publishing is the one thing an admin does here without opening the form.
+     *
+     * The list exists to answer "what is live right now", so the switch belongs
+     * beside that answer. Sending someone into a form to change one select, then
+     * back out, is how a CMS stops being used.
+     */
+    public function publish(int $id): void
+    {
+        $this->setStatus($id, 'published');
+    }
+
+    public function unpublish(int $id): void
+    {
+        $this->setStatus($id, 'draft');
+    }
+
+    private function setStatus(int $id, string $status): void
+    {
+        $section = PageSection::find($id);
+
+        if ($section === null) {
+            return;
+        }
+
+        $section->update(['status' => $status]);
+
+        Notification::make()
+            ->success()
+            ->title($section->label.' '.($status === 'published' ? 'published' : 'unpublished'))
+            ->body($status === 'published'
+                ? 'It is on the storefront now.'
+                : 'It is off the storefront until you publish it again.')
+            ->send();
+    }
+
+    /** Where the section actually appears, so a row can link to the real page. */
+    public function urlFor(PageSection $section): string
+    {
+        if (str_starts_with($section->key, 'page.')) {
+            $slug = substr($section->key, strlen('page.'));
+
+            if (Route::has('page')) {
+                return route('page', $slug);
+            }
+        }
+
+        return route('home');
     }
 
     protected function getHeaderActions(): array

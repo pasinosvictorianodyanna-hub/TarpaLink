@@ -15,7 +15,7 @@
                 <select wire:model.live="role"
                         style="height:36px;padding:0 10px;border:1px solid var(--tl-rule);border-radius:999px;background:#fff;font-size:12px">
                     @foreach ($this->roleOptions() as $value => $label)
-                        <option value="{{ $value }}">{{ $label }}</option>
+                        <option value="{{ $value }}" @selected($role === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
 
@@ -44,6 +44,7 @@
                             <th>Shop</th>
                             <th>Joined</th>
                             <th style="text-align:right">Jobs</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -70,6 +71,11 @@
                                 <td style="white-space:nowrap">{{ $user->created_at?->format('d M Y') }}</td>
 
                                 <td class="tl-amt">{{ $user->jobs_count }}</td>
+
+                                <td style="text-align:right;white-space:nowrap">
+                                    <a href="{{ \App\Filament\Admin\Resources\Users\UserResource::getUrl('edit', ['record' => $user]) }}"
+                                       style="font-size:11.5px;font-weight:600;text-decoration:underline;text-underline-offset:2px">Edit</a>
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>

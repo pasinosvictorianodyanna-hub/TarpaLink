@@ -297,8 +297,11 @@ class PanelParityTest extends TestCase
             ->assertSee('Owner')
             ->assertSee('Services');
 
-        // The default filter is the approval queue, not "all".
-        $this->assertSame('pending', $component->instance()->status);
+        // The queue comes first by sort order, not by filter. Filtering to
+        // `pending` hid the active shops and left the header reading "1 shop"
+        // while the status dropdown still said "All statuses".
+        $this->assertSame('', $component->instance()->status);
+        $this->assertSame('pending', $component->instance()->shops()->items()[0]->status);
     }
 
     public function test_an_administrator_can_approve_a_pending_shop_from_the_list(): void

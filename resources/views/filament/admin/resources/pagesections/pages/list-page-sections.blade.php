@@ -15,7 +15,7 @@
                 <select wire:model.live="status"
                         style="height:36px;padding:0 10px;border:1px solid var(--tl-rule);border-radius:999px;background:#fff;font-size:12px">
                     @foreach ($this->statusOptions() as $value => $label)
-                        <option value="{{ $value }}">{{ $label }}</option>
+                        <option value="{{ $value }}" @selected($status === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
 
@@ -44,6 +44,7 @@
                             <th>What it says</th>
                             <th>Status</th>
                             <th>Updated</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -65,11 +66,36 @@
                                 </td>
 
                                 <td style="white-space:nowrap;color:var(--tl-muted)">{{ $section->updated_at?->diffForHumans() }}</td>
+
+                                <td style="text-align:right;white-space:nowrap">
+                                    @if ($section->status === 'published')
+                                        <a href="{{ $this->urlFor($section) }}" target="_blank" rel="noopener"
+                                           style="font-size:11.5px;font-weight:600;color:var(--tl-muted);margin-right:12px">View</a>
+                                        <button
+                                            type="button"
+                                            wire:click="unpublish({{ $section->id }})"
+                                            wire:loading.attr="disabled"
+                                            style="height:28px;padding:0 12px;border-radius:999px;border:1px solid var(--tl-rule);background:#fff;font-size:11.5px;font-weight:600;cursor:pointer"
+                                        >Unpublish</button>
+                                    @else
+                                        <button
+                                            type="button"
+                                            wire:click="publish({{ $section->id }})"
+                                            wire:loading.attr="disabled"
+                                            style="height:28px;padding:0 12px;border-radius:999px;border:1px solid var(--tl-good);background:var(--tl-good);color:#fff;font-size:11.5px;font-weight:600;cursor:pointer"
+                                        >Publish</button>
+                                    @endif
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>
                 </table>
             @endif
+        </div>
+
+        <div style="font-size:12px;color:var(--tl-muted)">
+            Publish puts a section on the storefront immediately — there is no cache in front of it.
+            Unpublish takes it off without deleting anything, so the copy is still here when you turn it back on.
         </div>
     </div>
 </x-filament-panels::page>

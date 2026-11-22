@@ -8,6 +8,7 @@ use App\Filament\Admin\Resources\Users\UserResource;
 use App\Models\PageSection;
 use App\Models\Shop;
 use App\Models\User;
+use Filament\Actions\Testing\TestAction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -15,11 +16,11 @@ use Tests\TestCase;
 /**
  * The admin panel has to be a place where work gets done, not a read-only view.
  *
- * Three of the four admin lists are hand-written Blade tables that override
- * Filament's list view, which means the `recordActions()` declared on their
- * table classes never render. That is invisible in a browser until you look for
- * a button that is not there: the row shows a status and nothing else, and the
- * only way to act is to guess a URL. These tests exist so the buttons stay.
+ * Two of the admin lists (Shops, Users) are hand-written Blade tables that
+ * override Filament's list view, which means the `recordActions()` declared on
+ * their table classes never render. Site content used to be a third; it is a
+ * native Filament table now, so its actions are tested through Filament's own
+ * action testing rather than by looking for a button in the HTML.
  */
 class AdminActionsTest extends TestCase
 {
@@ -37,33 +38,49 @@ class AdminActionsTest extends TestCase
         return User::where('email', 'sofia@tarpalink.ph')->firstOrFail();
     }
 
-    public function test_the_content_list_offers_a_publish_and_unpublish_button(): void
+    public function test_the_content_list_is_a_native_filament_table(): void
     {
-        $html = $this->actingAs($this->admin())
-            ->get('/admin/site-content')
-            ->assertOk()
-            ->getContent();
+        $this->actingAs($this->admin());
 
-        // The seed has thirteen published sections and one draft, so both
-        // directions are on screen at once.
-        $this->assertStringContainsString('wire:click="unpublish(', $html);
-        $this->assertStringContainsString('wire:click="publish(', $html);
+        // The table paginates at ten, so assert against the first page rather
+        // than every section.
+        Livewire::test(ListPageSections::class)
+            ->assertOk()
+            ->assertCanSeeTableRecords(PageSection::orderBy('sort')->take(5)->get())
+            ->assertTableFilterExists('status');
     }
 
-    public function test_unpublishing_from_the_list_takes_the_page_off_the_site(): void
+    public function test_the_content_row_offers_the_right_action_for_its_status(): void
+    {
+        $this->actingAs($this->admin());
+
+        $published = PageSection::where('status', 'published')->firstOrFail();
+        $draft = PageSection::where('status', 'draft')->firstOrFail();
+
+        Livewire::test(ListPageSections::class)
+            ->assertActionVisible(TestAction::make('unpublish')->table($published))
+            ->assertActionVisible(TestAction::make('viewOnSite')->table($published))
+            ->assertActionHidden(TestAction::make('publish')->table($published))
+            ->assertActionVisible(TestAction::make('publish')->table($draft))
+            ->assertActionHidden(TestAction::make('unpublish')->table($draft));
+    }
+
+    public function test_unpublishing_takes_the_page_off_the_site(): void
     {
         $section = PageSection::where('key', 'page.about')->firstOrFail();
 
         $this->get('/about')->assertOk();
 
         $this->actingAs($this->admin());
-        Livewire::test(ListPageSections::class)->call('unpublish', $section->id);
+
+        Livewire::test(ListPageSections::class)
+            ->callAction(TestAction::make('unpublish')->table($section));
 
         $this->assertSame('draft', $section->fresh()->status);
         $this->get('/about')->assertNotFound();
     }
 
-    public function test_publishing_from_the_list_puts_it_back(): void
+    public function test_publishing_puts_it_back(): void
     {
         $section = PageSection::where('key', 'page.about')->firstOrFail();
         $section->update(['status' => 'draft']);
@@ -71,7 +88,9 @@ class AdminActionsTest extends TestCase
         $this->get('/about')->assertNotFound();
 
         $this->actingAs($this->admin());
-        Livewire::test(ListPageSections::class)->call('publish', $section->id);
+
+        Livewire::test(ListPageSections::class)
+            ->callAction(TestAction::make('publish')->table($section));
 
         $this->assertSame('published', $section->fresh()->status);
         $this->get('/about')->assertOk();
@@ -83,7 +102,9 @@ class AdminActionsTest extends TestCase
         $this->assertSame('draft', $banner->status, 'The banner is seeded as a draft.');
 
         $this->actingAs($this->admin());
-        Livewire::test(ListPageSections::class)->call('publish', $banner->id);
+
+        Livewire::test(ListPageSections::class)
+            ->callAction(TestAction::make('publish')->table($banner));
 
         // The announcement bar is fed by this section, so publishing it is
         // observable on the storefront rather than only in the database.
@@ -91,16 +112,27 @@ class AdminActionsTest extends TestCase
         $this->assertNotNull($props['banner']);
     }
 
-    public function test_a_section_row_links_to_where_it_actually_appears(): void
+    public function test_sections_can_be_published_in_bulk(): void
     {
+        $ids = PageSection::whereIn('key', ['banner', 'page.help'])->pluck('id')->all();
+        PageSection::whereIn('id', $ids)->update(['status' => 'draft']);
+
         $this->actingAs($this->admin());
 
-        $page = Livewire::test(ListPageSections::class)->instance();
+        Livewire::test(ListPageSections::class)
+            ->selectTableRecords($ids)
+            ->callAction(TestAction::make('publishSelected')->table()->bulk());
+
+        $this->assertSame(0, PageSection::whereIn('id', $ids)->where('status', '!=', 'published')->count());
+    }
+
+    public function test_a_section_knows_where_it_appears(): void
+    {
         $about = PageSection::where('key', 'page.about')->firstOrFail();
         $hero = PageSection::where('key', 'hero')->firstOrFail();
 
-        $this->assertSame(route('page', 'about'), $page->urlFor($about));
-        $this->assertSame(route('home'), $page->urlFor($hero));
+        $this->assertSame(route('page', 'about'), $about->publicUrl());
+        $this->assertSame(route('home'), $hero->publicUrl());
     }
 
     public function test_the_shops_list_opens_on_every_shop_not_only_the_queue(): void

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Route;
 
 class PageSection extends Model
 {
@@ -24,5 +25,24 @@ class PageSection extends Model
     public static function visible(string $key): bool
     {
         return static::where('key', $key)->where('status', 'published')->exists();
+    }
+
+    /**
+     * Where this section shows up on the storefront.
+     *
+     * The CMS list links each row here, so an editor can check their copy
+     * against the real page instead of guessing which URL it feeds.
+     */
+    public function publicUrl(): string
+    {
+        if (str_starts_with($this->key, 'page.')) {
+            $slug = substr($this->key, strlen('page.'));
+
+            if (Route::has('page')) {
+                return route('page', $slug);
+            }
+        }
+
+        return route('home');
     }
 }

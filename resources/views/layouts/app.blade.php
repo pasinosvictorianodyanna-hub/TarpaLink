@@ -32,18 +32,33 @@
             ['My jobs', route('account'), false],
         ];
     } else {
-        $barLinks = [
-            ['Shops', route('shops.index'), request()->routeIs('shops.*')],
-            ['My jobs', route('account'), request()->routeIs('account') || request()->routeIs('jobs.*')],
-            ['Profile', route('profile.edit'), request()->routeIs('profile.*')],
-        ];
-
-        // A shop owner has no business in "My jobs" being their only door. The
-        // console has its own shell, so this is the one link that crosses back.
-        if ($me->isShopOwner()) {
-            $barLinks[] = ['Console', route('console.dashboard'), request()->routeIs('console.*')];
+        // "My jobs" is the customer's list. A shop owner signing in was shown it
+        // — empty, because their jobs are the ones customers place with them —
+        // and an admin was shown the same. Each role gets the door it needs.
+        if ($me->isAdmin()) {
+            $barLinks = [
+                ['Shops', route('shops.index'), request()->routeIs('shops.*')],
+                ['Admin panel', route('filament.admin.pages.dashboard'), request()->routeIs('filament.admin.*')],
+                ['Profile', route('profile.edit'), request()->routeIs('profile.*')],
+            ];
+        } elseif ($me->isShopOwner()) {
+            $barLinks = [
+                ['Shops', route('shops.index'), request()->routeIs('shops.*')],
+                ['Console', route('console.dashboard'), request()->routeIs('console.*')],
+                ['Profile', route('profile.edit'), request()->routeIs('profile.*')],
+            ];
+        } else {
+            $barLinks = [
+                ['Shops', route('shops.index'), request()->routeIs('shops.*')],
+                ['My jobs', route('account'), request()->routeIs('account') || request()->routeIs('jobs.*')],
+                ['Profile', route('profile.edit'), request()->routeIs('profile.*')],
+            ];
         }
     }
+
+    // The bell counts proofs waiting on a customer. A shop owner and an admin
+    // have no such list, so it would be a permanent zero that leads nowhere.
+    $showBell = ! $me->isAdmin() && ! $me->isShopOwner();
   @endphp
 
   <nav class="appbar">
@@ -61,12 +76,14 @@
       @endforeach
     </div>
     <div class="appbar-right">
-      <a class="icon-btn" href="{{ route('account') }}" aria-label="Jobs waiting on you" title="{{ $waiting }} job(s) waiting on you">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
-          <path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/>
-        </svg>
-        @if ($waiting > 0)<i class="dot"></i>@endif
-      </a>
+      @if ($showBell)
+        <a class="icon-btn" href="{{ route('account') }}" aria-label="Jobs waiting on you" title="{{ $waiting }} job(s) waiting on you">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+            <path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/>
+          </svg>
+          @if ($waiting > 0)<i class="dot"></i>@endif
+        </a>
+      @endif
       <a class="avatar" href="{{ route('profile.edit') }}" title="{{ $me->name }}">{{ $initials }}</a>
 
       {{--

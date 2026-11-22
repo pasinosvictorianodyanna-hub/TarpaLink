@@ -41,6 +41,12 @@
             </div>
         @endif
 
+        {{-- The copy above says "create an account, then send us your business
+             name…". This is the form that sentence was always describing. --}}
+        @if ($slug === 'open-a-shop')
+            @include('pages.partials.shop-request')
+        @endif
+
         <div style="margin-top:34px;padding-top:20px;border-top:1px solid var(--line)">
             <a class="btn btn-ghost btn-sm" href="{{ route('home') }}">Back to home</a>
         </div>

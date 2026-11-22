@@ -1,0 +1,334 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Filament\Admin\Resources\ShopRequests\Pages\ListShopRequests;
+use App\Filament\Admin\Resources\ShopRequests\Pages\ViewShopRequest;
+use App\Mail\ShopInvited;
+use App\Models\Shop;
+use App\Models\ShopRequest;
+use App\Models\User;
+use App\Services\ShopOnboarding;
+use Filament\Actions\Testing\TestAction;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
+use Livewire\Livewire;
+use Tests\TestCase;
+
+/**
+ * A shop asking to be let in, and the administrator letting them in.
+ *
+ * The important half is the negative space: a request must create **no account
+ * and no shop**. The page says so, the form says so, and these tests are what
+ * keep it true — an application form that quietly creates users is how a
+ * platform ends up with accounts nobody approved.
+ */
+class ShopRequestTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed();
+
+        // The throttle is per IP and the test process shares a cache, so each
+        // test that exercises it claims its own address.
+        RateLimiter::clear('shop-request');
+    }
+
+    private function admin(): User
+    {
+        return User::where('email', 'sofia@tarpalink.ph')->firstOrFail();
+    }
+
+    private function owner(): User
+    {
+        return User::where('email', 'kevin@inkwell.ph')->firstOrFail();
+    }
+
+    /** @return array<string, string> */
+    private function form(array $overrides = []): array
+    {
+        return array_merge([
+            'business_name' => 'Bayanihan Press',
+            'contact_name' => 'Rosa Mendoza',
+            'email' => 'rosa@bayanihan.ph',
+            'phone' => '0917 555 0100',
+            'city' => 'Quezon City',
+            'address' => '88 Maginhawa Street, Sikatuna Village',
+            'services' => "Tarpaulin\nFlyers\nStickers",
+            'message' => 'Two large-format printers, ten years trading.',
+        ], $overrides);
+    }
+
+    private function request(array $overrides = []): ShopRequest
+    {
+        return ShopRequest::create($this->form($overrides) + ['status' => 'new']);
+    }
+
+    // ------------------------------------------------------------ the form
+
+    public function test_the_page_offers_the_request_form(): void
+    {
+        $this->get('/open-a-shop')
+            ->assertOk()
+            ->assertSee('Request a shop account')
+            ->assertSee('name="business_name"', false)
+            ->assertSee(route('shop-request.store'), false);
+    }
+
+    public function test_a_request_creates_a_request_and_nothing_else(): void
+    {
+        $users = User::count();
+        $shops = Shop::count();
+
+        $this->post('/open-a-shop', $this->form())
+            ->assertRedirect(route('page', 'open-a-shop'))
+            ->assertSessionHas('shop_request_sent', 'rosa@bayanihan.ph');
+
+        $request = ShopRequest::sole();
+
+        $this->assertSame('Bayanihan Press', $request->business_name);
+        $this->assertSame('new', $request->status);
+        $this->assertNull($request->shop_id);
+
+        // The promise on the page, enforced.
+        $this->assertSame($users, User::count(), 'A request must not create an account.');
+        $this->assertSame($shops, Shop::count(), 'A request must not create a shop.');
+    }
+
+    public function test_the_form_needs_the_fields_an_admin_cannot_guess(): void
+    {
+        $this->post('/open-a-shop', ['business_name' => '', 'email' => 'not-an-email'])
+            ->assertSessionHasErrors(['business_name', 'contact_name', 'email', 'city', 'address']);
+
+        $this->assertSame(0, ShopRequest::count());
+    }
+
+    /** A bot fills every input it can see; a person never meets the hidden one. */
+    public function test_a_filled_honeypot_is_accepted_silently_and_stored_nowhere(): void
+    {
+        $this->post('/open-a-shop', $this->form(['website' => 'http://spam.example']))
+            ->assertRedirect(route('page', 'open-a-shop'))
+            ->assertSessionHas('shop_request_sent');
+
+        $this->assertSame(0, ShopRequest::count());
+    }
+
+    public function test_the_public_form_is_rate_limited(): void
+    {
+        // A distinct address so other tests' submissions do not share the bucket.
+        $server = ['REMOTE_ADDR' => '203.0.113.77'];
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->withServerVariables($server)
+                ->post('/open-a-shop', $this->form(['email' => "shop{$i}@example.ph"]))
+                ->assertRedirect();
+        }
+
+        $this->withServerVariables($server)
+            ->post('/open-a-shop', $this->form(['email' => 'shop6@example.ph']))
+            ->assertStatus(429);
+    }
+
+    // ---------------------------------------------------------- the queue
+
+    public function test_only_an_admin_can_open_the_queue(): void
+    {
+        $this->actingAs($this->admin())->get('/admin/shop-requests')->assertOk();
+        $this->actingAs($this->owner())->get('/admin/shop-requests')->assertForbidden();
+    }
+
+    public function test_the_queue_lists_what_is_waiting(): void
+    {
+        $this->request(['business_name' => 'Bayanihan Press']);
+
+        Livewire::actingAs($this->admin())
+            ->test(ListShopRequests::class)
+            ->assertOk()
+            ->assertSee('Bayanihan Press')
+            ->assertSee('Rosa Mendoza');
+    }
+
+    // -------------------------------------------------------- the decision
+
+    public function test_approving_creates_the_owner_the_shop_and_the_invite(): void
+    {
+        Mail::fake();
+
+        $request = $this->request();
+
+        $result = app(ShopOnboarding::class)->approve($request, $this->admin());
+
+        $owner = User::where('email', 'rosa@bayanihan.ph')->firstOrFail();
+
+        $this->assertSame('shop_owner', $owner->role);
+        $this->assertSame('Rosa Mendoza', $owner->name);
+
+        $shop = $result['shop'];
+        $this->assertSame('Bayanihan Press', $shop->name);
+        $this->assertSame('bayanihan-press', $shop->slug);
+        $this->assertSame('active', $shop->status);
+        $this->assertSame('starter', $shop->plan);
+        $this->assertSame(500, $shop->commission_rate);
+        $this->assertNotNull($shop->approved_at);
+
+        // The pivot is what makes the console open.
+        $this->assertSame('owner', $owner->shops()->whereKey($shop->id)->firstOrFail()->pivot->role);
+
+        $request->refresh();
+        $this->assertSame('approved', $request->status);
+        $this->assertSame($shop->id, $request->shop_id);
+        $this->assertSame($this->admin()->id, $request->handled_by);
+        $this->assertNotNull($request->handled_at);
+
+        Mail::assertSent(ShopInvited::class, fn (ShopInvited $mail) => $mail->hasTo('rosa@bayanihan.ph'));
+    }
+
+    public function test_the_new_owner_can_open_the_console(): void
+    {
+        Mail::fake();
+
+        app(ShopOnboarding::class)->approve($this->request(), $this->admin());
+
+        $owner = User::where('email', 'rosa@bayanihan.ph')->firstOrFail();
+
+        $this->actingAs($owner)
+            ->get('/console')
+            ->assertOk()
+            ->assertSee('Bayanihan Press');
+    }
+
+    /**
+     * The end of the story the invite starts: the link in the email is a real
+     * password reset, so the owner chooses their own password and can sign in.
+     */
+    public function test_the_invitation_link_sets_a_password_that_works(): void
+    {
+        Mail::fake();
+
+        $result = app(ShopOnboarding::class)->approve($this->request(), $this->admin());
+
+        $path = parse_url($result['link'], PHP_URL_PATH).'?'.parse_url($result['link'], PHP_URL_QUERY);
+
+        $this->get($path)->assertOk();
+
+        $this->post(route('password.store'), [
+            'token' => basename(parse_url($result['link'], PHP_URL_PATH)),
+            'email' => 'rosa@bayanihan.ph',
+            'password' => 'a-good-password',
+            'password_confirmation' => 'a-good-password',
+        ])->assertRedirect();
+
+        $this->post('/login', [
+            'email' => 'rosa@bayanihan.ph',
+            'password' => 'a-good-password',
+        ])->assertRedirect('/console');
+    }
+
+    public function test_an_existing_account_is_reused_and_promoted(): void
+    {
+        Mail::fake();
+
+        // Somebody who ordered as a customer first, using the same address.
+        $customer = User::where('email', 'jomar@tarpalink.ph')->firstOrFail();
+        $this->assertSame('customer', $customer->role);
+
+        app(ShopOnboarding::class)->approve($this->request(['email' => 'jomar@tarpalink.ph']), $this->admin());
+
+        $this->assertSame(1, User::where('email', 'jomar@tarpalink.ph')->count());
+        $this->assertSame('shop_owner', $customer->fresh()->role);
+        $this->assertSame('Bayanihan Press', $customer->fresh()->currentShop()?->name);
+    }
+
+    /** `role` holds one value, so promoting an admin would demote them. */
+    public function test_an_administrators_address_is_refused(): void
+    {
+        Mail::fake();
+
+        $request = $this->request(['email' => 'sofia@tarpalink.ph']);
+
+        try {
+            app(ShopOnboarding::class)->approve($request, $this->admin());
+            $this->fail('Approving an administrator address should be refused.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->assertArrayHasKey('request', $e->errors());
+        }
+
+        $this->assertSame('admin', $this->admin()->fresh()->role);
+        $this->assertSame('new', $request->fresh()->status);
+        $this->assertNull($request->fresh()->shop_id);
+        Mail::assertNothingSent();
+    }
+
+    public function test_a_request_cannot_be_approved_twice(): void
+    {
+        Mail::fake();
+
+        $request = $this->request();
+        app(ShopOnboarding::class)->approve($request, $this->admin());
+
+        $shops = Shop::count();
+
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+
+        try {
+            app(ShopOnboarding::class)->approve($request->fresh(), $this->admin());
+        } finally {
+            $this->assertSame($shops, Shop::count(), 'A second approval must not create a second shop.');
+        }
+    }
+
+    public function test_approving_from_the_queue_does_the_same_thing(): void
+    {
+        Mail::fake();
+
+        $request = $this->request();
+
+        Livewire::actingAs($this->admin())
+            ->test(ViewShopRequest::class, ['record' => $request->getRouteKey()])
+            ->callAction('approve')
+            ->assertHasNoActionErrors();
+
+        $this->assertSame('approved', $request->fresh()->status);
+        $this->assertDatabaseHas('shops', ['slug' => 'bayanihan-press', 'status' => 'active']);
+        Mail::assertSent(ShopInvited::class);
+    }
+
+    public function test_rejecting_stores_the_reason_and_creates_nothing(): void
+    {
+        Mail::fake();
+
+        $request = $this->request();
+        $shops = Shop::count();
+        $users = User::count();
+
+        Livewire::actingAs($this->admin())
+            ->test(ViewShopRequest::class, ['record' => $request->getRouteKey()])
+            ->callAction('reject', data: ['reason' => 'Business permit could not be verified.'])
+            ->assertHasNoActionErrors();
+
+        $request->refresh();
+
+        $this->assertSame('rejected', $request->status);
+        $this->assertSame('Business permit could not be verified.', $request->reason);
+        $this->assertSame($shops, Shop::count());
+        $this->assertSame($users, User::count());
+        Mail::assertNothingSent();
+    }
+
+    public function test_a_handled_request_offers_no_second_decision(): void
+    {
+        Mail::fake();
+
+        $request = $this->request();
+        app(ShopOnboarding::class)->approve($request, $this->admin());
+
+        Livewire::actingAs($this->admin())
+            ->test(ViewShopRequest::class, ['record' => $request->fresh()->getRouteKey()])
+            ->assertActionHidden(TestAction::make('approve'))
+            ->assertActionHidden(TestAction::make('reject'));
+    }
+}

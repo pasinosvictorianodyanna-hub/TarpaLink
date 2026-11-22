@@ -1,4 +1,5 @@
 import { createApp, defineAsyncComponent } from 'vue';
+import CheckoutForm from './components/CheckoutForm.vue';
 import OrderBuilder from './components/OrderBuilder.vue';
 import ProfileForm from './components/ProfileForm.vue';
 import Account from './pages/Account.vue';
@@ -23,6 +24,7 @@ const registry = {
     'shop-dashboard': ShopDashboard,
     'order-builder': OrderBuilder,
     'profile-form': ProfileForm,
+    'checkout-form': CheckoutForm,
     // Leaflet is ~150 kB of code that only one screen needs. Loading it through
     // a dynamic import keeps it out of the bundle every other page downloads —
     // the directory pays for the map, the landing page does not.

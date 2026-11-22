@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Livewire\ShopPicker;
 use App\Models\Invoice;
 use App\Models\Job;
 use App\Models\JobActivity;
@@ -39,6 +40,7 @@ use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use Livewire\Livewire;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -66,11 +68,11 @@ class AppServiceProvider extends ServiceProvider
         );
 
         // An owner with more than one shop needs a way to say which one they are
-        // looking at. The view renders nothing when there is only one, so this
-        // costs every single-shop owner in the country exactly one query.
+        // looking at. The component renders nothing when there is only one, so
+        // this costs every single-shop owner in the country exactly one query.
         FilamentView::registerRenderHook(
             PanelsRenderHook::TOPBAR_END,
-            fn () => view('filament.shop.shop-picker'),
+            fn () => Livewire::mount(ShopPicker::class),
         );
 
         // The footer blurb is CMS copy but appears on every page, so it is shared

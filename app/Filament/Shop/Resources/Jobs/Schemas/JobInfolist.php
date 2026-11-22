@@ -3,6 +3,7 @@
 namespace App\Filament\Shop\Resources\Jobs\Schemas;
 
 use App\Models\Job;
+use App\Models\JobActivity;
 use App\Support\Money;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
@@ -95,22 +96,12 @@ class JobInfolist
                     ->schema([
                         TextEntry::make('activities')
                             ->hiddenLabel()
-                            ->state(fn (Job $record): array => $record->activities->map(
-                                fn ($a) => $a->isTransition()
-                                    ? sprintf(
-                                        '%s · %s → %s%s',
-                                        $a->created_at->format('d M Y H:i'),
-                                        $a->from_status ? (Job::STATUS_LABELS[$a->from_status] ?? $a->from_status) : 'created',
-                                        Job::STATUS_LABELS[$a->to_status] ?? $a->to_status,
-                                        $a->user ? ' · '.$a->user->name : '',
-                                    )
-                                    : sprintf(
-                                        '%s · %s%s',
-                                        $a->created_at->format('d M Y H:i'),
-                                        $a->note ?? 'Note',
-                                        $a->user ? ' · '.$a->user->name : '',
-                                    )
-                            )->all() ?: ['No status changes yet.'])
+                            ->state(fn (Job $record): array => $record->activities
+                                ->flatMap(fn (JobActivity $activity): array => [
+                                    $activity->headline(),
+                                    ...$activity->bodyLines(),
+                                ])
+                                ->all() ?: ['No status changes yet.'])
                             ->listWithLineBreaks(),
                     ]),
             ]);

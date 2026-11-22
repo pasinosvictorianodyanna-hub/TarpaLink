@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use App\Models\Job;
 use App\Models\Proof;
+use App\Support\ReplyAddress;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -32,8 +33,14 @@ class ProofSent extends Mailable
 
     public function envelope(): Envelope
     {
+        // A proof is the one message a customer is most likely to answer — "can
+        // you make the logo bigger" is a reply, not a button. The Reply-To names
+        // the job so the answer lands on it.
+        $replyTo = ReplyAddress::for($this->job);
+
         return new Envelope(
             subject: 'Your proof for '.$this->job->reference.' is ready to approve',
+            replyTo: $replyTo === null ? [] : [$replyTo],
         );
     }
 

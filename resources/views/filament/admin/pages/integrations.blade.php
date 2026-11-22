@@ -26,6 +26,24 @@
                         {{ $card['fix'] }}
                     </div>
                 @endif
+
+                {{-- A card is editable when its value is a credential that rotates.
+                     Mail, queue and storage are deployment shape: changing the
+                     queue driver from a browser is how payments stop settling
+                     without anyone noticing. --}}
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-top:1rem;">
+                    <span style="font-size:.72rem;opacity:.55;">{{ $card['source'] }}</span>
+
+                    @if ($card['editable'])
+                        <x-filament::button
+                            size="xs"
+                            color="gray"
+                            wire:click="mountAction('{{ $card['editable'] }}')"
+                        >
+                            Edit
+                        </x-filament::button>
+                    @endif
+                </div>
             </x-filament::section>
         @endforeach
     </div>

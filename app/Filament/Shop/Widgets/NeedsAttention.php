@@ -6,6 +6,7 @@ use App\Filament\Shop\Concerns\ScopesToShop;
 use App\Filament\Shop\Resources\Jobs\JobResource;
 use App\Models\Job;
 use App\Models\JobActivity;
+use App\Support\ReplyAddress;
 use Filament\Notifications\Notification;
 use Filament\Widgets\Widget;
 use Illuminate\Support\Carbon;
@@ -189,14 +190,24 @@ class NeedsAttention extends Widget
         $sent = false;
 
         if (filled($job->user?->email)) {
+            $replyTo = ReplyAddress::for($job);
+
             try {
                 Mail::raw(
                     "Hi {$job->user->name},\n\n"
                     ."Your job {$job->reference} is waiting on you at {$shop->name}.\n\n"
                     .'Open it here: '.route('jobs.show', $job)."\n",
-                    fn ($message) => $message
-                        ->to($job->user->email)
-                        ->subject("About your job {$job->reference}"),
+                    function ($message) use ($job, $replyTo) {
+                        $message
+                            ->to($job->user->email)
+                            ->subject("About your job {$job->reference}");
+
+                        // A nudge that cannot be answered is just a reminder to
+                        // feel guilty. Replying files the answer on the job.
+                        if ($replyTo !== null) {
+                            $message->replyTo($replyTo->address);
+                        }
+                    },
                 );
 
                 $sent = true;

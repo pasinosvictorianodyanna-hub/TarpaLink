@@ -392,6 +392,60 @@ behind `auth`, and a guest gets neither the page nor either endpoint.
 
 ---
 
+## 17. The last five gaps — geocoding, picker, inbound mail, integrations, checkout ✅ done
+
+**Labels:** `shop-panel` `storefront` `p1`
+**State:** built (#63)
+
+The five items §11 of the SRS had been carrying since v1.1. Each was a place where the
+platform worked but did not finish the sentence it started.
+
+**No geocoding.** A shop's coordinates were seeded and a customer positioned themselves by
+browser location or by tapping the map; there was no way to type an address.
+`App\Services\Geocoder` speaks Nominatim — no key, which is why it is the default — caches
+for 30 days including misses, sends an honest `User-Agent`, and validates the coordinates
+before storing them. `/shops?address=` redirects to `?near=lat,lng&src=address&place=…`, so
+the resolved origin is a URL that survives a refresh or a share. `GEOCODER_ENABLED=false`
+removes the box rather than leaving a control that hangs.
+
+**The shop picker was a form post.** Now `App\Livewire\ShopPicker`: re-checks membership
+and trading status at the moment of the change, refuses with a notification instead of a
+silent no-op, and compares the return URL's host to the request's before redirecting —
+`returnTo=https://evil.example` falls back to `/shop`.
+
+**No inbound mail.** Every notification left with no `Reply-To`, so a customer who answered
+one was writing to a mailbox that did not exist. `ReplyAddress` tags the job reference into
+the local part (`reply+TL-48213@…`), all three mailables and the shop nudge carry it, and
+`POST /webhooks/inbound` verifies an HMAC over the raw body, normalises Mailgun / Postmark /
+plain payload shapes, matches the job by tag then by subject, and appends a
+`job_activities` row with `source = email`. It never moves a job: mail is unauthenticated,
+so an answer is a note the shop reads and approval stays behind the signed-in link.
+
+**The integrations screen was informational.** It also read
+`services.paymongo.public_key` / `secret_key` while the config defines `public` / `secret`,
+so it reported "Not configured" on a deployment that was taking payments. Now an
+`integrations` table holds one encrypted JSON blob per provider, `Credentials` reads database
+first and environment second, and the PayMongo keys and inbound mailbox are editable from
+the card that reports on them. Mail, queue and storage stay in the environment on purpose.
+
+**Checkout was a Blade form.** A rejected field reloaded the page and threw away the other
+two panels; a slow intent looked like a button that did nothing. `CheckoutForm.vue` posts
+JSON and shows errors under the input that caused them, the controller answers
+`expectsJson()` with 201/422/409/500 and everything else with the redirect it always
+returned, and the island sends `expected_total` so the server can refuse to charge a total
+the customer never saw.
+
+**Also fixed:** `withoutMiddleware(VerifyCsrfToken::class)` on the PayMongo webhook excluded
+nothing — the `web` group registers `ValidateCsrfToken`, a different class name — so every
+live callback would have been answered with a 419. No test caught it because the middleware
+short-circuits under `runningUnitTests()`. CSRF is now waived by path, with a test that
+asserts the exclusion.
+
+**Proven by:** `GeocodingTest` (13), `InboundMailTest` (27), `IntegrationsTest` (22),
+`CheckoutIslandTest` (11), and `ShopSwitchTest` (10) rewritten against the component.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

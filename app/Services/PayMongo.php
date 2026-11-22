@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Job;
 use App\Models\Payment;
+use App\Support\Credentials;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
@@ -14,12 +15,17 @@ use Illuminate\Support\Str;
  * generated locally so the whole flow can be demonstrated without live keys.
  * Simulated mode is refused outside `local`, so it can never quietly run in
  * production and pretend a payment succeeded.
+ *
+ * Keys are read through `Credentials`, so they can be set on the admin
+ * integrations screen as well as in `.env`. Before that, the screen showed the
+ * keys as "not configured" no matter what was saved, and the only way to change
+ * one was to redeploy.
  */
 final class PayMongo
 {
     public function isSimulated(): bool
     {
-        return blank(config('services.paymongo.secret'));
+        return Credentials::get('paymongo', 'secret') === null;
     }
 
     /**
@@ -37,7 +43,7 @@ final class PayMongo
             ];
         }
 
-        $response = Http::withBasicAuth((string) config('services.paymongo.secret'), '')
+        $response = Http::withBasicAuth((string) Credentials::get('paymongo', 'secret'), '')
             ->acceptJson()
             ->post(rtrim((string) config('services.paymongo.base_url'), '/').'/payment_intents', [
                 'data' => [
@@ -68,7 +74,7 @@ final class PayMongo
      */
     public function verifySignature(string $payload, ?string $header): bool
     {
-        $secret = config('services.paymongo.webhook_secret');
+        $secret = Credentials::get('paymongo', 'webhook_secret');
 
         if (blank($secret)) {
             // Simulated mode: accepted only outside production, and only when

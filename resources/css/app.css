@@ -860,6 +860,11 @@ textarea.finp{height:auto;padding:8px 10px;line-height:1.5;resize:vertical}
 /* ---------- directory + storefront chrome ---------- */
 .dir-search{display:flex;gap:8px;align-items:center}
 .dir-search input{height:40px;padding:0 14px;border:1px solid var(--line);border-radius:9px;background:#fff;min-width:260px;font-size:13px}
+/* The third way to say where you are: a typed address, above the map. */
+.dir-address{display:flex;gap:8px;align-items:center;margin:0 0 14px}
+.dir-address input{height:38px;padding:0 13px;border:1px solid var(--line);border-radius:9px;background:#fff;flex:1;min-width:0;font-size:13px}
+.dir-address input::placeholder{color:var(--muted)}
+.dir-address .btn{flex:none}
 .dir-chips{display:flex;gap:6px;flex-wrap:wrap;margin:18px 0 22px}
 .chip-btn{padding:7px 13px;border:1px solid var(--line);border-radius:99px;font-size:12px;font-weight:500;background:#fff;color:var(--muted);transition:.14s}
 .chip-btn:hover{border-color:var(--ink);color:var(--ink)}

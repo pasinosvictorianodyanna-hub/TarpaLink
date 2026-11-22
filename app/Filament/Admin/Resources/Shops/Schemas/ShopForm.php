@@ -3,12 +3,18 @@
 namespace App\Filament\Admin\Resources\Shops\Schemas;
 
 use App\Models\Plan;
+use App\Services\Geocoder;
+use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 
 class ShopForm
 {
@@ -45,6 +51,68 @@ class ShopForm
                         Textarea::make('description')
                             ->rows(3)
                             ->columnSpanFull(),
+                    ]),
+
+                Section::make('Location')
+                    ->columns(2)
+                    ->description('Where the shop sits on the customer map. A shop with no coordinates still appears in the list, but it can never be "nearest" to anybody — so this is worth filling in.')
+                    ->schema([
+                        TextInput::make('lat')
+                            ->label('Latitude')
+                            ->numeric()
+                            ->minValue(-90)
+                            ->maxValue(90)
+                            ->step(0.0000001)
+                            ->placeholder('14.6760'),
+
+                        TextInput::make('lng')
+                            ->label('Longitude')
+                            ->numeric()
+                            ->minValue(-180)
+                            ->maxValue(180)
+                            ->step(0.0000001)
+                            ->placeholder('121.0437'),
+
+                        Actions::make([
+                            Action::make('geocodeAddress')
+                                ->label('Find coordinates from the address')
+                                ->icon(Heroicon::OutlinedMapPin)
+                                ->color('gray')
+                                ->disabled(fn (Get $get): bool => blank($get('address')))
+                                ->tooltip(fn (Get $get): ?string => blank($get('address'))
+                                    ? 'Fill in the address above first.'
+                                    : null)
+                                ->action(function (Get $get, Set $set): void {
+                                    // Address and city together, because
+                                    // "Katipunan Ave" alone is a street in
+                                    // several cities.
+                                    $address = trim(implode(', ', array_filter([
+                                        (string) $get('address'),
+                                        (string) $get('city'),
+                                    ])));
+
+                                    $hit = app(Geocoder::class)->lookup($address);
+
+                                    if ($hit === null) {
+                                        Notification::make()
+                                            ->title('Could not find that address')
+                                            ->body('Try adding the city, or type the coordinates in by hand.')
+                                            ->warning()
+                                            ->send();
+
+                                        return;
+                                    }
+
+                                    $set('lat', $hit['lat']);
+                                    $set('lng', $hit['lng']);
+
+                                    Notification::make()
+                                        ->title('Coordinates found')
+                                        ->body($hit['label'])
+                                        ->success()
+                                        ->send();
+                                }),
+                        ])->columnSpanFull(),
                     ]),
 
                 Section::make('Plan and take rate')

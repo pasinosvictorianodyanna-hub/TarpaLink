@@ -1,11 +1,14 @@
 # Data model — TarpaLink
 
-Seventeen domain tables, sixteen Eloquent models (`shop_users` is a pivot with no model of
-its own), sixteen policies — one per model.
+Eighteen domain tables, seventeen Eloquent models (`shop_users` is a pivot with no model of
+its own), sixteen policies — one per model that a panel can address. `Integration` has none
+on purpose: credentials are reached through `/admin/integrations`, which is gated by panel
+access, and a resource with a list page would put every stored key one click from a table.
 
-> **Written against:** `main` plus the profile island (#16). One column shown here,
-> `jobs.collected_at`, arrives with the shop-dashboard branch (#17) and is marked where it
-> appears; everything else is migrated in this repository today.
+> **Written against:** current `main`. The model has been stable since #17; #61 added the
+> `RESTRICT` foreign keys that protect settled money, and #63 added `integrations` plus the
+> three inbound-mail columns on `job_activities`. Everything shown here is migrated in this
+> repository today.
 
 ---
 
@@ -31,6 +34,7 @@ erDiagram
     jobs ||--o{ payments : "settled by"
     plans ||--o{ subscriptions : "tier of"
     subscriptions ||--o{ invoices : "billed as"
+    users ||--o{ integrations : "last edited"
 
     users {
         int id PK
@@ -151,9 +155,12 @@ erDiagram
         int job_id FK
         int user_id FK
         string kind
+        string source "NULL | email"
         string from_status
         string to_status
         string note
+        text body
+        string source_ref UK "hash of Message-Id"
     }
 
     plans {
@@ -182,6 +189,13 @@ erDiagram
         string status
         datetime issued_at
         datetime paid_at
+    }
+
+    integrations {
+        int id PK
+        string provider UK "paymongo | inbound"
+        text settings "encrypted JSON"
+        int updated_by FK
     }
 ```
 
@@ -217,7 +231,7 @@ reads or writes it directly.
 | `id` | integer PK | |
 | `name`, `slug` | string | `slug` is unique and used in URLs. |
 | `city`, `address` | string | |
-| `lat`, `lng` | numeric, nullable | Seeded; no live geocoding yet. |
+| `lat`, `lng` | numeric, nullable | Seeded, and editable from the admin shop form — which can also fill them from a typed address via `Geocoder`. |
 | `accent` | string | The shop's colour, used on its storefront card. |
 | `status` | string | `pending` · `active` · `suspended`. Default `pending`. |
 | `status_reason` | text, nullable | Why it was rejected or suspended. |
@@ -319,11 +333,20 @@ against a plain `SUM()` over these columns, not against the ledger's own arithme
 
 ### 2.12 `job_activities`
 
-`job_id`, `user_id`, `kind`, `from_status`, `to_status`, `note`. One row per event on a
-job. A `kind = transition` row is written by `JobWorkflow` and by nothing else, and always
-names a move the `TRANSITIONS` table allows. A `kind = note` row records that something was
-said about the job — a nudge, a remark — and carries no statuses, so the trail can never
-claim a move that did not happen. This is an audit log, not an event store.
+`job_id`, `user_id`, `kind`, `source`, `from_status`, `to_status`, `note`, `body`,
+`source_ref`. One row per event on a job. A `kind = transition` row is written by
+`JobWorkflow` and by nothing else, and always names a move the `TRANSITIONS` table allows.
+A `kind = note` row records that something was said about the job — a nudge, a remark — and
+carries no statuses, so the trail can never claim a move that did not happen. This is an
+audit log, not an event store.
+
+`source = email` marks a note that arrived as a reply rather than being typed into the
+panel. It is a source, not a third kind: an emailed reply still moved nothing, so reports
+that count transitions do not have to know mail exists. `note` stays the one-line heading
+("Reply by email from Jomar Mendoza"); `body` holds the message itself, because a customer
+does not write in 255 characters. `source_ref` is a hash of the provider's `Message-Id` —
+or of the message content when there is none — under a unique index, so a provider retry
+cannot file the same reply twice.
 
 ### 2.13 `plans` / `subscriptions` / `invoices`
 
@@ -347,6 +370,22 @@ The CMS owns **words, not layout**: a section's content is a shaped JSON blob ch
 its key, so testimonials get a repeater and the hero gets a headline plus a link. Hiding
 or deleting a section removes the block from the page instead of leaving a hole.
 
+### 2.15 `integrations`
+
+`provider`, `settings` (encrypted JSON), `updated_by`. One row per outside service whose
+credentials rotate: `paymongo` and `inbound`.
+
+Deliberately **not** `site_settings`. That table holds public copy and is edited through a
+screen that lists every row; putting an API key beside a headline means the next person who
+exports the content table exports the keys with it. The blob is encrypted with `APP_KEY`
+via `encrypted:array`, so a database dump is not a set of live keys, and `updated_by`
+records who last changed one.
+
+`App\Support\Credentials` is the only reader. Database first, environment second, nothing
+third — and a blank stored value is dropped on save so the environment fallback re-applies.
+That is what makes "leave this field empty" mean *revert*, which is the only reading that
+is not ambiguous.
+
 ---
 
 ## 3. Enumerations
@@ -361,6 +400,8 @@ or deleting a section removes the block from the page instead of leaving a hole.
 | `proofs.status` | `pending`, `approved`, `rejected` |
 | `payments.status` | `pending`, `paid`, `failed`, `refunded` |
 | `payments.payout_status` | `pending`, `paid` |
+| `job_activities.kind` | `transition`, `note` |
+| `job_activities.source` | `NULL`, `email` |
 | `page_sections.status` | `visible`, `hidden` |
 
 ---
@@ -388,6 +429,12 @@ These hold after every request. If one of them is false, there is a bug.
 10. **No payment row is ever removed.** `payments.job_id` is `RESTRICT`, so a job cannot
     be deleted while a payment points at it, and `jobs.shop_id` is `RESTRICT` for the same
     reason one level up. A payment disappears only if somebody drops the table.
+11. **No `job_activities` row with `source = email` changes `jobs.status`.** Inbound mail
+    is unauthenticated — anyone who learns a reference can send one — so it appends a note
+    and nothing else. Approval stays behind the signed-in link on the job page.
+12. **`integrations.settings` is never stored in the clear**, and every credential read
+    goes through `Credentials`, never `config()` directly. A second reader would be a
+    second place the database-over-environment rule could be forgotten.
 
 ---
 
@@ -402,7 +449,8 @@ These hold after every request. If one of them is false, there is a bug.
 | `jobs` | unique `reference`; index `status`; FK indexes on `shop_id` / `user_id` | Reference lookup, board queries, customer list. |
 | `proofs` | unique (`job_id`, `version`) | A re-upload is a new version, not an overwrite. |
 | `payments` | unique `intent_id`; index `status`; index `payout_status` | Idempotency, and the "needs attention" and "unpaid out" queries. |
-| `job_activities` | index (`job_id`, `created_at`) | The timeline on the job page. |
+| `job_activities` | index (`job_id`, `created_at`); unique `source_ref` | The timeline on the job page; and the key that stops a provider retry filing the same reply twice. |
+| `integrations` | unique `provider` | One credential blob per service, read on every request that needs a key. |
 | `page_sections`, `site_settings` | unique `key` | One row per key; hiding a section is a status, not a second row. |
 | `invoices` | unique `number` | Invoice numbering. |
 

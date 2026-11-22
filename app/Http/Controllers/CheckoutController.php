@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Exceptions\ServiceUnavailable;
 use App\Models\Job;
 use App\Models\Payment;
+use App\Models\Service;
 use App\Models\Shop;
 use App\Services\PayMongo;
 use App\Services\PriceCalculator;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -47,10 +49,107 @@ class CheckoutController extends Controller
             'service' => $service,
             'spec' => $spec,
             'quote' => $quote,
+            'props' => $this->props($request, $shop, $service, $spec, $quote),
         ]);
     }
 
-    public function store(Request $request, Shop $shop, PriceCalculator $calculator): RedirectResponse
+    /**
+     * Everything the checkout island renders, decided here rather than in Vue.
+     *
+     * The component is given numbers and labels; it is not given a price it can
+     * recalculate, a discount it can apply, or a service it can look up. That is
+     * the whole point of the split — "Vue renders, Laravel decides" — and it is
+     * what makes the server authoritative on price rather than merely the last
+     * to speak.
+     *
+     * @param  array<string, mixed>  $spec
+     * @param  array<string, mixed>  $quote
+     * @return array<string, mixed>
+     */
+    private function props(Request $request, Shop $shop, ?Service $service, array $spec, array $quote): array
+    {
+        $user = $request->user();
+
+        return [
+            'authenticated' => $user !== null,
+            'user' => [
+                'name' => $user?->name,
+                'phone' => $user?->phone,
+                'email' => $user?->email,
+            ],
+            'shop' => [
+                'name' => $shop->name,
+                'address' => $shop->address,
+                'city' => $shop->city,
+                'distance' => $shop->distanceLabel(),
+                'gradient' => $shop->coverGradient(),
+                'offersDelivery' => (bool) $shop->offers_delivery,
+                'rating' => number_format($shop->rating, 1),
+                'jobsDone' => (int) $shop->jobs_done,
+                'turnaround' => $shop->turnaroundLabel(),
+                'initials' => $this->initials($shop->name),
+                'readyAt' => Carbon::now()->addDays(2)->setTime(17, 0)->format('D, d M · g:i A'),
+            ],
+            'service' => ['name' => $service?->name ?? 'Job'],
+            // `options` is sent to the server as a string, exactly as the old
+            // form posted it: `12:2,15:1` is the wire format the calculator
+            // already parses, and changing it here would mean two parsers.
+            'spec' => [
+                'service_id' => $spec['service_id'],
+                'width_in' => $spec['width_in'],
+                'height_in' => $spec['height_in'],
+                'qty' => $spec['qty'],
+                'options' => collect($spec['options'])->map(fn (array $o): string => $o['id'].':'.$o['qty'])->implode(','),
+                'sizeLabel' => $this->inches($spec['width_in']).'×'.$this->inches($spec['height_in']).' in',
+            ],
+            'quote' => [
+                'total' => $quote['total'],
+                'tier' => $quote['tier'],
+                'discount' => $quote['discount'],
+                'lines' => array_map(fn (array $line): array => [
+                    'label' => $line['label'],
+                    'qty' => rtrim(rtrim(number_format($line['qty'], 2), '0'), '.'),
+                    'amount' => $line['amount'],
+                ], $quote['lines']),
+            ],
+            'urls' => [
+                'store' => route('checkout.store', $shop),
+                'signIn' => route('login'),
+                'edit' => route('shops.builder', [
+                    'shop' => $shop,
+                    'service_id' => $spec['service_id'],
+                    'width_in' => $spec['width_in'],
+                    'height_in' => $spec['height_in'],
+                    'qty' => $spec['qty'],
+                ]),
+            ],
+            'methods' => [
+                ['value' => 'gcash', 'label' => 'GCash'],
+                ['value' => 'maya', 'label' => 'Maya'],
+                ['value' => 'card', 'label' => 'Card'],
+                ['value' => 'cod', 'label' => 'Cash at pickup'],
+            ],
+        ];
+    }
+
+    /** "Inkwell Press" → "IP", for the avatar the shop card shows. */
+    private function initials(string $name): string
+    {
+        return str($name)
+            ->explode(' ')
+            ->filter(fn (string $part): bool => (bool) preg_match('/^\p{L}/u', $part))
+            ->take(2)
+            ->map(fn (string $part): string => mb_strtoupper(mb_substr($part, 0, 1)))
+            ->implode('');
+    }
+
+    /** Whole inches print without the `.0` a float cast would leave behind. */
+    private function inches(mixed $value): string
+    {
+        return rtrim(rtrim(number_format((float) $value, 1, '.', ''), '0'), '.');
+    }
+
+    public function store(Request $request, Shop $shop, PriceCalculator $calculator): RedirectResponse|JsonResponse
     {
         abort_unless($shop->status === 'active', 404);
 
@@ -70,6 +169,9 @@ class CheckoutController extends Controller
             'pickup_person' => ['nullable', 'string', 'max:120'],
             'fulfillment' => ['nullable', 'in:pickup,delivery'],
             'notes' => ['nullable', 'string', 'max:500'],
+            // What the page showed the customer, in centavos. Not used to price
+            // anything — used to refuse a charge they did not agree to.
+            'expected_total' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $spec = $this->specFromRequest($request, $shop);
@@ -89,9 +191,12 @@ class CheckoutController extends Controller
         ]));
 
         if (! Cache::add($key, true, now()->addSeconds(30))) {
-            return back()
-                ->withErrors(['checkout' => 'That order is already being placed. Check My jobs before trying again.'])
-                ->withInput();
+            return $this->fail(
+                $request,
+                'checkout',
+                'That order is already being placed. Check My jobs before trying again.',
+                409,
+            );
         }
 
         try {
@@ -99,7 +204,29 @@ class CheckoutController extends Controller
         } catch (ServiceUnavailable $e) {
             Cache::forget($key);
 
-            return back()->withErrors(['size' => $e->getMessage()])->withInput();
+            return $this->fail($request, 'size', $e->getMessage());
+        }
+
+        /*
+         * The price the customer was shown has to be the price they are charged.
+         *
+         * The server prices the order from the shop's matrix — it never trusts a
+         * number from the browser. But a matrix can change while the page is
+         * open, and quietly charging the new total is how somebody ends up
+         * paying an amount they never agreed to. So the page sends back what it
+         * displayed, and a disagreement stops the order before anything is
+         * written.
+         */
+        if (isset($data['expected_total']) && (int) $data['expected_total'] !== (int) $quote['total']) {
+            Cache::forget($key);
+
+            return $this->fail(
+                $request,
+                'total',
+                'The price changed while you were checking out. Review the new total and confirm again.',
+                409,
+                ['total' => $quote['total'], 'tier' => $quote['tier']],
+            );
         }
 
         try {
@@ -158,14 +285,51 @@ class CheckoutController extends Controller
             Cache::forget($key);
             report($e);
 
-            return back()
-                ->withErrors(['checkout' => 'We could not complete the order. Nothing was charged — please try again.'])
-                ->withInput();
+            return $this->fail(
+                $request,
+                'checkout',
+                'We could not complete the order. Nothing was charged — please try again.',
+                500,
+            );
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'job' => ['reference' => $job->reference, 'total' => $job->total],
+                'redirect' => route('jobs.show', $job),
+            ], 201);
         }
 
         return redirect()
             ->route('jobs.show', $job)
             ->with('status', 'Job '.$job->reference.' created. The shop will send a proof before printing.');
+    }
+
+    /**
+     * One failure shape for both callers.
+     *
+     * A browser form wants a redirect back with an error bag; the island wants
+     * a status code and field errors it can put under the right input. Returning
+     * a redirect to a fetch() call would arrive as a 302 whose body the client
+     * cannot read, which is how "the button does nothing" happens.
+     *
+     * @param  array<string, mixed>  $extra
+     */
+    private function fail(
+        Request $request,
+        string $field,
+        string $message,
+        int $status = 422,
+        array $extra = [],
+    ): RedirectResponse|JsonResponse {
+        if ($request->expectsJson()) {
+            return response()->json(
+                ['message' => $message, 'errors' => [$field => [$message]]] + $extra,
+                $status,
+            );
+        }
+
+        return back()->withErrors([$field => $message])->withInput();
     }
 
     /** @return array{service_id:int, width_in:float, height_in:float, qty:int, options:array} */

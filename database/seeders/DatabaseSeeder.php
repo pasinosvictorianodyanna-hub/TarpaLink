@@ -6,6 +6,7 @@ use App\Models\Job;
 use App\Models\PageSection;
 use App\Models\PriceOption;
 use App\Models\PriceTier;
+use App\Models\Proof;
 use App\Models\QuantityDiscount;
 use App\Models\Service;
 use App\Models\Shop;
@@ -14,6 +15,7 @@ use App\Models\User;
 use App\Services\PriceCalculator;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 class DatabaseSeeder extends Seeder
 {
@@ -26,6 +28,11 @@ class DatabaseSeeder extends Seeder
         $this->people($shops);
         $this->content();
 
+        // The proof rows below point at `proofs/sample.pdf`. Without the file,
+        // every "View proof artwork" link in the seeded database is a 404 — which
+        // reads as a broken feature rather than as a stand-in for real artwork.
+        $this->sampleProof();
+
         // Kept as its own seeder because it is idempotent: the footer copy can be
         // refreshed on a live database without rebuilding jobs and payments.
         $this->call(\Database\Seeders\PageContentSeeder::class);
@@ -34,6 +41,56 @@ class DatabaseSeeder extends Seeder
         // Leaving it null would make every profile screen read "Never changed",
         // which looks like a bug in the demo rather than a fact about the data.
         User::query()->update(['password_changed_at' => now()->subMonths(3)]);
+    }
+
+    /**
+     * A one-page PDF standing in for the artwork a shop would upload.
+     *
+     * Written by hand rather than shipped as a binary fixture: it is a dozen
+     * lines, it is obviously a placeholder, and it keeps the repository free of
+     * a blob nobody can diff. The cross-reference table is real, so browsers
+     * open it instead of guessing at a repair.
+     */
+    private function sampleProof(): void
+    {
+        $disk = Storage::disk(Proof::DISK);
+
+        if ($disk->exists('proofs/sample.pdf')) {
+            return;
+        }
+
+        $text = "BT /F1 26 Tf 60 760 Td (TarpaLink) Tj ET\n"
+            ."BT /F1 14 Tf 60 730 Td (Sample proof artwork) Tj ET\n"
+            ."BT /F1 11 Tf 60 700 Td (This file stands in for the artwork a shop uploads.) Tj ET\n";
+
+        $objects = [
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+            '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+            "<< /Length ".strlen($text)." >>\nstream\n".$text."endstream",
+            '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+        ];
+
+        $pdf = "%PDF-1.4\n";
+        $offsets = [];
+
+        foreach ($objects as $index => $body) {
+            $offsets[] = strlen($pdf);
+            $pdf .= ($index + 1)." 0 obj\n".$body."\nendobj\n";
+        }
+
+        $startxref = strlen($pdf);
+        $size = count($objects) + 1;
+
+        $pdf .= "xref\n0 {$size}\n0000000000 65535 f \n";
+
+        foreach ($offsets as $offset) {
+            $pdf .= str_pad((string) $offset, 10, '0', STR_PAD_LEFT)." 00000 n \n";
+        }
+
+        $pdf .= "trailer\n<< /Size {$size} /Root 1 0 R >>\nstartxref\n{$startxref}\n%%EOF\n";
+
+        $disk->put('proofs/sample.pdf', $pdf);
     }
 
     /** The three subscription tiers. Rates are basis points. */

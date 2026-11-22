@@ -40,7 +40,15 @@ Then edit `.env`:
 | `APP_TIMEZONE`, `DB_TIMEZONE` | `Asia/Manila` and `+08:00` by default. Keep them in step: a 17:00 due date in UTC is 1 AM the next day in Manila, and MySQL converts TIMESTAMPs through the connection's time zone. Set them before loading real data — changing them later does not rewrite stored rows. |
 | `DB_PASSWORD`, `DB_ROOT_PASSWORD` | real passwords — the defaults are `change-me` |
 | `PAYMONGO_*` | sandbox keys. `PAYMONGO_WEBHOOK_SECRET` is **mandatory** — without it the webhook rejects every request |
+| `INBOUND_ADDRESS`, `INBOUND_SECRET` | the mailbox replies are forwarded to, and the secret that signs the forward. Both empty means notifications go out with no `Reply-To` and the inbound webhook refuses everything — deliberately, so a half-configured deployment fails closed |
+| `GEOCODER_ENABLED` | `true` by default. Set `false` if the container has no outbound HTTPS, or the address box waits for a timeout before saying it cannot help |
 | `MAIL_*` | real mailer, or leave `log` and read `storage/logs` |
+
+`PAYMONGO_*`, `INBOUND_ADDRESS` and `INBOUND_SECRET` do not have to stay in `.env`.
+They can be saved on `/admin/integrations`, where they are stored encrypted and take
+effect on the next request. The environment remains the fallback, and the screen says
+which of the two is in force — so rotating a key during an incident does not need a
+redeploy.
 
 Then:
 
@@ -166,6 +174,11 @@ unreachable except through the proxy.
   marks them paid on `/admin/payouts`.
 - **Single container serves HTTP.** Fine for one host; for horizontal scaling you
   would split nginx out and share `public/` between replicas.
+- **Inbound mail needs a forwarder.** `/webhooks/inbound` takes a signed JSON body
+  and does not speak IMAP. Point a provider's inbound rule (Mailgun, Postmark, or a
+  small relay) at it with an `X-Inbound-Signature` HMAC over the raw body. A body that
+  has been re-encoded in transit cannot be verified, because the signature covers the
+  exact bytes.
 
 ---
 

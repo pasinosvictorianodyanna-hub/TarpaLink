@@ -26,9 +26,18 @@
         ? number_format($originLat, 5, '.', '').','.number_format($originLng, 5, '.', '')
         : null;
 
-    $keep = array_filter(['near' => $near, 'src' => $origin['src'] ?? null]);
+    $keep = array_filter(['near' => $near, 'src' => $origin['src'] ?? null, 'place' => $place ?: null]);
     $byNear = array_merge($state, $keep);
     $byRating = array_merge($state, $keep, ['sort' => 'rating']);
+
+    // One sentence per way the position could have been obtained. "Your
+    // location" is only true for a GPS fix; an address the customer typed is a
+    // different claim, and saying the wrong one is how a map starts lying.
+    $originCaption = match ($origin['src'] ?? null) {
+        'pin' => 'the pin you dropped',
+        'address' => 'the address you gave us',
+        default => 'your location',
+    };
 @endphp
 
 @section('content')
@@ -41,7 +50,7 @@
                 <h1 class="h3">{{ $shops->count() }} {{ Str::plural('print shop', $shops->count()) }}</h1>
                 <p>
                     @if ($origin)
-                        Closest first, measured from {{ $origin['src'] === 'pin' ? 'the pin you dropped' : 'your location' }}.
+                        Closest first, measured from {{ $originCaption }}@if ($place !== '') — <b>{{ $place }}</b>@endif.
                     @else
                         Every shop publishes its own price matrix, so the number you see is the number you pay.
                     @endif
@@ -165,6 +174,31 @@
             </aside>
 
             <div class="dir-main">
+                {{-- Typing an address is the third way to say where you are,
+                     after the GPS button and the map tap. It submits as a plain
+                     GET so the lookup happens on the server and the result is a
+                     shareable `?near=` URL rather than a position that only
+                     exists in this tab. --}}
+                @if ($geocoderEnabled)
+                    <form method="GET" action="{{ route('shops.index') }}" class="dir-address">
+                        @foreach (array_merge(array_diff_key($state, ['q' => 1]), array_diff_key($keep, ['place' => 1])) as $key => $value)
+                            @foreach ((array) $value as $item)
+                                <input type="hidden" name="{{ is_array($value) ? $key.'[]' : $key }}" value="{{ $item }}">
+                            @endforeach
+                        @endforeach
+                        <input type="text" name="address" value="{{ $geocodeError ?? '' }}"
+                               placeholder="Or type an address — e.g. Katipunan Ave, Quezon City"
+                               aria-label="Find shops near an address">
+                        <button class="btn btn-ghost btn-sm" type="submit">Use this address</button>
+                    </form>
+
+                    @if ($geocodeError)
+                        <div class="alert alert-err" role="alert" style="margin-bottom:14px">
+                            We could not find “{{ $geocodeError }}”. Try adding the city, or drop a pin on the map instead.
+                        </div>
+                    @endif
+                @endif
+
                 @if (! empty($pins))
                     {{-- A real map, not a scatter: the pins are latitude/longitude
                          handed to Leaflet, so a shop sits where the shop is. The

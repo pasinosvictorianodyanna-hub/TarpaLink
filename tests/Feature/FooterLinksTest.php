@@ -58,9 +58,10 @@ class FooterLinksTest extends TestCase
             $this->assertStringContainsString('href="'.$href.'"', $html, "Footer is missing {$href}.");
         }
 
-        // The console is a Filament panel with its own login, so it is a path
-        // rather than a named route.
-        $this->assertStringContainsString('href="'.url('/shop').'"', $html);
+        // The console is now a named route of its own. The Filament panel still
+        // owns the screens that have not been ported, but the front door is the
+        // console, not the panel.
+        $this->assertStringContainsString('href="'.route('console.dashboard').'"', $html);
     }
 
     public function test_each_footer_page_renders_its_own_copy(): void
@@ -108,10 +109,12 @@ class FooterLinksTest extends TestCase
 
     public function test_the_landing_page_calls_to_action_point_somewhere(): void
     {
-        $html = $this->get('/')->assertOk()->getContent();
+        $props = $this->get('/')->assertOk()->viewData('props');
 
         // "Try the calculator" and "Open a shop account" were both `href="#"`.
-        $this->assertStringContainsString('href="'.route('shops.index').'">Try the calculator', $html);
-        $this->assertStringContainsString('href="'.route('page', 'open-a-shop').'">Open a shop account', $html);
+        // The page is a Vue component, so the destinations arrive as props and
+        // the template binds them; a null here would render href="null".
+        $this->assertSame(route('shops.index'), $props['routes']['shops']);
+        $this->assertSame(route('page', 'open-a-shop'), $props['routes']['openShop']);
     }
 }

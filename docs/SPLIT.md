@@ -10,7 +10,7 @@ the platform see.
 | | Dev A | Dev B |
 |---|---|---|
 | Surface | Landing + customer storefront | Shop panel + admin panel |
-| Framework | Blade + Vue 3 | Filament (Livewire) |
+| Framework | Vue 3 pages in a Blade shell | Filament (Livewire) |
 | Reads | price matrix, jobs, proofs | everything |
 | Writes | jobs, proofs, payments | shops, price matrix, content, payouts |
 

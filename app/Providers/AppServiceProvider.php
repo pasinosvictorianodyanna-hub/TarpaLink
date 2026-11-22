@@ -34,6 +34,8 @@ use App\Policies\ShopPolicy;
 use App\Policies\SiteSettingPolicy;
 use App\Policies\SubscriptionPolicy;
 use App\Policies\UserPolicy;
+use Filament\Support\Facades\FilamentView;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -54,6 +56,14 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->authorization();
+
+        // A visible sign-out in both panels. Filament keeps its own behind the
+        // avatar menu, which is a click on an unlabelled picture — and while the
+        // panel theme was uncompiled there was nothing to click at all.
+        FilamentView::registerRenderHook(
+            PanelsRenderHook::USER_MENU_BEFORE,
+            fn () => view('filament.sign-out-button'),
+        );
 
         // The footer blurb is CMS copy but appears on every page, so it is shared
         // with the layout rather than threaded through every controller.

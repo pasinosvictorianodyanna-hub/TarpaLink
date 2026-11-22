@@ -1,15 +1,26 @@
 import { createApp } from 'vue';
 import OrderBuilder from './components/OrderBuilder.vue';
 import ProfileForm from './components/ProfileForm.vue';
+import Account from './pages/Account.vue';
+import Home from './pages/Home.vue';
+import ShopDashboard from './pages/ShopDashboard.vue';
 
 /**
- * Vue islands.
+ * Vue pages and islands.
  *
- * The storefront is server-rendered Blade. Vue mounts only on elements that
- * declare a component, so the landing page and directory ship no JS payload.
+ * Blade still owns the document — the nav, the footer, the session and the CSRF
+ * token are server-rendered — but the body of a page can now be a Vue component.
+ * Vue mounts only on elements that declare a component, so a screen with no
+ * `data-component` ships no JS payload at all.
+ *
+ * `pages/*` are whole screens; `components/*` are islands inside a Blade screen.
+ * Both go through the same registry, so adding a screen is one import and one key.
  * See docs/SPLIT.md — "Vue renders, Filament edits, Laravel decides."
  */
 const registry = {
+    home: Home,
+    account: Account,
+    'shop-dashboard': ShopDashboard,
     'order-builder': OrderBuilder,
     'profile-form': ProfileForm,
 };

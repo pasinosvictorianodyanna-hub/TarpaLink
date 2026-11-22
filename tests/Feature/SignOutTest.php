@@ -50,4 +50,50 @@ class SignOutTest extends TestCase
 
         $this->assertGuest();
     }
+
+    /**
+     * Every dashboard has to offer a way out.
+     *
+     * Filament keeps its own sign-out behind the avatar menu — a click on an
+     * unlabelled picture — and while the panel theme was uncompiled there was
+     * nothing to click at all. Both panels now render a labelled button in the
+     * topbar through a render hook, and the console has one in its sidebar
+     * footer. The marker is `data-sign-out`, so this asserts the hook rendered
+     * rather than counting the word "Sign out" on the page.
+     *
+     * The two panels are checked in separate tests on purpose. Signing in as a
+     * second user inside one test leaves the first user's password hash in the
+     * session, and Filament's AuthenticateSession middleware reads that mismatch
+     * as a stolen cookie and redirects to the login page — which looks exactly
+     * like a broken panel.
+     */
+    public function test_the_shop_panel_offers_a_labelled_sign_out(): void
+    {
+        $this->actingAs(User::where('email', 'kevin@inkwell.ph')->firstOrFail())
+            ->get('/shop')
+            ->assertOk()
+            ->assertSee('data-sign-out', false);
+    }
+
+    public function test_the_admin_panel_offers_a_labelled_sign_out(): void
+    {
+        $this->actingAs(User::where('email', 'sofia@tarpalink.ph')->firstOrFail())
+            ->get('/admin')
+            ->assertOk()
+            ->assertSee('data-sign-out', false);
+    }
+
+    public function test_the_console_carries_a_sign_out_route_and_token(): void
+    {
+        // The console's button is inside the Vue component, so the server can
+        // only hand it the destination and the token. Asserting those is the
+        // strongest check available without a browser.
+        $props = $this->actingAs(User::where('email', 'kevin@inkwell.ph')->firstOrFail())
+            ->get('/console')
+            ->assertOk()
+            ->viewData('props');
+
+        $this->assertSame(route('logout'), $props['routes']['logout']);
+        $this->assertNotEmpty($props['csrf']);
+    }
 }

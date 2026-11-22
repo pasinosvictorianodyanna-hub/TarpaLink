@@ -230,33 +230,63 @@ One page per test method, or the "bug" is your own harness.
 
 ## How the Vue half is wired
 
-The storefront is server-rendered Blade. Vue mounts only where an element declares a
-component, so the landing page and directory ship no JavaScript:
+Laravel owns the document. Vue owns the body of a screen.
+
+Blade renders the shell — `<head>`, the marketing nav, the footer, the flash
+message, the CSRF token — and the body is a mount point:
 
 ```html
-<div id="order-builder" data-component="order-builder" data-props='{...}'></div>
+<div data-component="home" data-props="{...}"></div>
 ```
 
-`resources/js/app.js` scans for `[data-component]`, looks the component up in a small
-registry, and mounts it with the JSON props. Adding a new interactive screen means one
-line in the registry — not a router, not a bundle per page.
+`resources/js/app.js` scans for `[data-component]`, looks the name up in a small
+registry, and mounts the component with the JSON props. There is no router and no
+bundle per page: a screen with no `data-component` ships no JavaScript at all.
+
+There are two tiers in the registry, and they differ only in size:
+
+| Tier | Directory | What it is |
+|---|---|---|
+| Page | `resources/js/pages/` | A whole screen. The Blade view is just the mount host. |
+| Island | `resources/js/components/` | One interactive block inside a Blade screen. |
+
+| Screen | Route | Component |
+|---|---|---|
+| Landing page | `/` | `pages/Home.vue` |
+| Customer dashboard | `/account` | `pages/Account.vue` |
+| Shop console dashboard | `/console` | `pages/ShopDashboard.vue` |
+| Order builder | `/shops/{shop}/build` | `components/OrderBuilder.vue` |
+| Profile form | `/account/profile` | `components/ProfileForm.vue` |
+
+The admin panel is Filament and stays Filament — that is the CMS, and it belongs
+on the admin side. The shop console is being moved out of Filament screen by
+screen; `/console` serves the dashboard and its sidebar links into `/shop/…` for
+the five screens that have not been ported yet.
+
+The console has its own stylesheet (`resources/css/console.css`) and its own
+layout. It is a tool, not a page of the brochure: grey canvas, 246px sidebar,
+tables. The storefront should not ship a shell it never shows, and the console
+should not inherit the paper stock and serif display type.
 
 The order builder posts to `POST /api/quote` on every change. That endpoint calls
 `PriceCalculator` and returns the same line items the server will use to create the
 job, so the number on screen and the number in the database cannot drift.
 
-There are two islands so far, and the rule for admitting a third is the same both
-times: **does the screen need state, or only markup?**
+### What stays on the server
 
-| Island | Why it earns its JavaScript |
-|---|---|
-| `order-builder` | The quote is recomputed on every keystroke and the summary has to track it. |
-| `profile-form` | Both cards save in place, and the save button has to know whether anything actually changed. |
+Moving a screen to Vue does not move the decisions with it. The controller shapes
+every string the component renders — the headline split, each shop's badge, its
+distance and its "from" price — and the component decides layout only. A price
+computed in the browser is a price the browser can disagree with.
 
-Everything else — the landing page, the directory, the job list, the receipt — is a
-form or a list. Those stay Blade.
+That is also what makes the screens testable: `tests/Feature/LandingTest.php` reads
+`$response->viewData('props')` and asserts on the contract, not on markup that only
+exists after JavaScript runs. Decoding `data-props` and asserting against it is the
+pattern for any page — see `tests/Feature/ProfileTest.php` for the island version.
 
-One caveat when checking these in a browser: the island is client-rendered, so a
-server-side test can only assert the `data-component` attribute and the props, not the
-markup inside it. `tests/Feature/ProfileTest.php` decodes `data-props` and asserts
-against that instead of looking for a label that will never be in the HTML.
+Two caveats when checking a Vue page in a browser:
+
+- A plain HTTP check sees an empty `<div>`. Anything that renders in the body has to
+  be verified with a real browser or against the props.
+- A Blade comment (`{{-- --}}`) inside a Vue template is a compile error, not a
+  comment. Vue sees `{{ --... }}` and tries to evaluate it.

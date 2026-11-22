@@ -1,19 +1,19 @@
 import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
-import vue from '@vitejs/plugin-vue';
 import tailwindcss from '@tailwindcss/vite';
+import vue from '@vitejs/plugin-vue';
 
 export default defineConfig({
     plugins: [
         laravel({
             input: [
                 'resources/css/app.css',
+                'resources/css/console.css',
                 'resources/js/app.js',
                 'resources/css/filament/theme.css',
             ],
             refresh: true,
         }),
-        vue(),
         // The panel theme is the only stylesheet that speaks Tailwind. Without
         // this plugin `@import 'tailwindcss' source(none)` falls through to
         // postcss-import, which reads `source(none)` as a media query and emits
@@ -23,6 +23,7 @@ export default defineConfig({
         // app.css is hand-written CSS with no Tailwind directives, so it is
         // unaffected by this plugin.
         tailwindcss(),
+        vue(),
     ],
     server: {
         watch: {

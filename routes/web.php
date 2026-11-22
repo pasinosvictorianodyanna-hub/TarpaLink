@@ -3,6 +3,7 @@
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\ConsoleController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\JobController;
 use App\Http\Controllers\PageController;
@@ -27,6 +28,12 @@ Route::post('/shops/{shop}/checkout', [CheckoutController::class, 'store'])
 Route::get('/jobs/{job}', [JobController::class, 'show'])->name('jobs.show');
 Route::get('/jobs/{job}/receipt', [JobController::class, 'receipt'])->name('jobs.receipt');
 Route::get('/account', [AccountController::class, 'index'])->middleware('auth')->name('account');
+
+// The shop console. Filament keeps the screens that are not ported yet, so this
+// is one route for now rather than a group with its own prefix.
+Route::get('/console', [ConsoleController::class, 'dashboard'])
+    ->middleware('auth')
+    ->name('console.dashboard');
 
 Route::get('/account/profile', [ProfileController::class, 'edit'])->middleware('auth')->name('profile.edit');
 

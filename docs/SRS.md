@@ -1,10 +1,12 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.0 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.1 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
-> **Written against:** `main` plus the profile island (#16). Requirements delivered by
-> the shop-dashboard branch (#17) are marked in the Issue column and land with it; every
-> other requirement in this document is implemented in this repository today.
+> **Written against:** current `main`. Version 1.0 was written against `main` plus the
+> profile island (#16), before the shop dashboard was merged. This revision records
+> what has since changed: the directory map, the customer navigation, the admin
+> integrations screen, customer registration, and the timezone fix. The unmet items
+> are stated in §11 rather than quietly dropped.
 
 ---
 
@@ -216,9 +218,9 @@ own), sixteen policies. The full dictionary, enumerations and invariants are in
 
 | Interface | Direction | Protocol | Failure behaviour |
 |---|---|---|---|
-| **PayMongo** | out (create intent) / in (webhook) | HTTPS + JSON, signature header | Unsigned calls rejected; failed processing retried with backoff and flagged after three attempts |
-| **SMTP** | out | SMTP | Not yet wired — see §11 |
-| **Maps** | out | Tiles / geocoding | Coordinates are stored; no live geocoding yet |
+| **PayMongo** | out (create intent) / in (webhook) | HTTPS + JSON, signature header | Unsigned and stale signatures rejected; failed processing retried with backoff and flagged after three attempts |
+| **SMTP** | out | SMTP | One manual "nudge" mail exists; no transactional mail — see §11 |
+| **Maps** | out | Leaflet tiles (OpenStreetMap), browser geolocation | Tiles degrade to a labelled offline panel; no address-to-coordinate lookup — see §11 |
 | **File storage** | local disk | Filesystem | Proof files are stored under `storage/app`; S3 is a drop-in |
 
 ---
@@ -243,7 +245,10 @@ given so a reader can open it; several issues are covered by more than one file.
 | #12 | FR-69 | `BillingTest` |
 | #13 | FR-45 | `AuthorizationTest::a_customer_cannot_read_another_customers_job` |
 | #16 | FR-12 … FR-14 | `ProfileTest` |
-| #17 | FR-44, FR-54, FR-55 | `ShopDashboardTest` — on `feature/17-shop-dashboard`, not yet merged |
+| #17 | FR-44, FR-54, FR-55 | `ShopDashboardTest` |
+| #53 | FR-20, FR-21 | `DirectoryTest` — real map, customer position, nearest-first ordering |
+| #55 | FR-35, FR-60 … FR-63 | `CheckoutSafetyTest`, `TimezoneTest`, `PayMongoWebhookTest` |
+| — | FR-10 (registration) | `RegistrationTest` |
 
 Two honest notes about this table:
 
@@ -261,15 +266,17 @@ Two honest notes about this table:
 
 Stated plainly, because a specification that claims completeness is not credible:
 
-- **SMTP is not wired.** No transactional email yet: no receipt, no proof notification,
-  no password reset mail.
-- **Maps are coordinates, not geocoding.** A shop's `lat`/`lng` are seeded; there is no
-  address-to-coordinate lookup and no map view.
+- **SMTP is not wired for transactional mail.** A shop can "nudge" a customer by email;
+  there is no receipt, proof notification or password reset mail.
+- **Maps have no geocoding.** A shop's `lat`/`lng` are seeded, and the customer positions
+  themselves with browser geolocation or by tapping the map. There is a live map view
+  (Leaflet + OpenStreetMap) with real pins and nearest-first sorting, but no
+  address-to-coordinate lookup and no Google Maps API key.
 - **Object storage is local disk.** Fine for one server, not for a fleet.
-- **The checkout and account screens are still Blade forms**, not islands. They work;
-  they simply reload the page where the builder does not.
-- **Admin integrations screen does not exist** — PayMongo settings are environment
-  variables, not an editable screen.
+- **Checkout is still a Blade form.** The account screen is now a Vue island; checkout
+  still reloads the page where the builder does not.
+- **The admin integrations screen is informational.** `/admin/integrations` exists, but
+  PayMongo settings remain environment variables, not editable fields.
 - **Deleting a shop cascades to its payments.** No soft deletes exist, so an
   administrator's delete reaches settled money. The operating rule is "suspend, never
   delete"; the schema should enforce it with `restrictOnDelete`.
@@ -277,7 +284,10 @@ Stated plainly, because a specification that claims completeness is not credible
 - **The customer cannot approve a proof in the app.** Proofs are recorded, versioned and
   surfaced ("the proof is waiting"), but approval happens outside the system — a message
   or a phone call — and the shop moves the job on. The lifecycle supports the step; the
-  screen for it does not exist.
+  screen for it does not exist. There is no upload UI either: proof rows are seeded.
+- **A shop owner attached to two shops operates only the first.** `User::currentShop()`
+  picks the lowest-id shop and the panel has no picker. The data model supports several
+  shops per owner; the UI does not expose the choice.
 
 ---
 

@@ -253,6 +253,7 @@
       </div>
       <div class="mk-actions">
         <a class="btn btn-ghost btn-sm" href="{{ route('login') }}">Sign in</a>
+        <a class="btn btn-ghost btn-sm" href="{{ route('register') }}">Sign up</a>
         <a class="btn btn-primary btn-sm" href="{{ route('shops.index') }}">Get a quote</a>
       </div>
     </div>

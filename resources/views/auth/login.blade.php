@@ -33,6 +33,10 @@
             </button>
         </form>
 
+        <div class="tiny" style="margin-top:16px;text-align:center">
+            New here? <a href="{{ route('register') }}" style="text-decoration:underline;text-underline-offset:2px;color:var(--ink)">Create an account</a>
+        </div>
+
         <div class="tiny" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line-2);line-height:1.7">
             Seeded demo accounts (password: <b>password</b>)<br>
             Customer — jomar@tarpalink.ph<br>

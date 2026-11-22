@@ -3,6 +3,7 @@
 namespace App\Filament\Shop\Resources\Jobs\Tables;
 
 use App\Models\Job;
+use App\Models\Proof;
 use App\Services\JobWorkflow;
 use App\Services\ProofExchange;
 use App\Support\Money;
@@ -98,7 +99,7 @@ class JobsTable
             ->schema([
                 FileUpload::make('file')
                     ->label('Proof artwork')
-                    ->disk('local')
+                    ->disk(Proof::DISK)
                     ->directory('proofs')
                     ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/webp', 'application/pdf'])
                     ->maxSize(10240)

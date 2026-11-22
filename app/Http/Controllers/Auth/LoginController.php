@@ -8,10 +8,15 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class LoginController extends Controller
 {
+    /** Wrong passwords allowed per throttle window, per email and IP. */
+    private const MAX_ATTEMPTS = 5;
+
     public function show(): View
     {
         return view('auth.login');
@@ -24,25 +29,78 @@ class LoginController extends Controller
             'password' => ['required', 'string'],
         ]);
 
+        // Checked before the password is looked at, and before the database is
+        // asked whether the address exists. A locked-out caller learns nothing
+        // from this response, which is the point: the alternative answers "that
+        // email is not registered" for free, at whatever rate the attacker
+        // cares to ask.
+        $this->ensureIsNotRateLimited($request);
+
         $user = User::where('email', $credentials['email'])->first();
 
         // Administrators must authenticate exclusively through /admin/login,
         // never through the customer/shop storefront sign-in page (/login).
         if ($user?->isAdmin()) {
+            // Counted, not waved through: refusing admin sign-in here is a
+            // failed sign-in, and leaving it uncounted would let somebody probe
+            // which addresses are administrator accounts without ever tripping
+            // the limiter.
+            RateLimiter::hit($this->throttleKey($request));
+
             throw ValidationException::withMessages([
                 'email' => 'Administrator accounts cannot sign in here. Please use the admin login at /admin/login.',
             ]);
         }
 
         if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+            RateLimiter::hit($this->throttleKey($request));
+
             throw ValidationException::withMessages([
                 'email' => 'Those credentials do not match our records.',
             ]);
         }
 
+        RateLimiter::clear($this->throttleKey($request));
+
         $request->session()->regenerate();
 
         return redirect()->to($this->destinationFor($request, $request->user()));
+    }
+
+    /**
+     * Five wrong passwords a minute, per address and per caller.
+     *
+     * Keyed on both the email and the IP so that one attacker cannot lock a real
+     * customer out of their own account by hammering their address from
+     * elsewhere — the honest customer's IP still has its own budget — while a
+     * single machine spraying many addresses is still caught, because each of
+     * those keys shares the same IP half.
+     */
+    private function throttleKey(Request $request): string
+    {
+        return Str::transliterate(
+            Str::lower((string) $request->input('email')).'|'.$request->ip()
+        );
+    }
+
+    /**
+     * @throws ValidationException when this caller has spent their attempts
+     */
+    private function ensureIsNotRateLimited(Request $request): void
+    {
+        if (! RateLimiter::tooManyAttempts($this->throttleKey($request), self::MAX_ATTEMPTS)) {
+            return;
+        }
+
+        $seconds = RateLimiter::availableIn($this->throttleKey($request));
+
+        throw ValidationException::withMessages([
+            'email' => sprintf(
+                'Too many sign-in attempts. Please try again in %d %s.',
+                $seconds,
+                $seconds === 1 ? 'second' : 'seconds',
+            ),
+        ]);
     }
 
     /**

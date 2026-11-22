@@ -33,6 +33,15 @@ class UserPolicy
 
     public function delete(User $user, User $target): bool
     {
-        return $user->isAdmin() && $user->id !== $target->id;
+        if (! $user->isAdmin() || $user->id === $target->id) {
+            return false;
+        }
+
+        // Deleting a person cascades to their jobs, and a job with a payment
+        // against it cannot be deleted — that payment is the record of money
+        // moving, and the ledger is computed from it. An account with only
+        // abandoned, unpaid jobs still deletes cleanly, which is the case this
+        // action exists for.
+        return ! $target->jobs()->whereHas('payment')->exists();
     }
 }

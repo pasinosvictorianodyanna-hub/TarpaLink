@@ -133,7 +133,21 @@ class AuthorizationTest extends TestCase
         $other = $this->user('jomar@tarpalink.ph');
 
         $this->assertFalse($admin->can('delete', $admin));
-        $this->assertTrue($admin->can('delete', $other));
+
+        // Jomar has paid jobs, so his account is permanent: deleting it would
+        // cascade to jobs and then to the payments the ledger is built from.
+        // That rule lives in UserPolicy and is covered by DeleteSafetyTest; here
+        // the point is only that "not yourself" still permits other people.
+        $this->assertFalse($admin->can('delete', $other));
+
+        $window = User::create([
+            'name' => 'Window Shopper',
+            'email' => 'window@example.com',
+            'role' => 'customer',
+            'password' => bcrypt('password'),
+        ]);
+
+        $this->assertTrue($admin->can('delete', $window));
     }
 
     public function test_a_guest_sees_nothing_protected(): void

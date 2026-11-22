@@ -124,6 +124,18 @@ class Shop extends Model
         return $this->belongsToMany(User::class, 'shop_users')->withPivot('role');
     }
 
+    /**
+     * The people who can answer for this shop.
+     *
+     * `staff()` is everyone attached to it, owners and hired help alike. When
+     * something needs a decision rather than a shift — a rejected proof, a
+     * payout question — this is who to ask.
+     */
+    public function owners(): BelongsToMany
+    {
+        return $this->staff()->wherePivot('role', 'owner');
+    }
+
     /** The administrator who let this shop in — kept for the audit trail. */
     public function approver(): BelongsTo
     {

@@ -2,8 +2,10 @@
 
 namespace App\Jobs;
 
+use App\Mail\PaymentReceipt;
 use App\Models\Payment;
 use App\Services\PayMongo;
+use App\Support\Notifier;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -63,6 +65,21 @@ class ProcessPayMongoWebhook implements ShouldQueue
             'commission' => (int) round($payment->amount * $rate / 10000),
             'last_error' => null,
         ]);
+
+        // After the row is `paid`, never before. The money is recorded whether or
+        // not a receipt can be delivered, and because the early return above
+        // catches a retry, a receipt cannot be sent twice.
+        $job = $payment->job;
+        $customer = $job?->user;
+
+        if ($job !== null && $customer !== null) {
+            Notifier::send($customer->email, new PaymentReceipt(
+                job: $job,
+                payment: $payment->fresh(),
+                customerName: $customer->name,
+                shopName: $job->shop?->name ?? 'The shop',
+            ));
+        }
     }
 
     /** Called by the queue after the final failed attempt. */

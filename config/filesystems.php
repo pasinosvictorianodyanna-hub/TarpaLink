@@ -60,6 +60,37 @@ return [
             'report' => false,
         ],
 
+        /*
+        | Proof artwork: the customer's files, before they are printed.
+        |
+        | A disk of its own rather than "whatever the default is", because these
+        | files are private by rule — they are served only through a route that
+        | checks who is asking — and a default disk that later became public
+        | would quietly expose every customer's artwork.
+        |
+        | The root is deliberately the same as `local` so existing proof paths
+        | keep resolving. Set PROOF_DISK_DRIVER=s3 (plus AWS_BUCKET and
+        | credentials) to move artwork into object storage; the object keys stay
+        | `proofs/...`, so nothing in the database changes.
+        */
+        'proofs' => [
+            'driver' => env('PROOF_DISK_DRIVER', 'local'),
+            // `?:` rather than a default argument: an env line left as
+            // `PROOF_DISK_ROOT=` resolves to an empty string, and a local disk
+            // rooted at "" would write into the project root.
+            'root' => env('PROOF_DISK_ROOT') ?: storage_path('app/private'),
+            'key' => env('AWS_ACCESS_KEY_ID'),
+            'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'region' => env('AWS_DEFAULT_REGION', 'ap-southeast-1'),
+            'bucket' => env('AWS_BUCKET'),
+            'endpoint' => env('AWS_ENDPOINT'),
+            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'visibility' => 'private',
+            'serve' => true,
+            'throw' => false,
+            'report' => false,
+        ],
+
     ],
 
     /*

@@ -45,6 +45,14 @@ case "${1:-web}" in
         echo "[entrypoint] queue worker up"
         exec php artisan queue:work --sleep=1 --tries=3 --max-time=3600 --verbose "$@"
         ;;
+    scheduler)
+        shift
+        echo "[entrypoint] scheduler up"
+        # schedule:work keeps a long-lived loop and fires whatever is due. It
+        # does not need a lock of its own: billing:issue is idempotent, so a
+        # second copy running for a few seconds issues nothing.
+        exec php artisan schedule:work "$@"
+        ;;
     migrate)
         exec php artisan migrate --force
         ;;

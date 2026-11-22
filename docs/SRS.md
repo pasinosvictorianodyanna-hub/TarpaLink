@@ -1,6 +1,6 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.11 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.12 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
 > profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
@@ -34,6 +34,10 @@
 > ever did (§5.6, FR-104/FR-105). It also corrects v1.10's own error — the fee comes off the
 > shop's payout, so the platform never pays it and "commission − fee" understated what the
 > platform earns by a factor of thirty.
+> Version 1.12 makes subscription revenue real: invoices now recur, carry the period they
+> bill and a due date, and can be collected and voided (§5.6, FR-106/FR-107). Before this a
+> shop was invoiced once on switching plan and never again, and nothing ever recorded a
+> payment against one.
 
 ---
 
@@ -183,8 +187,10 @@ feature names.
 | FR-69 | The system shall bill subscriptions on three tiers — Starter (free, 5%), Growth (₱599, 3%), Pro (₱1,499, 1.5%) — and shall show the crossover point where the next tier becomes cheaper. | #12 |
 | FR-104 | The system shall refund a settled payment in whole or in part, accumulating the refunded amount on the payment row, reversing the commission **in proportion** to what went back, and shall never let the refunds on one payment exceed its gross. The processor's fee is not returned and remains the shop's. | #82 |
 | FR-105 | The system shall let the customer cancel an order for a full refund only while it is unpaid-for-work — quoted or awaiting proof — and shall refuse that route once the proof is approved, when the material is committed and cancellation is the shop's decision. | #82 |
+| FR-106 | The system shall issue a subscription invoice for each billing period of every active paid subscription, deriving the period from the day the subscription started, and shall issue each period **exactly once** however often the issuing command runs. | #83 |
+| FR-107 | The system shall let an administrator record an invoice as paid, stamping who recorded it, and shall refuse to collect an invoice twice, to collect a void one, or to void a paid one. | #83 |
 
-FR-104 and FR-105 are numbered after §5.10's requirements because numbers follow the order
+FR-104 to FR-107 are numbered after §5.10's requirements because numbers follow the order
 issues were adopted, not the order the sections appear in.
 
 ### 5.7 Administration — FR-70 …
@@ -370,6 +376,7 @@ given so a reader can open it; several issues are covered by more than one file.
 | #75 | FR-100, FR-101 | `ShopRequestTest` — a re-send mints a new link, the old one stops working, and an approved request with no shop is refused |
 | #77 | FR-94, FR-96, FR-97, FR-102, FR-103 | `ShopRequestTest` — applying creates the account and the request but no shop, the chosen password signs the owner in after approval, a pending owner waits instead of hitting a 403, and the legacy path still invites |
 | #81 | FR-66 | `ReportsTest`, `DataIntegrityTest` — the fee comes off the payout, and the split adds back to the gross |
+| #83 | FR-106, FR-107 | `BillingInvoiceTest` — one invoice per period however often the command runs, a new period on the month roll, void re-billed, and no double collection |
 | #82 | FR-66, FR-104, FR-105 | `RefundTest` — a full refund leaves the shop carrying the fee, a partial reverses the commission in proportion, refunds stop at the gross, and the customer's cancel closes after the proof |
 
 Two honest notes about this table:

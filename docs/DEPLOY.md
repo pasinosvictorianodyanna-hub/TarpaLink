@@ -15,11 +15,17 @@ exercised.
 |---|---|---|
 | `app` | nginx + php-fpm in one container (supervisord) | Serves HTTP. Runs migrations on boot. |
 | `worker` | `php artisan queue:work` on the same image | **Required.** PayMongo callbacks are queued. |
+| `scheduler` | `php artisan schedule:work` on the same image | **Required since #83.** Issues the monthly subscription invoices. |
 | `db` | MySQL 8.4 | Production database. |
 
 nginx and php-fpm share a container because splitting them would need a shared
 volume just to serve `public/`. The worker is separate because it must be able to
 restart — or crash — without dropping HTTP traffic.
+
+The scheduler is a third process for the same reason. `billing:issue` runs daily and is
+idempotent, so a restart mid-run costs nothing: it asks whether the current period already
+has an invoice rather than how long it has been since the last run. If the scheduler is not
+running, shops are simply never billed — silently, which is the failure mode to watch for.
 
 ---
 
@@ -169,9 +175,10 @@ unreachable except through the proxy.
 - **Proofs are not on object storage.** `FILESYSTEM_DISK=local` means uploaded
   files sit inside the container and are lost on rebuild. Set the S3 disk
   (`AWS_*`) before accepting real artwork.
-- **No scheduled tasks.** There is no scheduler service because nothing is
-  scheduled — which also means nothing releases payouts automatically. An admin
-  marks them paid on `/admin/payouts`.
+- **One scheduled task.** `billing:issue` runs daily at 01:10 from the `scheduler`
+  service and issues the current period's invoice for every active paid plan. It is
+  idempotent, so a missed night is caught up the next one. Nothing releases payouts
+  automatically — an admin still marks them paid on `/admin/payouts`.
 - **Single container serves HTTP.** Fine for one host; for horizontal scaling you
   would split nginx out and share `public/` between replicas.
 - **Inbound mail needs a forwarder.** `/webhooks/inbound` takes a signed JSON body

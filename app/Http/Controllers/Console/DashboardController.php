@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Console;
 
 use App\Models\Job;
 use App\Models\Shop;
@@ -8,20 +8,12 @@ use App\Support\Money;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 /**
- * The shop console.
- *
- * This is the shop side moving out of Filament. Filament is the CMS, and the CMS
- * belongs on the admin side; a shop owner running their day is not editing
- * content, they are reading a queue.
- *
- * The panel still owns Jobs, Production board, Price matrix, Reports and Billing
- * while those are ported, so the sidebar links into it. The moment the last
- * screen moves, the panel registration goes and the links point back here.
+ * What the shop has to know before it opens: today's takings, the queue, the
+ * week, and the jobs where the next move belongs to somebody else.
  */
-class ConsoleController extends Controller
+class DashboardController extends ConsoleController
 {
     /** Hours of silence before a sent proof counts as stuck. */
     private const PROOF_HOURS = 6;
@@ -35,9 +27,9 @@ class ConsoleController extends Controller
     /** How many rows a card shows before it stops being a glance. */
     private const LIMIT = 6;
 
-    public function dashboard(Request $request): View
+    public function __invoke(Request $request): View
     {
-        $shop = $this->shop($request);
+        $shop = $this->shop();
 
         $open = $shop->jobs()->whereNotIn('status', ['collected', 'cancelled']);
         $openCount = (clone $open)->count();
@@ -45,18 +37,16 @@ class ConsoleController extends Controller
             ->whereBetween('due_at', [Carbon::today(), Carbon::today()->endOfDay()])
             ->count();
 
-        return view('console.dashboard', [
-            'props' => [
-                // The sign-out form lives inside the component, so the token has
-                // to travel with the props rather than sit in a Blade form.
-                'csrf' => csrf_token(),
-                'shell' => $this->shell($shop, $openCount),
-                'heading' => [
-                    'title' => 'Dashboard',
-                    'sub' => now()->format('l, j F')
-                        .' · '.$openCount.' '.($openCount === 1 ? 'job' : 'jobs').' in the queue'
-                        .', '.$dueToday.' due today',
-                ],
+        return $this->page(
+            'dashboard',
+            [
+                'title' => 'Dashboard',
+                'sub' => now()->format('l, j F')
+                    .' · '.$this->plural($openCount, 'job').' in the queue'
+                    .', '.$dueToday.' due today',
+            ],
+            'console.dashboard',
+            [
                 'stats' => $this->stats($shop),
                 'dueToday' => [
                     'count' => $dueToday,
@@ -64,104 +54,12 @@ class ConsoleController extends Controller
                 ],
                 'week' => $this->week($shop),
                 'attention' => $this->attention($shop),
-                'routes' => [
-                    'dashboard' => route('console.dashboard'),
-                    'export' => route('filament.shop.reports.export'),
-                    'jobs' => url('/shop/jobs'),
-                    'board' => url('/shop/production-board'),
-                    'newJob' => route('shops.index'),
-                    'logout' => route('logout'),
-                ],
             ],
-        ]);
-    }
-
-    /**
-     * The shop this request operates on, or a 403.
-     *
-     * `User::canAccessPanel` is what admits a shop owner to the Filament panel,
-     * so the console asks the same question rather than inventing a second rule
-     * that could disagree with it.
-     */
-    private function shop(Request $request): Shop
-    {
-        $user = $request->user();
-        $shop = $user?->currentShop();
-
-        if ($user === null || ! $user->worksInShop() || $shop === null || ! $shop->isActive()) {
-            throw new AccessDeniedHttpException('The shop console is for an active shop.');
-        }
-
-        return $shop;
-    }
-
-    /**
-     * The sidebar.
-     *
-     * The active item and the badge count are decided here: a template that
-     * works out which nav item is "on" is a template that can get it wrong on a
-     * route it has not seen.
-     *
-     * @return array<string, mixed>
-     */
-    private function shell(Shop $shop, int $openJobs): array
-    {
-        $canManage = auth()->user()?->canManagePrices() ?? false;
-
-        // Staff see the work, not the money controls. Hiding the links is a
-        // courtesy; the pages and policies refuse the request as well.
-        $groups = [[
-            'label' => 'Operations',
-            'items' => [
-                $this->nav('Dashboard', route('console.dashboard'), 'grid', true),
-                $this->nav('Jobs', url('/shop/jobs'), 'inbox', false, $openJobs),
-                $this->nav('Production board', url('/shop/production-board'), 'board'),
+            [
+                ['label' => 'Export CSV', 'url' => route('console.reports.export')],
+                ['label' => 'Production board', 'url' => route('console.board'), 'style' => 'primary'],
             ],
-        ]];
-
-        if ($canManage) {
-            $groups[] = [
-                'label' => 'Catalogue',
-                'items' => [
-                    $this->nav('Price matrix', url('/shop/price-matrix'), 'table'),
-                ],
-            ];
-        }
-
-        $business = [
-            $this->nav('Reports', url('/shop/reports'), 'chart'),
-        ];
-
-        if ($canManage) {
-            $business[] = $this->nav('Billing', url('/shop/billing'), 'doc');
-        }
-
-        $groups[] = ['label' => 'Business', 'items' => $business];
-
-        return [
-            'brand' => $shop->name,
-            'badge' => 'Shop',
-            'user' => [
-                'initials' => $this->initials(auth()->user()->name),
-                'name' => auth()->user()->name,
-                'role' => auth()->user()->isShopStaff() ? 'Shop staff' : 'Shop owner',
-            ],
-            'groups' => $groups,
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function nav(string $label, string $url, string $icon, bool $active = false, ?int $badge = null): array
-    {
-        return [
-            'label' => $label,
-            'url' => $url,
-            'icon' => $icon,
-            'active' => $active,
-            'badge' => $badge ?: null,
-        ];
+        );
     }
 
     /**
@@ -170,7 +68,7 @@ class ConsoleController extends Controller
      * Each note is the honest qualifier: yesterday's takings, what is due, the
      * window the average covers, and how many of the collected jobs were on time.
      *
-     * @return list<array<string, string>>
+     * @return list<array<string, string|null>>
      */
     private function stats(Shop $shop): array
     {
@@ -275,7 +173,7 @@ class ConsoleController extends Controller
                 'status' => $job->statusLabel(),
                 'tone' => $this->statusTone($job->status),
                 'total' => '₱'.number_format($job->total / 100),
-                'url' => url('/shop/jobs/'.$job->getRouteKey()),
+                'url' => route('console.jobs.show', $job),
             ])
             ->all();
     }
@@ -342,7 +240,7 @@ class ConsoleController extends Controller
                 'issue' => $reason['issue'],
                 'waiting' => $this->waited($reason['since']),
                 'since' => $reason['since']->getTimestamp(),
-                'url' => url('/shop/jobs/'.$job->getRouteKey()),
+                'url' => route('console.jobs.show', $job),
             ];
         }
 
@@ -418,15 +316,5 @@ class ConsoleController extends Controller
             'cancelled' => 'r',
             default => 'n',
         };
-    }
-
-    private function initials(string $name): string
-    {
-        $parts = preg_split('/\s+/', trim($name), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-
-        return collect($parts)
-            ->take(2)
-            ->map(fn (string $part) => mb_strtoupper(mb_substr($part, 0, 1)))
-            ->implode('');
     }
 }

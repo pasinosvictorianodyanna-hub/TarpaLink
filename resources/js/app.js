@@ -4,7 +4,6 @@ import OrderBuilder from './components/OrderBuilder.vue';
 import ProfileForm from './components/ProfileForm.vue';
 import Account from './pages/Account.vue';
 import Home from './pages/Home.vue';
-import ShopDashboard from './pages/ShopDashboard.vue';
 
 /**
  * Vue pages and islands.
@@ -21,7 +20,6 @@ import ShopDashboard from './pages/ShopDashboard.vue';
 const registry = {
     home: Home,
     account: Account,
-    'shop-dashboard': ShopDashboard,
     'order-builder': OrderBuilder,
     'profile-form': ProfileForm,
     'checkout-form': CheckoutForm,

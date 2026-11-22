@@ -85,15 +85,16 @@ class SignOutTest extends TestCase
 
     public function test_the_console_carries_a_sign_out_route_and_token(): void
     {
-        // The console's button is inside the Vue component, so the server can
-        // only hand it the destination and the token. Asserting those is the
-        // strongest check available without a browser.
-        $props = $this->actingAs(User::where('email', 'kevin@inkwell.ph')->firstOrFail())
+        // The shell is server-rendered now, so the button is a real form in the
+        // HTML rather than a destination handed to a Vue component. That is a
+        // stronger guarantee: it works with JavaScript switched off.
+        $html = $this->actingAs(User::where('email', 'kevin@inkwell.ph')->firstOrFail())
             ->get('/console')
             ->assertOk()
-            ->viewData('props');
+            ->getContent();
 
-        $this->assertSame(route('logout'), $props['routes']['logout']);
-        $this->assertNotEmpty($props['csrf']);
+        $this->assertStringContainsString('action="'.route('logout').'"', $html);
+        $this->assertStringContainsString('name="_token"', $html);
+        $this->assertStringContainsString('aria-label="Sign out"', $html);
     }
 }

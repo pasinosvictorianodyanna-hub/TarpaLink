@@ -148,8 +148,11 @@
                                 <td class="mono">{{ $job->reference }}</td>
                                 <td>{{ $job->shop?->name ?? '—' }}</td>
                                 <td>{{ $job->user?->name ?? '—' }}</td>
-                                <td>{{ $job->service?->name ?? '—' }}</td>
-                                <td><span class="tl-pill pending">{{ $job->statusLabel() }}</span></td>
+                                {{-- The spec, not just the service name: a 36×48
+                                     tarpaulin and a 72×96 one are the same service
+                                     and eight times the money. --}}
+                                <td>{{ $job->titleLine() }}</td>
+                                <td><span class="tl-pill {{ $job->statusTone() }}">{{ $job->statusLabel() }}</span></td>
                                 <td class="tl-amt">{{ \App\Support\Money::format($job->total) }}</td>
                             </tr>
                         @endforeach

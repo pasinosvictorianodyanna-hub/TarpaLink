@@ -58,31 +58,73 @@ class ReportsController extends ConsoleController
     }
 
     /**
-     * @return array{gross: int, commission: int, fees: int, net: int, awaiting: int, jobs: int}
+     * The ledger's totals.
+     *
+     * Refunded payments are included. A fully refunded payment is not revenue —
+     * it drops out of `monthTotal()` and the weekly bars — but its row still
+     * carries a **negative** net, because the processor keeps its fee and the
+     * shop bears it (#81). Filtering to `status = 'paid'` would make that loss
+     * disappear from the books instead of being netted off the next payout.
+     *
+     * @return array{gross: int, refunded: int, commission: int, commission_refunded: int, fees: int, net: int, awaiting: int, jobs: int}
      */
     private function totals(Shop $shop): array
     {
         $row = $this->paymentsOf($shop)
-            ->where('payments.status', 'paid')
-            ->selectRaw('coalesce(sum(payments.amount), 0) as gross, coalesce(sum(payments.commission), 0) as commission, coalesce(sum(payments.processing_fee), 0) as fees, count(payments.id) as jobs')
+            ->moved()
+            ->selectRaw('coalesce(sum(payments.amount), 0) as gross, coalesce(sum(payments.refunded_amount), 0) as refunded, coalesce(sum(payments.commission), 0) as commission, coalesce(sum(payments.commission_refunded), 0) as commission_refunded, coalesce(sum(payments.processing_fee), 0) as fees, count(payments.id) as jobs')
             ->first();
 
         $gross = (int) ($row->gross ?? 0);
+        $refunded = (int) ($row->refunded ?? 0);
         $commission = (int) ($row->commission ?? 0);
+        $commissionRefunded = (int) ($row->commission_refunded ?? 0);
         $fees = (int) ($row->fees ?? 0);
 
         return [
             'gross' => $gross,
+            'refunded' => $refunded,
             'commission' => $commission,
+            'commission_refunded' => $commissionRefunded,
             // The processor takes its cut out of the money as it arrives, so the
             // shop was never owed it. It is a deduction, not a platform charge.
             'fees' => $fees,
             // Summing the columns and subtracting the totals gives the same
             // answer as summing each row's net(), and lets one query do it.
-            'net' => Payment::netFrom($gross, $commission, $fees),
-            'awaiting' => (int) $this->paymentsOf($shop)->awaitingPayout()->sum('payments.amount'),
+            'net' => Payment::netFrom(
+                amount: $gross,
+                refunded: $refunded,
+                commission: $commission,
+                commissionRefunded: $commissionRefunded,
+                fee: $fees,
+            ),
+            'awaiting' => $this->heldFor($shop),
             'jobs' => (int) ($row->jobs ?? 0),
         ];
+    }
+
+    /**
+     * What we are actually holding for the shop, not what the customers paid.
+     *
+     * This used to sum `amount`, which overstated the figure by the commission
+     * and the fee on every unreleased payment — the same mistake #81 fixed in
+     * the net. It is the net that will be transferred, so it is the net that is
+     * reported.
+     */
+    private function heldFor(Shop $shop): int
+    {
+        $row = $this->paymentsOf($shop)
+            ->awaitingPayout()
+            ->selectRaw('coalesce(sum(payments.amount), 0) as amount, coalesce(sum(payments.refunded_amount), 0) as refunded, coalesce(sum(payments.commission), 0) as commission, coalesce(sum(payments.commission_refunded), 0) as commission_refunded, coalesce(sum(payments.processing_fee), 0) as fees')
+            ->first();
+
+        return Payment::netFrom(
+            amount: (int) ($row->amount ?? 0),
+            refunded: (int) ($row->refunded ?? 0),
+            commission: (int) ($row->commission ?? 0),
+            commissionRefunded: (int) ($row->commission_refunded ?? 0),
+            fee: (int) ($row->fees ?? 0),
+        );
     }
 
     /** Revenue for the current month, matching a plain SUM() over payments. */
@@ -162,7 +204,10 @@ class ReportsController extends ConsoleController
     }
 
     /**
-     * The payout ledger: one row per payment, gross − commission = net.
+     * The payout ledger: one row per payment, gross − commission − fee = net.
+     *
+     * Includes refunded payments, so the row that explains a drop in the net is
+     * on the page rather than only in the database.
      *
      * @return Collection<int, Payment>
      */
@@ -170,7 +215,7 @@ class ReportsController extends ConsoleController
     {
         return $this->paymentsOf($shop)
             ->with('job')
-            ->where('payments.status', 'paid')
+            ->moved()
             ->orderByDesc('payments.paid_at')
             ->orderByDesc('payments.id')
             ->limit(self::LEDGER_ROWS)

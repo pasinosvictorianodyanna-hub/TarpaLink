@@ -15,6 +15,13 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
  * Commission is summed from `payments.commission`, never GMV × one rate: shops
  * sit on Starter, Growth and Pro at the same time, so a single rate would be
  * wrong for two thirds of them.
+ *
+ * The processor's fee is **not** subtracted from it. Since #81 the fee comes off
+ * the shop's payout — `net = amount − commission − fee` — so the platform
+ * receives the gross, pays the shop the net, and keeps the commission. The fee
+ * is a deduction the shop sees, not a cost we carry; subtracting it here would
+ * charge the platform for a fee it never paid. Refunded commission is subtracted,
+ * because that is money we gave back.
  */
 class PlatformStats extends StatsOverviewWidget
 {
@@ -25,13 +32,13 @@ class PlatformStats extends StatsOverviewWidget
 
     protected function getStats(): array
     {
-        $gmv = (int) Payment::where('status', 'paid')->sum('amount');
-        $commission = (int) Payment::where('status', 'paid')->sum('commission');
-        $fees = (int) Payment::where('status', 'paid')->sum('processing_fee');
+        $gmv = (int) Payment::moved()->sum('amount') - (int) Payment::moved()->sum('refunded_amount');
+        $commission = (int) Payment::moved()->sum('commission') - (int) Payment::moved()->sum('commission_refunded');
+        $fees = (int) Payment::moved()->sum('processing_fee');
         $activeShops = Shop::where('status', 'active')->count();
         $pendingShops = Shop::where('status', 'pending')->count();
         $jobsThisMonth = Job::where('created_at', '>=', now()->startOfMonth())->count();
-        $settled = Payment::where('status', 'paid')->count();
+        $settled = Payment::moved()->count();
 
         return [
             Stat::make('GMV', Money::short($gmv))
@@ -39,12 +46,10 @@ class PlatformStats extends StatsOverviewWidget
                 ->descriptionIcon('heroicon-m-banknotes')
                 ->color('success'),
 
-            // Margin, not commission: the processor's fee comes out of every
-            // payment before the platform keeps anything.
-            Stat::make('Platform margin', Money::signed($commission - $fees))
-                ->description(Money::short($commission).' commission − '.Money::short($fees).' fees')
+            Stat::make('Commission earned', Money::short($commission))
+                ->description(Money::short($fees).' of processor fees, borne by shops')
                 ->descriptionIcon('heroicon-m-chart-pie')
-                ->color($commission - $fees >= 0 ? 'primary' : 'danger'),
+                ->color($commission >= 0 ? 'primary' : 'danger'),
 
             Stat::make('Active shops', (string) $activeShops)
                 ->description($pendingShops > 0

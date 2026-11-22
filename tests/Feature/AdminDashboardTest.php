@@ -52,7 +52,10 @@ class AdminDashboardTest extends TestCase
         $this->actingAs($this->admin())
             ->get('/admin')
             ->assertSuccessful()
-            ->assertSee('Platform margin')
+            // "Commission earned", not "Platform margin": the processor's fee is
+            // deducted from the shop's payout, so the platform never pays it and
+            // the commission is what it keeps (#81, #82).
+            ->assertSee('Commission earned')
             ->assertSee('Active shops')
             ->assertSee('Waiting for approval');
     }
@@ -98,8 +101,11 @@ class AdminDashboardTest extends TestCase
 
     public function test_commission_is_the_sum_of_commissions_not_gmv_times_one_rate(): void
     {
-        $expected = (int) Payment::where('status', 'paid')->sum('commission');
-        $gmv = (int) Payment::where('status', 'paid')->sum('amount');
+        // Net of reversals, because commission we gave back on a refund is not
+        // revenue — and the fee is deliberately not subtracted, since the shop
+        // bears it (#81).
+        $expected = (int) Payment::moved()->sum('commission') - (int) Payment::moved()->sum('commission_refunded');
+        $gmv = (int) Payment::moved()->sum('amount');
 
         // The two only coincide if every shop were on the same plan, which they
         // are not — so this is a real check, not a tautology.

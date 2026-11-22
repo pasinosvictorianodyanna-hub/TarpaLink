@@ -773,29 +773,96 @@ cursor and never builds a model.
 |---|---|---|
 | `/console/reports` | Fee column was showing commission | Separate Commission and Fee columns; footer reads `gross − commission − fee = net` |
 | Payout CSV | `Gross, Commission, Net` | `Gross, Commission, Fee, Net` |
-| Admin dashboard | "Commission earned" | **"Platform margin"** = `commission − fee`, signed |
+| Admin dashboard | "Commission earned" | ~~"Platform margin" = `commission − fee`~~ — **reverted by #82**, see below |
 
 **The number that makes the case.** Platform-wide the fee is nearly as large as the
-commission: ₱2,066.78 kept against ₱2,004.92 paid out — a margin of **₱61.86**. Calling the
-commission "earnings" was overstating it by a factor of thirty-three.
+commission: ₱2,066.78 kept against ₱2,004.92 paid out. Calling the commission "earnings"
+looked like overstating it by a factor of thirty-three.
+
+**That reasoning was wrong, and #82 corrected it.** Once the shop bears the fee, the platform
+receives the gross, pays the shop the net, and *never pays the processor* — so the commission
+**is** what the platform keeps. `commission − fee` is the arithmetic of the option that was
+rejected, and it understated platform revenue by the entire fee volume. The label is
+"Commission earned" again, and the fee is reported as a deduction the shop sees. What survives
+from this issue is the part that was right: the shop's net includes the fee.
 
 **Break-even tickets.** Because the fee is `2.5% + ₱15` and the commission is a percentage,
-the platform loses money on any job below a floor that depends on the tier:
+the shop's payout per job is reduced by a fixed amount regardless of ticket size:
 
-| Tier | Rate | Platform breaks even at |
+| Tier | Rate | Fee exceeds commission below |
 |---|---|---|
 | Starter | 5% | ₱600 |
 | Growth | 3% | ₱3,000 |
-| Pro | 1.5% | never — the rate is below the processor's |
+| Pro | 1.5% | never profitable — the rate is below the processor's |
 
-Solving `r × a = 0.025 × a + 1500` gives `a = 1500 / (r − 0.025)`, which is where the first
-two figures come from; Pro's denominator is negative, so no ticket size works. The smallest
-paid job on the books is ₱24.00 — ₱0.36 of commission against ₱15.60 of fee.
+Solving `r × a = 0.025 × a + 1500` gives `a = 1500 / (r − 0.025)`. Below that line the *shop*
+still nets a positive amount, but the platform's cut no longer covers the fee it is passing
+through — which is why Pro at 1.5% is a loss on every card payment.
 
 **Proven by:** `ReportsTest`, `ConsoleScreensTest`, `DataIntegrityTest` (renamed
 `…_splits_into_commission_fee_and_net`, plus an assertion that the split adds back to gross),
 `CheckoutFlowTest`, `PayMongoWebhookTest`, `AdminDashboardTest` — and the rendered
 `/console/reports` for Inkwell: net ₱23,364.11 = 24,914.41 − 747.43 − 802.87.
+
+---
+
+## #82 — A refunded payment could not be recorded, and the policy promised one
+
+`payments.status` has carried a `refunded` value since #11 and nothing ever wrote it. So a job
+the shop could not produce had no way out of the ledger — while the site's own published policy
+said, in two places, *"a job can be cancelled for a full refund any time before you approve the
+proof"* and *"a refund may be partial"*. The promise was on the page; the button was not.
+
+**A status cannot hold an amount.** Partial is the normal case, so the refund is stored as two
+accumulating numbers — `refunded_amount` and `commission_refunded` — and `status` flips to
+`refunded` only once the whole payment has gone back. That keeps BR-4: the amounts the payment
+was settled at are never rewritten.
+
+**The commission reverses; the processor's fee does not.** We did not earn a commission on money
+the customer did not keep, so it comes off in proportion. The processor keeps its fee on a
+refund, and by #81's decision the shop bears that. Which means a fully refunded payment nets a
+small **negative** rather than zero:
+
+| | ₱1,000 payment, ₱50 commission, ₱40 fee |
+|---|---|
+| Customer gets back | ₱1,000 |
+| Commission kept | ₱0 |
+| Fee the processor keeps | ₱40 |
+| **Net to shop** | **−₱40** |
+
+That is the shop's loss to carry, and it is why the refunded row has to stay in the ledger.
+Filtering it out — the obvious implementation — would make the loss disappear instead of being
+netted off the next payout.
+
+**Who may refund.** The customer may cancel, and be refunded in full, only while the job is
+`quoted` or `awaiting_proof`. Past the proof the material is committed and the policy hands the
+decision to the shop, so the customer's route closes at the **route**, not merely at the hidden
+button. A shop or an admin refunds explicitly, in whole or in part, from the admin payouts
+screen. Cancelling from the console after approval cancels the job and moves no money.
+
+**Rounding.** The reversal is computed as a cumulative target, not a per-refund slice: three
+refunds of ₱333.33 against a ₱1,000 payment reverse the whole ₱10.00 of commission, not ₱9.98.
+A `min()` guards the last one, because rounding must never reverse more commission than was
+charged.
+
+**Also fixed, because a refund exposed it.** The admin dashboard's "Platform margin" from #81
+was wrong. Once the shop bears the fee, the platform receives the gross, pays the shop the net,
+and never pays the processor — so the commission *is* what the platform keeps. `commission − fee`
+was the arithmetic of the option that was rejected, and it understated revenue by the whole fee
+volume: ₱61.86 shown against ₱2,066.78 actually earned. It is "Commission earned" again, with
+the fee reported as a deduction the shop sees.
+
+**Proven by:** `RefundTest` (13) — a full refund leaves the shop carrying the fee, a partial
+reverses the commission in proportion, repeated partials stop at the gross, rounding never
+overshoots, an unsettled payment cannot be refunded, the refund is written onto the job's
+history with its reason, a customer cancelling pre-proof is refunded, the same customer is
+refused after approval, a stranger gets 404 rather than a confirmation, the shop cancelling
+after approval refunds nothing, and the refunded row still appears on both the reports page and
+the admin payouts screen.
+
+**Verified live:** signed in as a customer, cancelled `TL-32638` (₱702.00) from the order page.
+The job went `cancelled`, the payment `refunded`, and Studio Sampaguita's ledger showed
+`₱702.00 −₱702.00 — −₱32.55 −₱32.55 Refunded` — net **−₱32.55**, the fee, exactly as designed.
 
 ---
 

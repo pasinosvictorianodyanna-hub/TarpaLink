@@ -58,6 +58,10 @@ Route::post('/jobs/{job}/proofs/{proof}/approve', [ProofController::class, 'appr
     ->middleware('auth')->name('jobs.proof.approve');
 Route::post('/jobs/{job}/proofs/{proof}/reject', [ProofController::class, 'reject'])
     ->middleware('auth')->name('jobs.proof.reject');
+// Cancelling before the proof is approved refunds in full. The controller checks
+// ownership; a shop may view a job it is printing but may not cancel it here.
+Route::post('/jobs/{job}/cancel', [JobController::class, 'cancel'])
+    ->middleware('auth')->name('jobs.cancel');
 Route::get('/account', [AccountController::class, 'index'])->middleware('auth')->name('account');
 Route::redirect('/account/jobs', '/account')->middleware('auth');
 

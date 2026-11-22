@@ -35,7 +35,9 @@ class PayoutExportController extends Controller
             // `payments()` is a hasManyThrough and already joins `jobs`, so only
             // the service needs fetching.
             ->leftJoin('services', 'services.id', '=', 'jobs.service_id')
-            ->where('payments.status', 'paid')
+            // Refunded payments stay in the file: their net is negative, and a
+            // bookkeeper who cannot see why the payout was short will ask.
+            ->whereIn('payments.status', ['paid', 'refunded'])
             // `id` breaks ties: without it two payments stamped in the same
             // second can arrive in either order, and a cursor is only stable if
             // the ordering is total.
@@ -44,7 +46,9 @@ class PayoutExportController extends Controller
             ->select([
                 'payments.paid_at',
                 'payments.amount',
+                'payments.refunded_amount',
                 'payments.commission',
+                'payments.commission_refunded',
                 'payments.processing_fee',
                 'payments.payout_status',
                 'payments.payout_date',
@@ -58,7 +62,7 @@ class PayoutExportController extends Controller
         return response()->streamDownload(function () use ($rows): void {
             $out = fopen('php://output', 'w');
 
-            fputcsv($out, ['Paid at', 'Job', 'Service', 'Gross', 'Commission', 'Fee', 'Net', 'Payout status', 'Payout date']);
+            fputcsv($out, ['Paid at', 'Job', 'Service', 'Gross', 'Refunded', 'Commission', 'Fee', 'Net', 'Payout status', 'Payout date']);
 
             foreach ($rows as $row) {
                 fputcsv($out, [
@@ -66,9 +70,19 @@ class PayoutExportController extends Controller
                     $row->job_reference ?? '',
                     $row->service_name ?? '',
                     number_format($row->amount / 100, 2, '.', ''),
-                    number_format($row->commission / 100, 2, '.', ''),
+                    number_format($row->refunded_amount / 100, 2, '.', ''),
+                    // Net of what was given back: a bookkeeper reconciling this
+                    // file needs the commission we actually kept, not the rate
+                    // we charged before the refund.
+                    number_format(($row->commission - $row->commission_refunded) / 100, 2, '.', ''),
                     number_format($row->processing_fee / 100, 2, '.', ''),
-                    number_format(Payment::netFrom($row->amount, $row->commission, $row->processing_fee) / 100, 2, '.', ''),
+                    number_format(Payment::netFrom(
+                        amount: $row->amount,
+                        refunded: $row->refunded_amount,
+                        commission: $row->commission,
+                        commissionRefunded: $row->commission_refunded,
+                        fee: $row->processing_fee,
+                    ) / 100, 2, '.', ''),
                     $row->payout_status,
                     $row->payout_date ? substr((string) $row->payout_date, 0, 10) : '',
                 ]);

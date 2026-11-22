@@ -174,6 +174,35 @@
                         <span>Total</span><b>{{ $peso($job->total) }}</b>
                     </div>
                 </div>
+
+                @auth
+                    @if (auth()->id() === $job->user_id && in_array($job->status, ['quoted', 'awaiting_proof'], true))
+                        {{-- The published policy promises a full refund before the proof is
+                             approved. Until #82 nothing implemented it, so the promise is now
+                             a button on the page it was made on. --}}
+                        <div class="card" style="padding:16px">
+                            <b style="display:block;font-size:13px">Need to cancel?</b>
+                            <p class="tiny" style="margin-top:6px;line-height:1.55">
+                                Nothing has been printed yet, so
+                                @if ($job->payment?->status === 'paid')
+                                    all {{ $peso($job->payment->remainingRefundable()) }} comes back to you.
+                                @else
+                                    there is nothing to pay.
+                                @endif
+                                Once you approve a proof the material is committed, and a refund is
+                                then at the shop's discretion.
+                            </p>
+                            <form method="POST" action="{{ route('jobs.cancel', $job) }}" style="margin-top:10px">
+                                @csrf
+                                <input type="text" name="reason" class="inp" maxlength="255"
+                                       placeholder="Why? (optional)" aria-label="Why are you cancelling?">
+                                <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px" type="submit">
+                                    Cancel this order
+                                </button>
+                            </form>
+                        </div>
+                    @endif
+                @endauth
             </aside>
         </div>
     </div>

@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Console;
 
 use App\Models\Job;
 use App\Models\Proof;
+use App\Services\Cancellation;
 use App\Services\JobNudge;
 use App\Services\JobWorkflow;
 use App\Services\ProofExchange;
+use App\Support\Money;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -138,6 +140,18 @@ class JobController extends ConsoleController
         $data = $request->validate([
             'status' => ['required', 'string'],
         ]);
+
+        // Cancelling moves money, so it goes through the service that owns that
+        // decision rather than straight to the transition table.
+        if ($data['status'] === 'cancelled') {
+            $refunded = app(Cancellation::class)->cancel($job, $this->user());
+
+            return redirect()
+                ->route('console.jobs.show', $job)
+                ->with('status', $refunded === null
+                    ? $job->reference.' is cancelled. No money was held on it.'
+                    : $job->reference.' is cancelled and '.Money::format($refunded->refunded_amount).' refunded.');
+        }
 
         JobWorkflow::transition($job, $data['status'], $this->user());
 

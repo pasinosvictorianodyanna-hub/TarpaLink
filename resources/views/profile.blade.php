@@ -15,7 +15,6 @@
                     <h3 class="h3">Profile</h3>
                     <p>Your details are used on job orders and receipts.</p>
                 </div>
-                <a class="btn btn-ghost btn-sm" href="{{ route('account') }}">My jobs</a>
             </div>
 
             <div id="profile-form" data-component="profile-form"

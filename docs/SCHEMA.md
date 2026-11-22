@@ -321,22 +321,36 @@ The most important table to understand, because it carries **two lifecycles**.
 | `provider` | string | `paymongo`. |
 | `intent_id` | string, unique | The idempotency key. A replayed webhook finds this row and stops. |
 | `amount` | integer | What the customer paid, centavos. |
+| `refunded_amount` | integer | How much of `amount` has gone back, cumulatively. 0 until a refund. |
 | `processing_fee` | integer | What the processor kept. The **shop** bears it: it comes off the payout, like commission. |
 | `commission` | integer | What the platform kept — **an absolute amount**, written at settlement. |
-| `status` | string | Did the **customer** pay: `pending` · `paid` · `failed` · `refunded`. |
+| `commission_refunded` | integer | The part of `commission` given back with the refunds. Stored, not derived, for the same reason `commission` is. |
+| `status` | string | Did the **customer** pay: `pending` · `paid` · `failed` · `refunded`. `refunded` means the whole amount went back; a partial refund leaves this at `paid`. |
 | `payout_status` | string | Did **we** pay the shop: `pending` · `paid`. |
+| `refunded_at` | timestamp, nullable | When the most recent refund was recorded. |
 | `payout_date` | date, nullable | |
 | `attempts`, `last_error`, `failed_at` | integer / text / timestamp | Failure tracking; three attempts flags the row for the admin dashboard. |
 
-Net to the shop = `amount − processing_fee − commission`. The ledger's totals are checked
-against a plain `SUM()` over these columns, not against the ledger's own arithmetic.
+Net to the shop = `(amount − refunded_amount) − (commission − commission_refunded) − processing_fee`.
+The ledger's totals are checked against a plain `SUM()` over these columns, not against the
+ledger's own arithmetic.
 
 Because both deductions live on this row, the subtraction is written once — `Payment::net()`,
 and `Payment::netFrom()` for the payout CSV, which streams flat rows through a cursor and
 never builds a model. The reports screen, the export and every per-payment figure go through
-those two. The platform's own margin is a different quantity, `commission − processing_fee`,
-and it is signed: on a small job the fixed part of the processor's cut can exceed the
-percentage we keep.
+those two.
+
+**A refund is an accumulation, not an edit** (BR-4). `refunded_amount` grows and
+`commission_refunded` grows with it, so the amounts the payment was settled at are never
+rewritten. The commission reverses in proportion — computed as a cumulative target rather
+than a per-refund slice, so three thirds of a payment reverse the whole commission and not
+99.8% of it.
+
+**The platform's revenue is the commission alone.** It receives the gross, pays the shop the
+net, and never pays the processor — so `commission − fee` is not the margin, it is the
+arithmetic of an option that was rejected. On a **refund** the commission comes back but the
+fee does not, which is why a fully refunded payment nets the shop a small negative and the
+row has to stay in the ledger rather than dropping out of it.
 
 ### 2.12 `job_activities`
 

@@ -7,6 +7,7 @@ use App\Models\Plan;
 use App\Models\Shop;
 use App\Models\User;
 use App\Services\Billing as BillingService;
+use App\Support\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -85,14 +86,14 @@ class ReportsTest extends TestCase
         ]);
 
         $this->assertSame(18594, $payment->net());
-        $this->assertSame('₱185.94', \App\Support\Money::format($payment->net()));
+        $this->assertSame('₱185.94', Money::format($payment->net()));
     }
 
     /** A margin that has gone negative is a state, not a typo. */
     public function test_a_negative_figure_puts_the_sign_before_the_symbol(): void
     {
-        $this->assertSame('−₱9.57', \App\Support\Money::signed(-957));
-        $this->assertSame('₱9.57', \App\Support\Money::signed(957));
+        $this->assertSame('−₱9.57', Money::signed(-957));
+        $this->assertSame('₱9.57', Money::signed(957));
     }
 
     public function test_the_totals_agree_with_a_plain_sum_over_payments(): void
@@ -102,26 +103,33 @@ class ReportsTest extends TestCase
         $response = $this->actingAs($this->owner())->get('/console/reports')->assertOk();
         $totals = $response->viewData('totals');
 
-        $expectedGross = (int) Payment::whereIn('job_id', $shop->jobs()->select('id'))
-            ->where('status', 'paid')
-            ->sum('amount');
+        // `moved()`, not `status = 'paid'`: the ledger keeps a refunded payment
+        // because its net is negative, and a total that quietly dropped it would
+        // disagree with the rows on the page.
+        $mine = fn () => Payment::whereIn('job_id', $shop->jobs()->select('id'))->moved();
 
-        $expectedCommission = (int) Payment::whereIn('job_id', $shop->jobs()->select('id'))
-            ->where('status', 'paid')
-            ->sum('commission');
-
-        $expectedFees = (int) Payment::whereIn('job_id', $shop->jobs()->select('id'))
-            ->where('status', 'paid')
-            ->sum('processing_fee');
+        $expectedGross = (int) $mine()->sum('amount');
+        $expectedRefunded = (int) $mine()->sum('refunded_amount');
+        $expectedCommission = (int) $mine()->sum('commission');
+        $expectedCommissionRefunded = (int) $mine()->sum('commission_refunded');
+        $expectedFees = (int) $mine()->sum('processing_fee');
 
         $this->assertSame($expectedGross, $totals['gross']);
+        $this->assertSame($expectedRefunded, $totals['refunded']);
         $this->assertSame($expectedCommission, $totals['commission']);
+        $this->assertSame($expectedCommissionRefunded, $totals['commission_refunded']);
         $this->assertSame($expectedFees, $totals['fees']);
 
         // The processor's fee is deducted before the shop is paid, so the net is
-        // gross − commission − fee. Leaving it out overstates what the shop gets.
-        $this->assertSame($expectedGross - $expectedCommission - $expectedFees, $totals['net']);
+        // gross − refunds − commission + reversed commission − fee. Leaving any
+        // of those out overstates what the shop gets.
+        $this->assertSame(
+            $expectedGross - $expectedRefunded - $expectedCommission + $expectedCommissionRefunded - $expectedFees,
+            $totals['net'],
+        );
 
+        // Revenue, unlike the ledger, excludes refunded money: a job that was
+        // given back was never revenue.
         $monthSum = (int) Payment::whereIn('job_id', $shop->jobs()->select('id'))
             ->where('status', 'paid')
             ->whereBetween('paid_at', [now()->startOfMonth(), now()->endOfMonth()])
@@ -170,7 +178,7 @@ class ReportsTest extends TestCase
 
         $body = $response->streamedContent();
 
-        $this->assertStringContainsString('Gross,Commission,Fee,Net', $body);
+        $this->assertStringContainsString('Gross,Refunded,Commission,Fee,Net', $body);
         $this->assertStringContainsString('TL-', $body);
     }
 

@@ -1,6 +1,6 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.10 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.11 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
 > profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
@@ -29,6 +29,11 @@
 > Version 1.10 makes the processor fee a deduction from somebody. It had been recorded on
 > every payment since #7 and subtracted from nobody, so the shop was credited money the
 > processor had already taken (FR-66, BR-3).
+> Version 1.11 closes the loop the fee opened: a payment can now be **refunded**, in whole
+> or in part, which the published policy had promised since the site was written and no code
+> ever did (§5.6, FR-104/FR-105). It also corrects v1.10's own error — the fee comes off the
+> shop's payout, so the platform never pays it and "commission − fee" understated what the
+> platform earns by a factor of thirty.
 
 ---
 
@@ -172,10 +177,15 @@ feature names.
 | FR-63 | The system shall record a failed attempt with its error and count, and shall flag a payment for attention after three failures. | #11 |
 | FR-64 | The system shall store the commission as an absolute centavo amount on the payment row at settlement time. | #7 |
 | FR-65 | The system shall track payout as a **second, independent** status: the customer paid us (`payments.status`) and we paid the shop (`payments.payout_status`). | #7 |
-| FR-66 | The system shall compute a payout as gross − commission − processor fee = net, on one row, so the ledger's totals are a plain `SUM()` over the payments themselves and cannot disagree with them. | #7 · #81 |
+| FR-66 | The system shall compute a payout as gross − refunds − commission + reversed commission − processor fee = net, on one row, so the ledger's totals are a plain `SUM()` over the payments themselves and cannot disagree with them. | #7 · #81 · #82 |
 | FR-67 | The system shall never rewrite a settled payout when a shop changes plan; only future payments use the new rate. | #7 |
 | FR-68 | The system shall let a shop export its payout ledger as CSV, and shall refuse the export to anyone who does not own that shop. | #7 |
 | FR-69 | The system shall bill subscriptions on three tiers — Starter (free, 5%), Growth (₱599, 3%), Pro (₱1,499, 1.5%) — and shall show the crossover point where the next tier becomes cheaper. | #12 |
+| FR-104 | The system shall refund a settled payment in whole or in part, accumulating the refunded amount on the payment row, reversing the commission **in proportion** to what went back, and shall never let the refunds on one payment exceed its gross. The processor's fee is not returned and remains the shop's. | #82 |
+| FR-105 | The system shall let the customer cancel an order for a full refund only while it is unpaid-for-work — quoted or awaiting proof — and shall refuse that route once the proof is approved, when the material is committed and cancellation is the shop's decision. | #82 |
+
+FR-104 and FR-105 are numbered after §5.10's requirements because numbers follow the order
+issues were adopted, not the order the sections appear in.
 
 ### 5.7 Administration — FR-70 …
 
@@ -266,13 +276,15 @@ configured a service has no price, and the system says so.
 **BR-3 — The customer pays the shop's price.** The platform adds nothing on top.
 Commission and the processor's fee are both deducted from the shop's payout, never charged
 to the customer. The shop therefore nets `gross − commission − fee`. The platform's own
-margin is `commission − fee`, which is negative on a job small enough that the fixed part
-of the fee outweighs the percentage we keep — the ₱24 job on the books earns ₱0.36 of
-commission against ₱15.60 of fee. That is the platform's loss to carry, not a cost to pass
-to the shop.
+revenue is the **commission alone**, because it receives the gross, pays the shop the net and
+never pays the processor. On a refund the commission comes back in proportion but the fee
+does not — the processor keeps it — so a fully refunded payment nets the shop a small
+negative rather than zero, and that is the shop's loss to carry, not a cost to pass on.
 
 **BR-4 — History is append-only.** A settled payment, an issued invoice and a recorded
-transition are facts. They are never updated to reflect a new policy.
+transition are facts. They are never updated to reflect a new policy. A refund is recorded by
+**accumulating** onto the payment — how much went back, and how much commission came with it —
+rather than by editing the amounts the payment was settled at.
 
 **BR-5 — One place per decision.** Prices in `PriceCalculator`. Transitions in
 `JobWorkflow`. Plan changes in `Billing`. Approval in `ShopApproval`. Payment capture in
@@ -357,6 +369,8 @@ given so a reader can open it; several issues are covered by more than one file.
 | #73 | FR-94 … FR-99 | `ShopRequestTest` — a request creates no shop, approval creates the shop and attaches the owner, and the invite link really sets a working password |
 | #75 | FR-100, FR-101 | `ShopRequestTest` — a re-send mints a new link, the old one stops working, and an approved request with no shop is refused |
 | #77 | FR-94, FR-96, FR-97, FR-102, FR-103 | `ShopRequestTest` — applying creates the account and the request but no shop, the chosen password signs the owner in after approval, a pending owner waits instead of hitting a 403, and the legacy path still invites |
+| #81 | FR-66 | `ReportsTest`, `DataIntegrityTest` — the fee comes off the payout, and the split adds back to the gross |
+| #82 | FR-66, FR-104, FR-105 | `RefundTest` — a full refund leaves the shop carrying the fee, a partial reverses the commission in proportion, refunds stop at the gross, and the customer's cancel closes after the proof |
 
 Two honest notes about this table:
 

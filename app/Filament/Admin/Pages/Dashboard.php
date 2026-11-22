@@ -51,13 +51,18 @@ class Dashboard extends BaseDashboard
         $month = [Carbon::now()->startOfMonth(), Carbon::now()->endOfMonth()];
         $lastMonth = [Carbon::now()->subMonthNoOverflow()->startOfMonth(), Carbon::now()->subMonthNoOverflow()->endOfMonth()];
 
-        $gmv = (int) Payment::where('status', 'paid')->whereBetween('paid_at', $month)->sum('amount');
-        $gmvBefore = (int) Payment::where('status', 'paid')->whereBetween('paid_at', $lastMonth)->sum('amount');
+        // Refunds come off both: GMV is what was actually taken, and a commission
+        // we gave back is not revenue. `moved()` keeps a refunded payment in the
+        // sums so its reversal is subtracted rather than silently dropped.
+        $gmv = (int) Payment::moved()->whereBetween('paid_at', $month)->sum('amount')
+            - (int) Payment::moved()->whereBetween('paid_at', $month)->sum('refunded_amount');
+        $gmvBefore = (int) Payment::moved()->whereBetween('paid_at', $lastMonth)->sum('amount')
+            - (int) Payment::moved()->whereBetween('paid_at', $lastMonth)->sum('refunded_amount');
 
-        $commission = (int) Payment::where('status', 'paid')->whereBetween('paid_at', $month)->sum('commission');
-        $fees = (int) Payment::where('status', 'paid')->whereBetween('paid_at', $month)->sum('processing_fee');
-        $margin = $commission - $fees;
-        $settled = Payment::where('status', 'paid')->whereBetween('paid_at', $month)->count();
+        $commission = (int) Payment::moved()->whereBetween('paid_at', $month)->sum('commission')
+            - (int) Payment::moved()->whereBetween('paid_at', $month)->sum('commission_refunded');
+        $fees = (int) Payment::moved()->whereBetween('paid_at', $month)->sum('processing_fee');
+        $settled = Payment::moved()->whereBetween('paid_at', $month)->count();
 
         $jobs = Job::whereBetween('created_at', $month)->count();
         $jobsBefore = Job::whereBetween('created_at', $lastMonth)->count();
@@ -88,14 +93,15 @@ class Dashboard extends BaseDashboard
                 'tone' => $pending > 0 ? 'wait' : 'good',
             ],
             'commission' => [
-                'label' => 'Platform margin',
-                // Commission alone flatters the platform: the processor takes
-                // 2.5% + ₱15 out of every payment, and on a small job that is
-                // more than the commission it earned.
-                'value' => Money::signed($margin),
+                'label' => 'Commission earned',
+                // Not "commission − fees". The processor's fee comes off the
+                // shop's payout (#81), so we receive the gross, pay the shop the
+                // net, and keep the commission. Subtracting the fee here would
+                // charge us for a fee we never paid.
+                'value' => Money::short($commission),
                 'note' => $gmv > 0 ? round($commission / $gmv * 100, 1).'% blended' : 'no revenue yet',
-                'sub' => Money::short($commission).' commission − '.Money::short($fees).' fees',
-                'tone' => $margin >= 0 ? 'good' : 'bad',
+                'sub' => Money::short($fees).' of fees, borne by shops',
+                'tone' => $commission >= 0 ? 'good' : 'bad',
             ],
         ];
     }

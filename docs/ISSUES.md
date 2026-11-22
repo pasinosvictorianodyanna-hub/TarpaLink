@@ -737,6 +737,22 @@ request shows its reason.
 
 ---
 
+## #79 — The Profile page repeated a "My jobs" button the app bar already had
+
+Pointed out from a screenshot of `/account/profile`: the page head carried a ghost button
+back to `/account`, which is the same destination as the **My jobs** item already in the app
+bar on that screen — where **Profile** is the one marked active. Two controls, one job, and
+the second one in a place a button does not belong.
+
+Removed. Nothing is stranded: the app bar keeps **My jobs** and the breadcrumb keeps **Home**.
+`.page-head` is `display:flex; justify-content:space-between`, so a single child simply
+left-aligns and no CSS changed.
+
+**Proven by:** `ProfileTest` + `CustomerNavTest` (22) — and the rendered page, where `My jobs`
+now appears once instead of twice.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

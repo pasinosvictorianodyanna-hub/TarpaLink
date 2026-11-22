@@ -1,6 +1,6 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.8 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.9 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
 > profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
@@ -24,6 +24,8 @@
 > way a shop could join was for a developer to seed one.
 > Version 1.8 adds the handover's second chance: an approved request can be **re-invited**,
 > because the first link is shown once, expires in an hour, and is stored hashed (§5.10).
+> Version 1.9 inverts who creates the account: the applicant registers as they apply, and
+> approval **activates** that account instead of creating one and mailing a link (§5.10).
 
 ---
 
@@ -214,24 +216,36 @@ feature names.
 
 | ID | Requirement | Issue |
 |---|---|---|
-| FR-94 | The system shall let a prospective shop submit a request from `/open-a-shop` with its business name, contact name, email, phone, city, counter address, the services it wants to list, and an optional note — **without creating an account or a shop**. | #73 |
+| FR-94 | The system shall let a prospective shop register from `/open-a-shop`, collecting account credentials and shop details in one submission, creating the **account and the request** and **no shop**. | #73, #77 |
 | FR-95 | The system shall list requests in the administrative panel oldest-first, shall count the unanswered ones in the navigation, and shall keep handled requests out of the default view. | #73 |
-| FR-96 | The system shall, on approval, create the shop-owner account and the shop in **one transaction**, place the shop on the free Starter plan, attach the owner, and record on the request which shop it became and who approved it. | #73 |
-| FR-97 | The system shall never create, store or transmit a plaintext password: the owner sets their own through a single-use, expiring link, and the same link is shown to the administrator once when mail is not configured. | #73 |
+| FR-96 | The system shall, on approval, create the shop in **one transaction**, place it on the free Starter plan, attach the applicant's account as owner, and record on the request which shop it became and who approved it. A request with no account shall have one created first. | #73, #77 |
+| FR-97 | The system shall never create, store or transmit a plaintext password. An applicant who registered chose their own and is sent nothing on approval; an account created *by* approval is handed a single-use, expiring set-password link. | #73, #77 |
 | FR-98 | The system shall rate-limit the public request form and shall silently discard a submission whose hidden field is filled, answering the same way it answers a person. | #73 |
 | FR-99 | The system shall reuse and promote an existing account that matches the applicant's email rather than create a second one, and shall refuse to approve a request whose email belongs to an administrator. | #73 |
 | FR-100 | The system shall let an administrator re-send the invitation for an approved request, minting a fresh single-use link that replaces the previous one and creating or altering no account and no shop. | #75 |
 | FR-101 | The system shall refuse to re-send an invitation when the account or the shop behind the request no longer exists, and shall say which. | #75 |
+| FR-102 | The system shall hold a shop account with no trading shop in a waiting room that reports the state of its request — waiting, refused with the reason, or paused — and shall send it there from every console URL rather than refusing it with a 403. | #77 |
+| FR-103 | The system shall accept at most one open request per account, and shall refuse to let an administrator account apply. | #77 |
 
-A request is **not** a pending shop. It has no owner, no matrix and no storefront, so it
-lives in its own table until an administrator decides — otherwise every enquiry would put an
-unowned row in the shop list and in every count that says "shops".
+A request is **not** a shop. It has no owner, no matrix and no storefront, so it lives in its
+own table until an administrator decides — otherwise every enquiry would put an unowned row in
+the shop list and in every count that says "shops".
 
-Re-sending exists because the handover is deliberately fragile in one direction: the link is
-flashed once, expires in an hour, and is stored **hashed**, so nothing can read it back. An
-administrator who approves and then closes the page would otherwise leave a live shop with an
-owner locked out of it. Re-sending mints a new token from the same broker, which means the
-previous link stops working — one account, one way in, never a growing set of live links.
+**Who creates the account.** Since v1.9 the applicant does, by registering as they apply. That
+is what removes mail delivery from the critical path: the owner already knows their password,
+so approval only has to attach a shop. Before that, approval created the account and handed
+over a set-password link, which meant a deployment with no real mailer could approve a shop
+and still leave its owner locked out — and the link, being a stored-hash token, could not be
+recovered. Both shapes still work: a request with no account takes the older path.
+
+**The role is a label, not a permission.** An applicant is created as `shop_owner` before
+anything is approved, and that grants nothing. `ConsoleController::shop()` admits only a user
+attached to an *active* shop; an applicant has none. "Not legal yet" is enforced by the shop
+attachment, which is also why the waiting room exists — the account is real, and what it
+cannot do needs explaining rather than a 403.
+
+Re-sending exists for the older shape only, and for a reason that has not changed: the link is
+flashed once, expires in an hour, and is stored **hashed**, so nothing can read it back.
 
 ---
 
@@ -332,8 +346,9 @@ given so a reader can open it; several issues are covered by more than one file.
 | #61 | FR-80 … FR-82 | `TransactionalMailTest` — including mail failure leaving the record intact |
 | #63 | FR-83 … FR-86 | `InboundMailTest` — signature, provider shapes, dedupe, and mail never moving a job |
 | #66 | FR-87 … FR-93 | `ConsoleTest`, `ConsoleScreensTest` — every screen, every permission, and no nav link out of the console |
-| #73 | FR-94 … FR-99 | `ShopRequestTest` — the form creates nothing but a request, approval creates the account and the shop in one go, and the invite link really sets a working password |
+| #73 | FR-94 … FR-99 | `ShopRequestTest` — a request creates no shop, approval creates the shop and attaches the owner, and the invite link really sets a working password |
 | #75 | FR-100, FR-101 | `ShopRequestTest` — a re-send mints a new link, the old one stops working, and an approved request with no shop is refused |
+| #77 | FR-94, FR-96, FR-97, FR-102, FR-103 | `ShopRequestTest` — applying creates the account and the request but no shop, the chosen password signs the owner in after approval, a pending owner waits instead of hitting a 403, and the legacy path still invites |
 
 Two honest notes about this table:
 

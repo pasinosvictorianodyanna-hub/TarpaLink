@@ -9,9 +9,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * A request from a shop to join the platform.
  *
- * It is not an account and not a shop. It holds the details an administrator
- * needs to decide, and — once approved — a link to the shop it became. Until
- * then it is a row in a queue, which is exactly what it should be.
+ * It is not a shop, and it is not permission to trade: it holds the details an
+ * administrator needs to decide, and — once approved — a link to the shop it
+ * became. Until then it is a row in a queue, which is exactly what it should be.
+ *
+ * It may point at the account that filed it. When it does, the applicant chose
+ * their own password at sign-up and approval only has to attach the shop. When
+ * it does not — a request from before applicants had accounts — approval has to
+ * create the account and hand over a set-password link.
  */
 class ShopRequest extends Model
 {
@@ -22,6 +27,17 @@ class ShopRequest extends Model
         return [
             'handled_at' => 'datetime',
         ];
+    }
+
+    /** The account that filed this request, if it filed one. */
+    public function applicant(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function hasAccount(): bool
+    {
+        return $this->user_id !== null;
     }
 
     public function shop(): BelongsTo

@@ -388,20 +388,27 @@ is not ambiguous.
 
 ### 2.16 `shop_requests`
 
-A shop asking to be let in. `business_name`, `contact_name`, `email`, `phone`, `city`,
-`address`, `services` (free text, one service per line), `message`, `status`, `reason`,
-`shop_id`, `handled_by`, `handled_at`.
+A shop asking to be let in. `user_id`, `business_name`, `contact_name`, `email`, `phone`,
+`city`, `address`, `services` (free text, one service per line), `message`, `status`,
+`reason`, `shop_id`, `handled_by`, `handled_at`.
 
-Deliberately **not** a `shops` row with `status = pending`. A request has no owner account,
-no price matrix and no storefront; creating a half-shop for every enquiry would put unowned
-rows in the shop list, in the pending count on the admin dashboard, and in every query that
-assumes a shop has somebody who runs it. The request is its own record until an
-administrator decides, and `shop_id` links it to what it became.
+Deliberately **not** a `shops` row with `status = pending`. A request has no price matrix and
+no storefront; creating a half-shop for every enquiry would put unowned rows in the shop list,
+in the pending count on the admin dashboard, and in every query that assumes a shop has
+somebody who runs it. The request is its own record until an administrator decides, and
+`shop_id` links it to what it became.
+
+`user_id` is the account that applied, and it decides which admission shape the request is.
+Set — the applicant registered as they applied, chose their own password, and approval only
+attaches the shop. Null — the older shape: approval creates the account and hands over a
+set-password link. It is `nullOnDelete`, so deleting an account leaves the request behind for
+an administrator to see rather than silently erasing it.
 
 `status` is `new` → `approved` | `rejected`, and nothing moves it back: a rejected
-application is re-applied for, not reopened, because the details will have changed. The
-account is created only at approval (`ShopOnboarding`), so between the form and the decision
-there is no `users` row and no `shops` row — which is what the page promises.
+application is re-applied for, not reopened, because the details will have changed. A request
+carrying a `user_id` is the one case where a `users` row exists before the decision — and it
+is created as `shop_owner` while being able to reach nothing, because the console admits only
+an account attached to an *active* shop.
 
 ---
 

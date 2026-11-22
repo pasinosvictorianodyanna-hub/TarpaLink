@@ -691,6 +691,52 @@ whose shop is gone is refused.
 
 ---
 
+## #77 — The applicant creates the account, and approval activates it
+
+**The decision.** Requiring a real mailbox to demo the product was the symptom. The cause was
+that the applicant never had a password of their own: approval created the account and handed
+over a set-password link, so mail delivery was load-bearing. With `MAIL_MAILER=log` — this
+deployment's default — an approved shop was one closed tab away from having an owner who could
+not sign in, and #73's request #3 was found in exactly that state.
+
+So the flow inverts: **the applicant registers as they apply, and approval activates that
+account.**
+
+| Stage | What happens |
+|---|---|
+| Apply | `/open-a-shop` collects account details (name, email, password) and shop details in one submit. It creates the **account and the request**, never a shop, and signs them in. |
+| Wait | `/console/waiting` reports the state of the request. Every other console URL redirects there. |
+| Approve | The shop is created and attached to the account that applied. **Nothing is emailed** and no token is minted. |
+| Use | The owner signs in with the password they chose. |
+
+**Why the role is safe to set early.** An applicant is created as `shop_owner` before anything
+is approved, and it grants nothing: `ConsoleController::shop()` admits only a user attached to
+an *active* shop, and an applicant has none. The role is a label; the shop attachment is the
+permission. "Not legal yet" was already enforced — what was missing was an explanation, which
+is the waiting room.
+
+**Two silences removed.** A pending owner used to get a 403 from every console URL, and after
+signing in was sent to `/account` — an empty customer job list with nothing to say why. Both
+now land on a page that says which state they are in: waiting, refused with the reason, or
+paused.
+
+**One open request per account.** `user_id` makes it cheap to ask, so a second submission
+while one is waiting is refused. This is what let the same person become two shops in #73's
+dev data.
+
+**The older shape survives.** A request with no `user_id` still gets an account created on
+approval and a set-password link, and `Resend invitation` still applies to it — hidden for
+self-registered requests, where there is no invitation to re-send.
+
+**Proven by:** `ShopRequestTest` (30 in the file) — applying creates one account and one
+request and no shop, the account is signed in and lands in the waiting room, every console URL
+redirects a pending owner there, approval attaches the shop and sends nothing while minting no
+token, the chosen password signs the owner in and lands on `/console`, a signed-in customer is
+reused without a password, a second request is refused, an admin cannot apply, and a rejected
+request shows its reason.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

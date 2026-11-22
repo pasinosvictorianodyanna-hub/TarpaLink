@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\ShopOnboarding;
 use Filament\Actions\Testing\TestAction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -62,12 +63,21 @@ class ShopRequestTest extends TestCase
             'address' => '88 Maginhawa Street, Sikatuna Village',
             'services' => "Tarpaulin\nFlyers\nStickers",
             'message' => 'Two large-format printers, ten years trading.',
+            'password' => 'a-good-password',
+            'password_confirmation' => 'a-good-password',
         ], $overrides);
     }
 
+    /**
+     * A request row with no account behind it — the older admission shape, where
+     * approval still has to create the owner and hand over a link.
+     */
     private function request(array $overrides = []): ShopRequest
     {
-        return ShopRequest::create($this->form($overrides) + ['status' => 'new']);
+        $form = $this->form($overrides);
+        unset($form['password'], $form['password_confirmation']);
+
+        return ShopRequest::create($form + ['status' => 'new']);
     }
 
     // ------------------------------------------------------------ the form
@@ -78,17 +88,23 @@ class ShopRequestTest extends TestCase
             ->assertOk()
             ->assertSee('Request a shop account')
             ->assertSee('name="business_name"', false)
+            ->assertSee('name="password"', false)
             ->assertSee(route('shop-request.store'), false);
     }
 
-    public function test_a_request_creates_a_request_and_nothing_else(): void
+    /**
+     * Applying creates the account and the request — and still no shop.
+     *
+     * The account is the change: the applicant chooses a password here, which
+     * is what removes mail delivery from the critical path. The shop is still
+     * the administrator's to create.
+     */
+    public function test_applying_creates_the_account_and_the_request_but_no_shop(): void
     {
-        $users = User::count();
         $shops = Shop::count();
 
         $this->post('/open-a-shop', $this->form())
-            ->assertRedirect(route('page', 'open-a-shop'))
-            ->assertSessionHas('shop_request_sent', 'rosa@bayanihan.ph');
+            ->assertRedirect(route('console.waiting'));
 
         $request = ShopRequest::sole();
 
@@ -96,25 +112,77 @@ class ShopRequestTest extends TestCase
         $this->assertSame('new', $request->status);
         $this->assertNull($request->shop_id);
 
+        $owner = User::where('email', 'rosa@bayanihan.ph')->firstOrFail();
+
+        $this->assertSame('shop_owner', $owner->role);
+        $this->assertSame($owner->id, $request->user_id);
+
         // The promise on the page, enforced.
-        $this->assertSame($users, User::count(), 'A request must not create an account.');
-        $this->assertSame($shops, Shop::count(), 'A request must not create a shop.');
+        $this->assertSame($shops, Shop::count(), 'Applying must not create a shop.');
+        $this->assertSame(0, $owner->shops()->count(), 'An unapproved owner must have no shop.');
+
+        // Signed in by applying, so the waiting room is reachable straight away.
+        $this->assertAuthenticatedAs($owner);
     }
 
     public function test_the_form_needs_the_fields_an_admin_cannot_guess(): void
     {
         $this->post('/open-a-shop', ['business_name' => '', 'email' => 'not-an-email'])
-            ->assertSessionHasErrors(['business_name', 'contact_name', 'email', 'city', 'address']);
+            ->assertSessionHasErrors(['business_name', 'contact_name', 'email', 'city', 'address', 'password']);
 
         $this->assertSame(0, ShopRequest::count());
+        $this->assertSame(0, User::where('email', 'not-an-email')->count());
     }
 
     /** A bot fills every input it can see; a person never meets the hidden one. */
     public function test_a_filled_honeypot_is_accepted_silently_and_stored_nowhere(): void
     {
+        $users = User::count();
+
         $this->post('/open-a-shop', $this->form(['website' => 'http://spam.example']))
-            ->assertRedirect(route('page', 'open-a-shop'))
-            ->assertSessionHas('shop_request_sent');
+            ->assertRedirect(route('console.waiting'));
+
+        $this->assertSame(0, ShopRequest::count());
+        $this->assertSame($users, User::count(), 'A trapped submission must not create an account either.');
+        $this->assertGuest();
+    }
+
+    public function test_a_signed_in_applicant_is_not_asked_for_a_password(): void
+    {
+        $customer = User::where('email', 'jomar@tarpalink.ph')->firstOrFail();
+
+        $this->actingAs($customer)->post('/open-a-shop', $this->form([
+            'email' => 'jomar@tarpalink.ph',
+            'password' => '',
+            'password_confirmation' => '',
+        ]))->assertRedirect(route('console.waiting'));
+
+        $request = ShopRequest::sole();
+
+        $this->assertSame($customer->id, $request->user_id);
+        $this->assertSame('shop_owner', $customer->fresh()->role);
+        $this->assertSame(1, User::where('email', 'jomar@tarpalink.ph')->count(), 'The account must be reused.');
+    }
+
+    public function test_a_second_waiting_request_is_refused(): void
+    {
+        $this->post('/open-a-shop', $this->form());
+
+        $owner = User::where('email', 'rosa@bayanihan.ph')->firstOrFail();
+
+        $this->actingAs($owner)
+            ->post('/open-a-shop', $this->form())
+            ->assertSessionHasErrors('business_name');
+
+        $this->assertSame(1, ShopRequest::count(), 'One shop account, one open request.');
+    }
+
+    /** `role` holds one value, so approving would demote them out of the panel. */
+    public function test_an_administrator_cannot_apply(): void
+    {
+        $this->actingAs($this->admin())
+            ->post('/open-a-shop', $this->form(['email' => 'sofia@tarpalink.ph']))
+            ->assertSessionHasErrors('email');
 
         $this->assertSame(0, ShopRequest::count());
     }
@@ -128,6 +196,11 @@ class ShopRequestTest extends TestCase
             $this->withServerVariables($server)
                 ->post('/open-a-shop', $this->form(['email' => "shop{$i}@example.ph"]))
                 ->assertRedirect();
+
+            // Applying signs the applicant in, and `throttle` keys on the user
+            // id once there is one — so without this the sixth attempt would
+            // land in a fresh bucket and never trip the limit.
+            Auth::logout();
         }
 
         $this->withServerVariables($server)
@@ -297,6 +370,119 @@ class ShopRequestTest extends TestCase
         $this->assertSame('approved', $request->fresh()->status);
         $this->assertDatabaseHas('shops', ['slug' => 'bayanihan-press', 'status' => 'active']);
         Mail::assertSent(ShopInvited::class);
+    }
+
+    // ------------------------------------------------ the self-registered path
+
+    /**
+     * The whole point of the change: an applicant who chose a password needs
+     * nothing handed to them. Approval attaches the shop and stops.
+     */
+    public function test_approving_a_self_registered_request_attaches_the_shop_and_sends_nothing(): void
+    {
+        Mail::fake();
+
+        $this->post('/open-a-shop', $this->form());
+
+        $request = ShopRequest::sole();
+        $owner = User::where('email', 'rosa@bayanihan.ph')->firstOrFail();
+
+        $result = app(ShopOnboarding::class)->approve($request, $this->admin());
+
+        $this->assertFalse($result['invited']);
+        $this->assertNull($result['link']);
+        Mail::assertNothingSent();
+
+        $this->assertSame('approved', $request->fresh()->status);
+        $this->assertSame($owner->id, $request->fresh()->user_id);
+        $this->assertSame('owner', $owner->shops()->whereKey($result['shop']->id)->firstOrFail()->pivot->role);
+
+        // No token minted: the password they chose is the one they keep.
+        $this->assertSame(0, DB::table('password_reset_tokens')->where('email', 'rosa@bayanihan.ph')->count());
+    }
+
+    public function test_the_password_chosen_at_signup_signs_the_owner_in(): void
+    {
+        Mail::fake();
+
+        $this->post('/open-a-shop', $this->form());
+        app(ShopOnboarding::class)->approve(ShopRequest::sole(), $this->admin());
+
+        Auth::logout();
+
+        $this->post('/login', [
+            'email' => 'rosa@bayanihan.ph',
+            'password' => 'a-good-password',
+        ])->assertRedirect(route('console.dashboard'));
+    }
+
+    public function test_a_self_registered_request_offers_no_resend(): void
+    {
+        Mail::fake();
+
+        $this->post('/open-a-shop', $this->form());
+        $request = ShopRequest::sole();
+        app(ShopOnboarding::class)->approve($request, $this->admin());
+
+        Livewire::actingAs($this->admin())
+            ->test(ViewShopRequest::class, ['record' => $request->fresh()->getRouteKey()])
+            ->assertActionHidden(TestAction::make('resend'));
+    }
+
+    // -------------------------------------------------------- the waiting room
+
+    public function test_a_pending_owner_waits_instead_of_hitting_a_403(): void
+    {
+        $this->post('/open-a-shop', $this->form());
+
+        $owner = User::where('email', 'rosa@bayanihan.ph')->firstOrFail();
+
+        $this->actingAs($owner)
+            ->get('/console/waiting')
+            ->assertOk()
+            ->assertSee('Waiting for approval')
+            ->assertSee('Bayanihan Press');
+
+        // Every other console URL sends them back to the room, not to a 403.
+        $this->actingAs($owner)
+            ->get('/console')
+            ->assertRedirect(route('console.waiting'));
+
+        $this->actingAs($owner)
+            ->get('/console/jobs')
+            ->assertRedirect(route('console.waiting'));
+    }
+
+    public function test_approval_opens_the_console_from_the_waiting_room(): void
+    {
+        Mail::fake();
+
+        $this->post('/open-a-shop', $this->form());
+        app(ShopOnboarding::class)->approve(ShopRequest::sole(), $this->admin());
+
+        $owner = User::where('email', 'rosa@bayanihan.ph')->firstOrFail();
+
+        $this->actingAs($owner)->get('/console/waiting')->assertRedirect(route('console.dashboard'));
+        $this->actingAs($owner)->get('/console')->assertOk()->assertSee('Bayanihan Press');
+    }
+
+    public function test_a_rejected_request_shows_the_reason(): void
+    {
+        $this->post('/open-a-shop', $this->form());
+
+        $request = ShopRequest::sole();
+
+        Livewire::actingAs($this->admin())
+            ->test(ViewShopRequest::class, ['record' => $request->getRouteKey()])
+            ->callAction('reject', data: ['reason' => 'Business permit could not be verified.']);
+
+        $owner = User::where('email', 'rosa@bayanihan.ph')->firstOrFail();
+
+        $this->actingAs($owner)
+            ->get('/console/waiting')
+            ->assertOk()
+            ->assertSee('not approved')
+            ->assertSee('Business permit could not be verified.');
     }
 
     // --------------------------------------------------------- the re-send

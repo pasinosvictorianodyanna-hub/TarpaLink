@@ -411,11 +411,11 @@ class ConsoleTest extends TestCase
         $this->get('/console')->assertRedirect('/login');
     }
 
-    public function test_an_owner_whose_shop_is_suspended_is_refused(): void
+    public function test_an_owner_whose_shop_is_suspended_waits_instead_of_entering(): void
     {
         $this->shop()->forceFill(['status' => 'suspended'])->save();
 
-        $this->actingAs($this->owner())->get('/console')->assertForbidden();
+        $this->actingAs($this->owner())->get('/console')->assertRedirect(route('console.waiting'));
     }
 
     public function test_a_shop_owner_only_ever_sees_their_own_numbers(): void

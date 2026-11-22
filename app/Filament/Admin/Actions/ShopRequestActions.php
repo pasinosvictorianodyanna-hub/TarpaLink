@@ -23,17 +23,25 @@ final class ShopRequestActions
     public static function approve(): Action
     {
         return Action::make('approve')
-            ->label('Approve and create the account')
+            ->label(fn (ShopRequest $record): string => $record->hasAccount()
+                ? 'Approve and open the shop'
+                : 'Approve and create the account')
             ->icon('heroicon-m-check')
             ->color('success')
             ->visible(fn (ShopRequest $record): bool => $record->isNew())
             ->requiresConfirmation()
             ->modalHeading('Approve this shop?')
-            ->modalDescription(fn (ShopRequest $record): string => sprintf(
-                'This creates a shop-owner account for %s and a live shop called %s on the free Starter plan, then sends them a link to set their password.',
-                $record->email,
-                $record->business_name,
-            ))
+            ->modalDescription(fn (ShopRequest $record): string => $record->hasAccount()
+                ? sprintf(
+                    'This creates a live shop called %s on the free Starter plan and attaches it to %s, who already has a password. Nothing is emailed.',
+                    $record->business_name,
+                    $record->email,
+                )
+                : sprintf(
+                    'This creates a shop-owner account for %s and a live shop called %s on the free Starter plan, then sends them a link to set their password.',
+                    $record->email,
+                    $record->business_name,
+                ))
             ->modalSubmitActionLabel('Approve and create')
             ->action(function (ShopRequest $record) {
                 try {
@@ -51,18 +59,22 @@ final class ShopRequestActions
 
                 Notification::make()
                     ->title($result['shop']->name.' is live')
-                    ->body($result['sent']
-                        ? 'Invitation emailed to '.$result['user']->email.'.'
-                        : 'Mail is not configured here, so nothing was emailed — copy the link on this page.')
+                    ->body($result['invited']
+                        ? ($result['sent']
+                            ? 'Invitation emailed to '.$result['user']->email.'.'
+                            : 'Mail is not configured here, so nothing was emailed — copy the link on this page.')
+                        : $result['user']->name.' signs in with the password they chose. Nothing was emailed.')
                     ->success()
                     ->send();
 
                 // The link is shown on the page rather than in a toast: a toast
                 // disappears, and when the mailer is `log` this link is the only
                 // way the owner will ever get in.
-                session()->flash('invite_link', $result['link']);
-                session()->flash('invite_email', $result['user']->email);
-                session()->flash('invite_sent', $result['sent']);
+                if ($result['link'] !== null) {
+                    session()->flash('invite_link', $result['link']);
+                    session()->flash('invite_email', $result['user']->email);
+                    session()->flash('invite_sent', $result['sent']);
+                }
 
                 return redirect(ShopRequestResource::getUrl('view', ['record' => $record]));
             });
@@ -82,7 +94,11 @@ final class ShopRequestActions
             ->label('Resend invitation')
             ->icon('heroicon-m-envelope')
             ->color('gray')
-            ->visible(fn (ShopRequest $record): bool => $record->status === 'approved' && $record->shop_id !== null)
+            ->visible(fn (ShopRequest $record): bool => $record->status === 'approved'
+                && $record->shop_id !== null
+                // An applicant who registered chose their own password, so there
+                // is no invitation to re-send — only the legacy path has one.
+                && ! $record->hasAccount())
             ->requiresConfirmation()
             ->modalHeading('Send a new invitation?')
             ->modalDescription(fn (ShopRequest $record): string => sprintf(

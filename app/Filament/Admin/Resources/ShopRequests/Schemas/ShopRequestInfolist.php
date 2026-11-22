@@ -70,6 +70,16 @@ class ShopRequestInfolist
                         TextEntry::make('email')
                             ->copyable(),
 
+                        // Which of the two admission shapes this is. It changes
+                        // what approving does: attach a shop to an account that
+                        // exists, or create the account and hand over a link.
+                        TextEntry::make('applicant.email')
+                            ->label('Account')
+                            ->placeholder('None — approval creates one')
+                            ->helperText(fn (ShopRequest $record): string => $record->hasAccount()
+                                ? 'Registered as they applied, and chose their own password. Approving only opens the shop.'
+                                : 'No account yet. Approving creates one and emails a set-password link.'),
+
                         TextEntry::make('phone')
                             ->placeholder('—'),
 

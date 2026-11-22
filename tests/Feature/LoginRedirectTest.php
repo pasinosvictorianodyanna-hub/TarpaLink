@@ -51,13 +51,14 @@ class LoginRedirectTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_a_shop_owner_whose_shop_is_suspended_falls_back_to_the_storefront(): void
+    public function test_a_shop_owner_whose_shop_is_suspended_goes_to_the_waiting_room(): void
     {
         // The console refuses a suspended shop, so sending the owner there would
-        // be a 403 one second after a successful sign-in.
+        // be a 403 one second after a successful sign-in. The waiting room says
+        // which state the shop is in, instead of an empty customer job list.
         Shop::where('slug', 'inkwell-press')->firstOrFail()->forceFill(['status' => 'suspended'])->save();
 
-        $this->login('kevin@inkwell.ph')->assertRedirect(route('account'));
+        $this->login('kevin@inkwell.ph')->assertRedirect(route('console.waiting'));
     }
 
     public function test_the_page_you_were_bounced_from_still_wins(): void

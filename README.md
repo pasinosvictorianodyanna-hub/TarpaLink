@@ -126,14 +126,15 @@ Sign in at `/login` as `kevin@inkwell.ph` and you land on the console. Every que
 scoped to that owner's `shop_id`, so a shop owner sees only Inkwell Press — and `/admin`
 returns 403 for them. The admin panel has its own door at `/admin/login`.
 
-**A shop asks to join, an admin decides.** The public form at `/open-a-shop` creates a
-*request* — no account, no shop — and the queue is at `/admin/shop-requests` with a badge
-for what is waiting. Approving creates the `shop_owner` account and the shop in one
-transaction, on the free Starter plan, and emails a single-use link so the owner sets their
-own password; no plaintext password is ever stored or sent. When mail is not configured the
-same link is shown to the administrator once, on the request page, to pass on by hand — and
-because that link expires in an hour and is stored hashed, an approved request can be
-**re-invited**: `Resend invitation` mints a fresh one and retires the old. That is
+**A shop asks to join, an admin decides.** The public form at `/open-a-shop` creates the
+applicant's **account and a request** in one submit — and no shop — and the queue is at
+`/admin/shop-requests` with a badge for what is waiting. Between registering and being
+approved the account waits at `/console/waiting`, which says whether the request is waiting,
+refused with a reason, or paused; every console URL sends it there. Approving creates the shop
+in one transaction, on the free Starter plan, and attaches the applicant's account as owner —
+**nothing is emailed**, because they chose their own password when they applied. A request
+from before that flow existed has no account, so approving creates one and hands over a
+single-use set-password link instead, which can be re-sent if it expires. That is
 `ShopOnboarding` — the only place a shop is created from a request.
 
 **Filament is the admin side only.** The shop panel that used to sit at `/shop` was

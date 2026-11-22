@@ -23,13 +23,20 @@
     // The design trims the bar down on the two screens that are steps in one
     // flow rather than places you navigate to: checkout is a leg of the builder,
     // and the builder itself replaces "Profile" with the draft it belongs to.
+    //
+    // Every entry is the same shape — label, destination, whether it is the
+    // current screen, and a reason when there is no destination yet. One shape
+    // means one loop in the view, and no branch can quietly render a link to
+    // nowhere.
     if (request()->routeIs('checkout.*')) {
-        $barLinks = [['Shops', route('shops.index'), request()->routeIs('shops.*')]];
+        $barLinks = [
+            ['label' => 'Shops', 'url' => route('shops.index'), 'on' => request()->routeIs('shops.*'), 'why' => null],
+        ];
     } elseif (request()->routeIs('shops.builder')) {
         $barLinks = [
-            ['Shops', route('shops.index'), false],
-            ['New order', route('shops.builder', request()->route('shop')), true],
-            ['My jobs', route('account'), false],
+            ['label' => 'Shops', 'url' => route('shops.index'), 'on' => false, 'why' => null],
+            ['label' => 'New order', 'url' => route('shops.builder', request()->route('shop')), 'on' => true, 'why' => null],
+            ['label' => 'My jobs', 'url' => route('account'), 'on' => false, 'why' => null],
         ];
     } else {
         // "My jobs" is the customer's list. A shop owner signing in was shown it
@@ -37,15 +44,15 @@
         // and an admin was shown the same. Each role gets the door it needs.
         if ($me->isAdmin()) {
             $barLinks = [
-                ['Shops', route('shops.index'), request()->routeIs('shops.*')],
-                ['Admin panel', route('filament.admin.pages.dashboard'), request()->routeIs('filament.admin.*')],
-                ['Profile', route('profile.edit'), request()->routeIs('profile.*')],
+                ['label' => 'Shops', 'url' => route('shops.index'), 'on' => request()->routeIs('shops.*'), 'why' => null],
+                ['label' => 'Admin panel', 'url' => route('filament.admin.pages.dashboard'), 'on' => request()->routeIs('filament.admin.*'), 'why' => null],
+                ['label' => 'Profile', 'url' => route('profile.edit'), 'on' => request()->routeIs('profile.*'), 'why' => null],
             ];
         } elseif ($me->isShopOwner()) {
             $barLinks = [
-                ['Shops', route('shops.index'), request()->routeIs('shops.*')],
-                ['Console', route('console.dashboard'), request()->routeIs('console.*')],
-                ['Profile', route('profile.edit'), request()->routeIs('profile.*')],
+                ['label' => 'Shops', 'url' => route('shops.index'), 'on' => request()->routeIs('shops.*'), 'why' => null],
+                ['label' => 'Console', 'url' => route('console.dashboard'), 'on' => request()->routeIs('console.*'), 'why' => null],
+                ['label' => 'Profile', 'url' => route('profile.edit'), 'on' => request()->routeIs('profile.*'), 'why' => null],
             ];
         } else {
             // The customer's bar is built below, once the unfinished order and
@@ -68,17 +75,15 @@
      | a shop or a job. A customer who left mid-order had nothing on screen
      | telling them where they were or how to get back.
      |
-     | Three things fix that: the four destinations that are always meaningful
-     | become real links, an unfinished order gets its own chip, and a "More"
-     | menu lists all seven screens with a line explaining each — including the
-     | ones that need a shop or a job first, which say so instead of linking
-     | somewhere that would silently do the wrong thing.
+     | All seven now sit in the bar itself, in the order of the journey. The ones
+     | that need a shop or a job are rendered as dimmed text rather than links
+     | until that context exists — a nav item that looks clickable and quietly
+     | goes nowhere is the thing this is meant to prevent.
      */
     $isCustomer = ! $me->isAdmin() && ! $me->isShopOwner();
 
     $resume = null;
     $currentShop = null;
-    $moreItems = [];
 
     if ($isCustomer) {
         // The most useful unfinished thing, in the order a customer would want
@@ -112,8 +117,8 @@
         }
 
         // Builder and checkout need a shop in the URL, and order status needs a
-        // job. Take whichever the current page is about so those menu items
-        // point at something real rather than at a generic page.
+        // job. Take whichever the current page is about, so those three point at
+        // something real instead of at a generic page.
         $currentShop = request()->route('shop');
 
         if (! $currentShop instanceof \App\Models\Shop) {
@@ -121,77 +126,50 @@
             $currentShop = $boundJob instanceof \App\Models\Job ? $boundJob->shop : null;
         }
 
-        $moreItems = [
-            [
-                'n' => '01',
-                'name' => 'Shop directory',
-                'desc' => 'Every shop on the platform and the rates each one publishes.',
-                'url' => route('shops.index'),
-                'why' => null,
-                'on' => request()->routeIs('shops.index'),
-            ],
-            [
-                'n' => '02',
-                'name' => 'Shop profile',
-                'desc' => 'One shop: its services, price tiers and turnaround.',
-                'url' => $currentShop ? route('shops.show', $currentShop) : null,
-                'why' => $currentShop ? null : 'Open a shop first',
-                'on' => request()->routeIs('shops.show'),
-            ],
-            [
-                'n' => '03',
-                'name' => 'Order builder',
-                'desc' => 'Set the size, quantity and options — the price updates as you type.',
-                'url' => $currentShop ? route('shops.builder', $currentShop) : null,
-                'why' => $currentShop ? null : 'Open a shop first',
-                'on' => request()->routeIs('shops.builder'),
-            ],
-            [
-                'n' => '04',
-                'name' => 'Checkout',
-                'desc' => 'Confirm the spec, pick a payment method, create the job.',
-                'url' => $currentShop ? route('checkout.show', $currentShop) : null,
-                'why' => $currentShop ? null : 'Build an order first',
-                'on' => request()->routeIs('checkout.*'),
-            ],
-            [
-                'n' => '05',
-                'name' => 'Order status',
-                'desc' => 'Track a job, approve its proof, download the receipt.',
-                'url' => $resume['url'] ?? null,
-                'why' => $resume ? null : 'No order in progress',
-                'on' => request()->routeIs('jobs.*'),
-            ],
-            [
-                'n' => '06',
-                'name' => 'My jobs',
-                'desc' => 'Everything you have ordered, across every shop.',
-                'url' => route('account'),
-                'why' => null,
-                'on' => request()->routeIs('account'),
-            ],
-            [
-                'n' => '07',
-                'name' => 'Profile',
-                'desc' => 'Your name, contact details and password.',
-                'url' => route('profile.edit'),
-                'why' => null,
-                'on' => request()->routeIs('profile.*'),
-            ],
-        ];
-
         $barLinks = [
-            ['Shops', route('shops.index'), request()->routeIs('shops.*')],
-            ['My jobs', route('account'), request()->routeIs('account')],
+            [
+                'label' => 'Shop directory',
+                'url' => route('shops.index'),
+                'on' => request()->routeIs('shops.index'),
+                'why' => null,
+            ],
+            [
+                'label' => 'Shop profile',
+                'url' => $currentShop ? route('shops.show', $currentShop) : null,
+                'on' => request()->routeIs('shops.show'),
+                'why' => 'Open a shop first',
+            ],
+            [
+                'label' => 'Order builder',
+                'url' => $currentShop ? route('shops.builder', $currentShop) : null,
+                'on' => request()->routeIs('shops.builder'),
+                'why' => 'Open a shop first',
+            ],
+            [
+                'label' => 'Checkout',
+                'url' => $currentShop ? route('checkout.show', $currentShop) : null,
+                'on' => request()->routeIs('checkout.*'),
+                'why' => 'Build an order first',
+            ],
+            [
+                'label' => 'Order status',
+                'url' => $resume['url'] ?? null,
+                'on' => request()->routeIs('jobs.*'),
+                'why' => 'No order in progress',
+            ],
+            [
+                'label' => 'My jobs',
+                'url' => route('account'),
+                'on' => request()->routeIs('account'),
+                'why' => null,
+            ],
+            [
+                'label' => 'Profile',
+                'url' => route('profile.edit'),
+                'on' => request()->routeIs('profile.*'),
+                'why' => null,
+            ],
         ];
-
-        // Only offered when there is an order to look at. A dead "Order status"
-        // that lands on an empty list is worse than no link at all.
-        if ($resume !== null) {
-            $barLinks[] = ['Order status', $resume['url'], request()->routeIs('jobs.*')];
-        }
-
-        $barLinks[] = ['Profile', route('profile.edit'), request()->routeIs('profile.*')];
     }
   @endphp
 
@@ -205,8 +183,14 @@
       TarpaLink
     </a>
     <div class="appbar-links">
-      @foreach ($barLinks as [$label, $href, $on])
-        <a href="{{ $href }}" class="{{ $on ? 'on' : '' }}">{{ $label }}</a>
+      @foreach ($barLinks as $link)
+        @if ($link['url'])
+          <a href="{{ $link['url'] }}" class="{{ $link['on'] ? 'on' : '' }}">{{ $link['label'] }}</a>
+        @else
+          {{-- Dimmed, not hidden, and not a link: the screen exists, it just
+               needs a shop or a job first, and the title says which. --}}
+          <span class="nav-off" aria-disabled="true" title="{{ $link['why'] }}">{{ $link['label'] }}</span>
+        @endif
       @endforeach
     </div>
     <div class="appbar-right">
@@ -225,46 +209,6 @@
           </svg>
           @if ($waiting > 0)<i class="dot"></i>@endif
         </a>
-      @endif
-
-      {{-- A <details> element rather than a scripted dropdown: it opens without
-           JavaScript, closes on Escape, and is reachable by keyboard for free.
-           The script at the foot of this layout only adds outside-click closing. --}}
-      @if ($isCustomer)
-        <details class="appbar-more">
-          <summary class="more-btn" aria-label="All customer screens">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
-              <path d="M4 7h16M4 12h16M4 17h16"/>
-            </svg>
-            <span>More</span>
-          </summary>
-          <div class="more-panel">
-            <div class="more-head">
-              <b>Your screens</b>
-              <span>The seven steps from browsing to a finished job</span>
-            </div>
-            @foreach ($moreItems as $item)
-              @if ($item['url'])
-                <a class="more-item {{ $item['on'] ? 'on' : '' }}" href="{{ $item['url'] }}">
-                  <span class="more-n">{{ $item['n'] }}</span>
-                  <span class="more-t">
-                    <b>{{ $item['name'] }}</b>
-                    <i>{{ $item['desc'] }}</i>
-                  </span>
-                  @if ($item['on'])<span class="more-here">You are here</span>@endif
-                </a>
-              @else
-                <span class="more-item off" aria-disabled="true">
-                  <span class="more-n">{{ $item['n'] }}</span>
-                  <span class="more-t">
-                    <b>{{ $item['name'] }}</b>
-                    <i>{{ $item['why'] }}</i>
-                  </span>
-                </span>
-              @endif
-            @endforeach
-          </div>
-        </details>
       @endif
 
       <a class="avatar" href="{{ route('profile.edit') }}" title="{{ $me->name }}">{{ $initials }}</a>
@@ -287,30 +231,6 @@
     </div>
   </nav>
 
-  @if ($isCustomer)
-  {{-- <details> already handles open, close-on-second-click and Escape. This adds
-       the two things it does not: closing when you click elsewhere, and closing
-       when the browser restores the page from its back/forward cache. --}}
-  <script>
-    (() => {
-      const more = document.querySelector('.appbar-more');
-      if (!more) return;
-
-      document.addEventListener('click', (e) => {
-        if (more.open && !more.contains(e.target)) more.open = false;
-      });
-
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && more.open) {
-          more.open = false;
-          more.querySelector('summary')?.focus();
-        }
-      });
-
-      window.addEventListener('pageshow', () => { more.open = false; });
-    })();
-  </script>
-  @endif
 @else
   <nav class="mk-nav" id="mkNav">
     <div class="wrap mk-nav-in">

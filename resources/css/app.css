@@ -366,10 +366,25 @@ html{scroll-behavior:smooth}
   position:sticky;top:0;z-index:80;
 }
 .appbar .logo{font-size:15px}
-.appbar-links{display:flex;gap:4px;font-size:13px;font-weight:500}
-.appbar-links a{padding:7px 11px;border-radius:8px;color:var(--muted);transition:.16s}
+.appbar-links{
+  display:flex;gap:2px;font-size:13px;font-weight:500;
+  min-width:0;overflow-x:auto;scrollbar-width:none;
+}
+.appbar-links::-webkit-scrollbar{display:none}
+.appbar-links a{flex:none;padding:7px 10px;border-radius:8px;color:var(--muted);transition:.16s;white-space:nowrap}
 .appbar-links a:hover{background:var(--paper);color:var(--ink)}
 .appbar-links a.on{background:var(--ink);color:#fff}
+/* A screen that exists but has nothing to open yet: present in the journey,
+   clearly not clickable, and the title says what it is waiting for. */
+.nav-off{
+  flex:none;padding:7px 10px;border-radius:8px;color:var(--muted-2);
+  white-space:nowrap;opacity:.6;
+}
+/* Below the width where all seven fit, the strip scrolls. The fade on the right
+   edge is what says so — a hard cut just looks like a broken layout. */
+@media(max-width:1099px){
+  .appbar-links{mask-image:linear-gradient(90deg,#000 calc(100% - 22px),transparent)}
+}
 .appbar-right{margin-left:auto;display:flex;align-items:center;gap:10px}
 
 /* ---------- customer navigation ----------
@@ -389,47 +404,6 @@ html{scroll-behavior:smooth}
 .resume-chip.urgent i{background:var(--magenta);box-shadow:0 0 0 3px rgba(232,38,94,.16)}
 .resume-chip.urgent:hover{background:#FDE9EF;border-color:var(--magenta);color:#B31745}
 
-.appbar-more{position:relative}
-.more-btn{
-  display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;
-  border-radius:9px;border:1px solid var(--line);background:#fff;
-  font-size:12.5px;font-weight:600;color:var(--ink-2);cursor:pointer;
-  list-style:none;transition:.16s var(--ease);
-}
-.more-btn::-webkit-details-marker{display:none}
-.more-btn:hover{border-color:#D2CDBF;background:var(--paper)}
-.more-btn svg{width:15px;height:15px;flex:none}
-.appbar-more[open] .more-btn{background:var(--ink);border-color:var(--ink);color:#fff}
-.more-panel{
-  position:absolute;right:0;top:calc(100% + 10px);z-index:120;
-  width:344px;max-width:calc(100vw - 24px);
-  background:#fff;border:1px solid var(--line);border-radius:14px;
-  box-shadow:var(--sh-lg);padding:8px;animation:fade .16s var(--ease);
-}
-.more-head{padding:7px 10px 10px;border-bottom:1px solid var(--line-2);margin-bottom:5px}
-.more-head b{display:block;font-size:12.5px;font-weight:650;color:var(--ink)}
-.more-head span{display:block;font-size:11px;color:var(--muted);margin-top:2px;line-height:1.35}
-.more-item{display:flex;align-items:flex-start;gap:10px;padding:9px 10px;border-radius:9px;transition:.12s}
-a.more-item:hover{background:var(--paper)}
-.more-item.on{background:var(--paper-2);box-shadow:inset 0 0 0 1px var(--line)}
-.more-n{
-  font-size:10px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;
-  border:1px solid var(--line);border-radius:5px;padding:2px 5px;flex:none;margin-top:1px;
-}
-.more-t{flex:1;min-width:0}
-.more-t b{display:block;font-size:12.5px;font-weight:600;color:var(--ink);line-height:1.3}
-.more-t i{display:block;font-style:normal;font-size:11px;color:var(--muted);line-height:1.4;margin-top:2px}
-.more-item.off{opacity:.55}
-.more-item.off .more-t b{color:var(--muted)}
-.more-here{
-  font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
-  color:var(--ink);background:var(--tint-y);border-radius:99px;padding:2px 6px;flex:none;margin-top:2px;
-}
-
-/* Below 640px the header's link list disappears, so the menu becomes the whole
-   navigation and has to survive. The chip stays — it is the one thing a customer
-   mid-order needs — but the bell goes, because the chip already says "Approve
-   proof" whenever there is a proof waiting. */
 .icon-btn{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);display:grid;place-items:center;color:var(--ink-2);transition:.16s;background:#fff}
 .icon-btn:hover{background:var(--paper);border-color:#D2CDBF}
 .icon-btn svg{width:15px;height:15px}
@@ -439,11 +413,6 @@ a.more-item:hover{background:var(--paper)}
 @media(max-width:640px){
   .resume-chip{max-width:120px;height:30px;padding:0 10px 0 9px;font-size:11.5px}
   .bell-btn{display:none}
-  .appbar-more .more-btn span{display:none}
-  .appbar-more .more-btn{padding:0 9px}
-  /* Anchored to the viewport rather than the button: a 320px panel hanging off
-     a button that sits 80px from the right edge runs off the left of the screen. */
-  .more-panel{position:fixed;left:12px;right:12px;top:68px;width:auto;max-width:none}
 }
 .app-body{max-width:1160px;margin:0 auto;padding:28px 28px 0}
 .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:22px;flex-wrap:wrap}
@@ -842,8 +811,23 @@ textarea.finp{height:auto;padding:8px 10px;line-height:1.5;resize:vertical}
 .cta-band{padding:34px 24px}
 .sec{padding:58px 0}
 .app-body{padding:18px 16px 0}
-.appbar{padding:0 16px;gap:12px}
-.appbar-links{display:none}
+/* The journey no longer disappears on a phone. The bar becomes two rows: the
+   logo and the account controls on top, the seven screens underneath as a
+   horizontally scrolling strip — the same shape as the design's screen rail. */
+.appbar{
+  flex-wrap:wrap;height:auto;padding:8px 12px 0;gap:8px 12px;
+  align-items:center;
+}
+.appbar-links{
+  order:3;flex-basis:100%;gap:2px;
+  padding:0 0 8px;margin:0 -2px;
+  -webkit-overflow-scrolling:touch;
+}
+.appbar-links a,.nav-off{padding:6px 9px;font-size:12.5px}
+.appbar-right{gap:8px}
+/* The shop page kept a fixed 300px sidebar column on a phone, which pushed the
+   whole page sideways. It was the only grid that never got a mobile rule. */
+.shop-grid{grid-template-columns:1fr}
 .hero-art{display:none}
 .kpis{grid-template-columns:1fr}
 .foot-grid{grid-template-columns:1fr}

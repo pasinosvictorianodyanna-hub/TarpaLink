@@ -40,12 +40,6 @@ class ListShops extends ListRecords
 
     public string $city = '';
 
-    public function mount(): void
-    {
-        // The queue first: an admin who opens this page is usually here to approve.
-        $this->status = 'pending';
-    }
-
     public function shops(): LengthAwarePaginator
     {
         return $this->query()->paginate(25);
@@ -72,6 +66,9 @@ class ListShops extends ListRecords
             })
             ->when($this->status !== '', fn (Builder $query) => $query->where('status', $this->status))
             ->when($this->city !== '', fn (Builder $query) => $query->where('city', $this->city))
+            // The queue first, without filtering to it: an admin who opens this
+            // page is usually here to approve, but a list that hides the six
+            // active shops to show one pending one reads as broken.
             ->orderByRaw("case status when 'pending' then 0 when 'active' then 1 else 2 end")
             ->orderByDesc('created_at');
     }

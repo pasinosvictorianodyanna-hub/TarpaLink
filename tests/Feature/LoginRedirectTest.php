@@ -65,6 +65,46 @@ class LoginRedirectTest extends TestCase
             ->assertRedirect(route('profile.edit'));
     }
 
+    public function test_a_customer_bounced_off_the_admin_panel_is_not_sent_back_to_it(): void
+    {
+        // The bug: a customer clicks "Admin sign in" in the footer, is bounced to
+        // the login page, signs in at the storefront — and `intended` sends them
+        // straight back to /admin, which answers 403. Signing in looked broken.
+        $this->get('/admin')->assertRedirect('/admin/login');
+
+        $this->login('jomar@tarpalink.ph')->assertRedirect(route('account'));
+    }
+
+    public function test_an_admin_bounced_off_the_admin_panel_is_still_sent_back_to_it(): void
+    {
+        // The check must not break the case `intended` exists for.
+        $this->get('/admin')->assertRedirect('/admin/login');
+
+        $this->login('sofia@tarpalink.ph')
+            ->assertRedirect(route('filament.admin.pages.dashboard'));
+    }
+
+    public function test_a_customer_bounced_off_the_shop_panel_is_not_sent_back_to_it(): void
+    {
+        $this->get('/shop')->assertRedirect('/shop/login');
+
+        $this->login('jomar@tarpalink.ph')->assertRedirect(route('account'));
+    }
+
+    public function test_a_shop_owner_bounced_off_the_console_is_sent_back_to_it(): void
+    {
+        $this->get('/console')->assertRedirect();
+
+        $this->login('kevin@inkwell.ph')->assertRedirect(route('console.dashboard'));
+    }
+
+    public function test_the_intended_query_string_survives_the_redirect(): void
+    {
+        $this->get('/account?tab=done')->assertRedirect('/login');
+
+        $this->login('jomar@tarpalink.ph')->assertRedirect('/account?tab=done');
+    }
+
     public function test_the_header_offers_each_role_its_own_door(): void
     {
         $this->actingAs(User::where('email', 'kevin@inkwell.ph')->firstOrFail())

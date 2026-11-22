@@ -32,7 +32,58 @@ class LoginController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended($this->homeFor($request->user()));
+        return redirect()->to($this->destinationFor($request, $request->user()));
+    }
+
+    /**
+     * Where to send someone who has just signed in.
+     *
+     * `intended` only wins when this user can actually reach it. Without that
+     * check, a customer who once followed the footer's "Admin sign in" link —
+     * which records `/admin` as the intended URL — is sent straight back to a
+     * 403 the moment they sign in at the storefront. The login looks broken,
+     * and nothing on the page says the problem was a URL they visited minutes
+     * earlier as a guest.
+     *
+     * The path is rebuilt rather than reused so a full URL cannot smuggle in a
+     * different host; `redirect()->to()` makes it absolute again.
+     */
+    private function destinationFor(Request $request, ?User $user): string
+    {
+        $intended = $request->session()->pull('url.intended');
+
+        if (is_string($intended) && $intended !== '') {
+            $path = (string) (parse_url($intended, PHP_URL_PATH) ?: '/');
+            $query = parse_url($intended, PHP_URL_QUERY);
+
+            if ($this->mayReach($user, $path)) {
+                return $query === null ? $path : $path.'?'.$query;
+            }
+        }
+
+        return $this->homeFor($user);
+    }
+
+    /**
+     * Whether this user belongs anywhere near the page they were bounced from.
+     *
+     * Only the three restricted areas are named here. Everything else is public
+     * or covered by a policy that answers for itself — duplicating those rules
+     * in a second place is how the two get to disagree.
+     */
+    private function mayReach(?User $user, string $path): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        $area = explode('/', trim($path, '/'))[0];
+
+        return match ($area) {
+            'admin' => $user->isAdmin(),
+            'shop', 'console' => $user->isShopOwner() && $user->currentShop()?->isActive() === true,
+            default => true,
+        };
     }
 
     /**

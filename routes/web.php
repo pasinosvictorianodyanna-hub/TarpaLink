@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\ConsoleController;
 use App\Http\Controllers\HomeController;
@@ -51,6 +52,11 @@ Route::post('/webhooks/paymongo', \App\Http\Controllers\PayMongoWebhookControlle
 
 Route::get('/login', [LoginController::class, 'show'])->name('login');
 Route::post('/login', [LoginController::class, 'store']);
+// Registration is a customer door only. Whoever is already signed in is sent
+// back to their own screen by the controller; shop and admin accounts are
+// created inside the panels, never from this form.
+Route::get('/register', [RegisteredUserController::class, 'show'])->name('register');
+Route::post('/register', [RegisteredUserController::class, 'store']);
 Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
 
 // Footer pages. Declared last and constrained to a known list, so it can never

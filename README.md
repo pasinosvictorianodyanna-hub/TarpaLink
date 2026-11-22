@@ -55,6 +55,9 @@ resources/
 design/
   prototype.html          interactive design reference — 18 screens, no build step
 docs/
+  SRS.md                  requirements: actors, FR/NFR, business rules, traceability
+  ARCHITECTURE.md         context, containers, sequences, decisions (Mermaid diagrams)
+  SCHEMA.md               ER diagram, table dictionary, enums, invariants
   SPLIT.md                who builds what, and in which order
   ISSUES.md               backlog for the second developer
   CONTRACT.md             the price engine interface both halves depend on

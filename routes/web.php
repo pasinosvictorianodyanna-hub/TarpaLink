@@ -14,6 +14,7 @@ use App\Http\Controllers\Console\QuantityDiscountController as ConsoleDiscountCo
 use App\Http\Controllers\Console\ReportsController as ConsoleReportsController;
 use App\Http\Controllers\Console\ServiceController as ConsoleServiceController;
 use App\Http\Controllers\Console\ShopSwitchController as ConsoleShopSwitchController;
+use App\Http\Controllers\Console\WaitingController as ConsoleWaitingController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\JobController;
 use App\Http\Controllers\PageController;
@@ -23,6 +24,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\ShopRequestController;
+use App\Http\Middleware\EnsureShopIsOpen;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -64,7 +66,13 @@ Route::redirect('/account/jobs', '/account')->middleware('auth');
 // It used to be a single route because Filament still owned the other seven
 // screens, so every link out of the dashboard changed the shell. One group now,
 // one layout, one place where the nav is decided.
+// The waiting room sits under the same prefix but outside the shop gate — an
+// applicant with no active shop is exactly who it is for.
 Route::middleware('auth')->prefix('console')->name('console.')->group(function (): void {
+    Route::get('/waiting', ConsoleWaitingController::class)->name('waiting');
+});
+
+Route::middleware(['auth', EnsureShopIsOpen::class])->prefix('console')->name('console.')->group(function (): void {
     Route::get('/', ConsoleDashboardController::class)->name('dashboard');
 
     // Which shop the console is looking at. A session preference, checked

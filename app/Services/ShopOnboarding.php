@@ -21,17 +21,20 @@ use Illuminate\Validation\ValidationException;
  * the console and unmanageable from the panel, and an owner with no shop is a
  * `shop_owner` who cannot open anything. Either both exist or neither does.
  *
- * The account is created with a random password that nobody is ever told. The
- * owner sets their own through the password-reset link, which is the same flow
- * a forgotten password uses — so there is no plaintext credential in the
- * database, in an email, or on an administrator's screen.
+ * There are two ways an account arrives, and only one of them involves mail. An
+ * applicant who registered as they applied already has a password, so approval
+ * attaches the shop and is done — nothing to hand over, nothing to send. An
+ * older request has no account, so one is created with a random password nobody
+ * is ever told, and the owner sets their own through the password-reset link.
+ * Either way there is no plaintext credential in the database, in an email, or
+ * on an administrator's screen.
  */
 final class ShopOnboarding
 {
     /**
      * Approve a request: create the account and the shop, and send the invite.
      *
-     * @return array{shop: Shop, user: User, link: string, sent: bool}
+     * @return array{shop: Shop, user: User, link: ?string, sent: bool, invited: bool}
      */
     public function approve(ShopRequest $request, ?User $by = null): array
     {
@@ -57,10 +60,18 @@ final class ShopOnboarding
 
             // A reset token, not a password. It is written here so the link can
             // be handed over even when mail is not configured on the deployment.
+            //
+            // An applicant who registered already chose a password, so there is
+            // nothing to hand over and nothing to send: attaching the shop was
+            // the entire event.
+            if ($request->hasAccount()) {
+                return ['shop' => $shop, 'user' => $user, 'link' => null, 'sent' => false, 'invited' => false];
+            }
+
             $link = $this->setPasswordLink($user);
             $sent = Notifier::send($user->email, new ShopInvited($shop, $user, $link));
 
-            return ['shop' => $shop, 'user' => $user, 'link' => $link, 'sent' => $sent];
+            return ['shop' => $shop, 'user' => $user, 'link' => $link, 'sent' => $sent, 'invited' => true];
         });
     }
 
@@ -80,6 +91,12 @@ final class ShopOnboarding
      */
     public function reinvite(ShopRequest $request): array
     {
+        if ($request->hasAccount()) {
+            throw ValidationException::withMessages([
+                'request' => 'This applicant chose their own password. There is no invitation to re-send.',
+            ]);
+        }
+
         if ($request->status !== 'approved' || $request->shop_id === null) {
             throw ValidationException::withMessages([
                 'request' => 'Only an approved request with a live shop can be re-invited.',
@@ -107,14 +124,39 @@ final class ShopOnboarding
     /**
      * The applicant's account.
      *
-     * Most applicants have never signed up, so this creates one. When the email
-     * already belongs to an account — somebody who ordered as a customer first,
-     * which the page copy invites — that account is reused and promoted rather
-     * than duplicated: two rows for one person is how a shop ends up unable to
-     * see its own history.
+     * Two shapes arrive here. An applicant who registered as they applied
+     * already owns the account, so it is simply handed back — that account is
+     * the owner, and approval attaches the shop to it. An older request has no
+     * account, so one is created, or an existing customer with that address is
+     * reused and promoted rather than duplicated: two rows for one person is
+     * how a shop ends up unable to see its own history.
      */
     private function owner(ShopRequest $request): User
     {
+        if ($request->hasAccount()) {
+            $applicant = $request->applicant;
+
+            if ($applicant === null) {
+                throw ValidationException::withMessages([
+                    'request' => 'The account behind this request no longer exists.',
+                ]);
+            }
+
+            // `role` holds one value, so promoting an administrator would
+            // demote them out of the panel.
+            if ($applicant->isAdmin()) {
+                throw ValidationException::withMessages([
+                    'request' => $request->email.' belongs to an administrator. Use the shop\'s own address.',
+                ]);
+            }
+
+            if (! $applicant->isShopOwner()) {
+                $applicant->forceFill(['role' => 'shop_owner'])->save();
+            }
+
+            return $applicant;
+        }
+
         $existing = User::where('email', $request->email)->first();
 
         if ($existing === null) {

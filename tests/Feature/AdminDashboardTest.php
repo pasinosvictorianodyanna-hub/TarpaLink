@@ -105,11 +105,13 @@ class AdminDashboardTest extends TestCase
             ->assertSee('Meridian Press');
     }
 
-    public function test_a_pending_owner_cannot_reach_the_shop_console(): void
+    public function test_a_pending_owner_waits_instead_of_reaching_the_console(): void
     {
+        // No active shop, so the console is closed — but a 403 told them nothing
+        // about why, or whether anything had gone wrong.
         $this->actingAs($this->pendingOwner())
             ->get('/console')
-            ->assertForbidden();
+            ->assertRedirect(route('console.waiting'));
     }
 
     public function test_approving_from_the_queue_lets_the_owner_in(): void
@@ -148,7 +150,7 @@ class AdminDashboardTest extends TestCase
 
         $this->actingAs(User::find($this->pendingOwner()->id))
             ->get('/console')
-            ->assertForbidden();
+            ->assertRedirect(route('console.waiting'));
     }
 
     public function test_a_rejected_shop_disappears_from_the_storefront(): void

@@ -175,11 +175,16 @@ class LoginController extends Controller
             return route('filament.admin.pages.dashboard');
         }
 
-        // A suspended or pending shop has no console to go to — `canAccessPanel`
-        // and the console both refuse it — so it falls through to the storefront
-        // rather than landing on a 403 immediately after signing in.
+        // A suspended or pending shop has no console to go to — the console
+        // refuses it — so it goes to the waiting room, which says which of the
+        // two it is. It used to fall through to /account, which showed a new
+        // shop owner an empty customer job list and no explanation.
         if ($user->worksInShop() && $user->currentShop()?->isActive()) {
             return route('console.dashboard');
+        }
+
+        if ($user->worksInShop()) {
+            return route('console.waiting');
         }
 
         return route('account');

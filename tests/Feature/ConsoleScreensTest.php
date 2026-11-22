@@ -296,7 +296,9 @@ class ConsoleScreensTest extends TestCase
 
         $this->assertSame($expected, $response->viewData('totals')['gross']);
         $this->assertSame(
-            $expected - (int) $this->shop()->payments()->where('payments.status', 'paid')->sum('payments.commission'),
+            $expected
+                - (int) $this->shop()->payments()->where('payments.status', 'paid')->sum('payments.commission')
+                - (int) $this->shop()->payments()->where('payments.status', 'paid')->sum('payments.processing_fee'),
             $response->viewData('totals')['net'],
         );
     }

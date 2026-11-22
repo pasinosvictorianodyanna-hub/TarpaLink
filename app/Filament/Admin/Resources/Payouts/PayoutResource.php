@@ -88,6 +88,15 @@ class PayoutResource extends Resource
                     ->alignEnd()
                     ->formatStateUsing(fn (Payment $record) => Money::format($record->commission)),
 
+                // The processor's cut, not a platform charge. It sits here
+                // because it is deducted before the shop is paid, and a payout
+                // that cannot be reconciled line by line is not a ledger.
+                TextColumn::make('processing_fee')
+                    ->label('Fee')
+                    ->alignEnd()
+                    ->toggleable()
+                    ->formatStateUsing(fn (Payment $record) => Money::format($record->processing_fee)),
+
                 TextColumn::make('net')
                     ->label('Net to shop')
                     ->alignEnd()

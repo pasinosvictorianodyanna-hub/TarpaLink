@@ -35,4 +35,16 @@ final class Money
             ? '₱'.number_format($centavos / 100, 0)
             : self::format($centavos);
     }
+
+    /**
+     * A figure that may be negative, with the sign in front of the symbol.
+     *
+     * `format(-1086)` reads "₱-10.86", which looks like a typo. A margin that
+     * has gone negative is a real state — a small job whose processor fee
+     * exceeds the commission — so it needs to read as one number.
+     */
+    public static function signed(int $centavos): string
+    {
+        return $centavos < 0 ? '−'.self::short(-$centavos) : self::short($centavos);
+    }
 }

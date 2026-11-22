@@ -23,7 +23,7 @@
         <div class="fil-stat">
             <div class="l">Net to shop</div>
             <div class="v">{{ \App\Support\Money::short($t['net']) }}</div>
-            <div class="d">gross minus commission</div>
+            <div class="d">gross minus commission and fees</div>
         </div>
         <div class="fil-stat">
             <div class="l">Held for you</div>
@@ -79,7 +79,7 @@
         <div class="fil-card">
             <div class="fil-toolbar">
                 <b style="font-size:12.5px">Payout ledger</b>
-                <span style="margin-left:auto;font-size:11px;color:#6B7280">gross − commission = net</span>
+                <span style="margin-left:auto;font-size:11px;color:#6B7280">gross − commission − fee = net</span>
             </div>
 
             @if ($ledger->isEmpty())
@@ -92,6 +92,7 @@
                                 <th>Paid</th>
                                 <th>Job</th>
                                 <th class="r">Gross</th>
+                                <th class="r">Commission</th>
                                 <th class="r">Fee</th>
                                 <th class="r">Net</th>
                                 <th>Payout</th>
@@ -104,6 +105,7 @@
                                     <td class="t">{{ $payment->job?->reference ?? '—' }}</td>
                                     <td class="r" style="font-variant-numeric:tabular-nums">{{ \App\Support\Money::format($payment->amount) }}</td>
                                     <td class="r" style="color:#6B7280;font-variant-numeric:tabular-nums">−{{ \App\Support\Money::format($payment->commission) }}</td>
+                                    <td class="r" style="color:#6B7280;font-variant-numeric:tabular-nums">−{{ \App\Support\Money::format($payment->processing_fee) }}</td>
                                     <td class="r" style="font-variant-numeric:tabular-nums"><strong>{{ \App\Support\Money::format($payment->net()) }}</strong></td>
                                     <td style="white-space:nowrap">
                                         @if ($payment->isSettled())

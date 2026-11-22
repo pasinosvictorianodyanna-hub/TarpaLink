@@ -753,6 +753,52 @@ now appears once instead of twice.
 
 ---
 
+## #81 — The processor fee was recorded on every payment and deducted from nobody
+
+Found while preparing the revenue-model question for the defense: `processing_fee` is written
+at checkout (`CheckoutController:272`, `2.5% + ₱15`) and then **read by nothing**. Every
+screen that showed the shop its money computed `amount − commission`, so the shop was
+credited the processor's cut as if it had kept it.
+
+**Who bears it.** Asked and answered: **the shop does.** The processor takes its cut out of
+the money as it arrives, so the shop was never owed that part of the gross. Net is now
+`amount − commission − processing_fee`.
+
+**What changed, in one place.** `Payment::net()` is the definition. It had been duplicated
+in three screens, so the fix had to be a single expression or the four copies would drift
+again — `Payment::netFrom()` exists for the CSV export, which streams flat rows through a
+cursor and never builds a model.
+
+| Surface | Before | Now |
+|---|---|---|
+| `/console/reports` | Fee column was showing commission | Separate Commission and Fee columns; footer reads `gross − commission − fee = net` |
+| Payout CSV | `Gross, Commission, Net` | `Gross, Commission, Fee, Net` |
+| Admin dashboard | "Commission earned" | **"Platform margin"** = `commission − fee`, signed |
+
+**The number that makes the case.** Platform-wide the fee is nearly as large as the
+commission: ₱2,066.78 kept against ₱2,004.92 paid out — a margin of **₱61.86**. Calling the
+commission "earnings" was overstating it by a factor of thirty-three.
+
+**Break-even tickets.** Because the fee is `2.5% + ₱15` and the commission is a percentage,
+the platform loses money on any job below a floor that depends on the tier:
+
+| Tier | Rate | Platform breaks even at |
+|---|---|---|
+| Starter | 5% | ₱600 |
+| Growth | 3% | ₱3,000 |
+| Pro | 1.5% | never — the rate is below the processor's |
+
+Solving `r × a = 0.025 × a + 1500` gives `a = 1500 / (r − 0.025)`, which is where the first
+two figures come from; Pro's denominator is negative, so no ticket size works. The smallest
+paid job on the books is ₱24.00 — ₱0.36 of commission against ₱15.60 of fee.
+
+**Proven by:** `ReportsTest`, `ConsoleScreensTest`, `DataIntegrityTest` (renamed
+`…_splits_into_commission_fee_and_net`, plus an assertion that the split adds back to gross),
+`CheckoutFlowTest`, `PayMongoWebhookTest`, `AdminDashboardTest` — and the rendered
+`/console/reports` for Inkwell: net ₱23,364.11 = 24,914.41 − 747.43 − 802.87.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

@@ -55,6 +55,8 @@ class Dashboard extends BaseDashboard
         $gmvBefore = (int) Payment::where('status', 'paid')->whereBetween('paid_at', $lastMonth)->sum('amount');
 
         $commission = (int) Payment::where('status', 'paid')->whereBetween('paid_at', $month)->sum('commission');
+        $fees = (int) Payment::where('status', 'paid')->whereBetween('paid_at', $month)->sum('processing_fee');
+        $margin = $commission - $fees;
         $settled = Payment::where('status', 'paid')->whereBetween('paid_at', $month)->count();
 
         $jobs = Job::whereBetween('created_at', $month)->count();
@@ -86,11 +88,14 @@ class Dashboard extends BaseDashboard
                 'tone' => $pending > 0 ? 'wait' : 'good',
             ],
             'commission' => [
-                'label' => 'Commission earned',
-                'value' => Money::short($commission),
+                'label' => 'Platform margin',
+                // Commission alone flatters the platform: the processor takes
+                // 2.5% + ₱15 out of every payment, and on a small job that is
+                // more than the commission it earned.
+                'value' => Money::signed($margin),
                 'note' => $gmv > 0 ? round($commission / $gmv * 100, 1).'% blended' : 'no revenue yet',
-                'sub' => 'this month',
-                'tone' => 'good',
+                'sub' => Money::short($commission).' commission − '.Money::short($fees).' fees',
+                'tone' => $margin >= 0 ? 'good' : 'bad',
             ],
         ];
     }
@@ -158,6 +163,11 @@ class Dashboard extends BaseDashboard
     {
         return Job::with(['shop', 'user', 'service'])
             ->orderByDesc('created_at')
+            // `id` breaks ties. The seeder places a batch of jobs in the same
+            // second, so twelve rows can share the newest `created_at` and the
+            // feed only shows eight of them — without a total order, which four
+            // get dropped changes between loads and a job appears to vanish.
+            ->orderByDesc('id')
             ->limit(8)
             ->get();
     }

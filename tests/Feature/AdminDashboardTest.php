@@ -8,6 +8,7 @@ use App\Models\Job;
 use App\Models\Payment;
 use App\Models\Shop;
 use App\Models\User;
+use App\Services\ShopApproval;
 use App\Support\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -51,20 +52,32 @@ class AdminDashboardTest extends TestCase
         $this->actingAs($this->admin())
             ->get('/admin')
             ->assertSuccessful()
-            ->assertSee('Commission earned')
+            ->assertSee('Platform margin')
             ->assertSee('Active shops')
             ->assertSee('Waiting for approval');
     }
 
     public function test_the_live_feed_shows_the_spec_and_not_just_the_service_name(): void
     {
-        $job = Job::where('status', 'ready')->firstOrFail();
-
         $html = $this->actingAs($this->admin())->get('/admin')->assertSuccessful()->getContent();
+
+        // Asserted over the feed's own window rather than over one hand-picked
+        // job: `Job::first()` has no order, and the feed shows eight of the
+        // twelve jobs that share the newest `created_at`, so picking a job
+        // separately made this pass alone and fail in the full suite.
+        $feed = Job::orderByDesc('created_at')->orderByDesc('id')->limit(8)->get();
+
+        $this->assertNotEmpty($feed);
 
         // A 36×48 tarpaulin and a 72×96 one are the same service and eight times
         // the money. The feed is only readable if it says which one it was.
-        $this->assertStringContainsString($job->titleLine(), $html);
+        foreach ($feed as $job) {
+            $this->assertStringContainsString(
+                $job->titleLine(),
+                $html,
+                "The feed lost the spec for {$job->reference}.",
+            );
+        }
     }
 
     public function test_each_status_in_the_live_feed_gets_its_own_pill(): void
@@ -74,7 +87,7 @@ class AdminDashboardTest extends TestCase
         // The feed shows the eight newest jobs, so those are the statuses on the
         // page. One class for every status made "Ready for pickup" and "Quoted"
         // the same colour, which is the one thing the feed exists to distinguish.
-        foreach (Job::orderByDesc('created_at')->limit(8)->get() as $job) {
+        foreach (Job::orderByDesc('created_at')->orderByDesc('id')->limit(8)->get() as $job) {
             $this->assertStringContainsString(
                 'tl-pill '.$job->statusTone(),
                 $html,
@@ -162,11 +175,11 @@ class AdminDashboardTest extends TestCase
             ->get("/admin/shops/{$shop->slug}")
             ->assertSuccessful();
 
-        app(\App\Services\ShopApproval::class)->approve($shop, $this->admin());
+        app(ShopApproval::class)->approve($shop, $this->admin());
 
         $this->get("/shops/{$slug}")->assertSuccessful();
 
-        app(\App\Services\ShopApproval::class)->suspend($shop->fresh(), 'Chargebacks.', $this->admin());
+        app(ShopApproval::class)->suspend($shop->fresh(), 'Chargebacks.', $this->admin());
 
         $this->get("/shops/{$slug}")->assertNotFound();
     }

@@ -28,12 +28,32 @@ class Payment extends Model
     }
 
     /**
-     * The payout ledger is this table — gross, commission and net all live on
-     * one row, so the ledger can never disagree with the payment it describes.
+     * The payout ledger is this table — gross, commission, the processor's fee
+     * and the net all live on one row, so the ledger can never disagree with the
+     * payment it describes.
+     *
+     * The fee is deducted here because the shop bears it: the processor takes
+     * its cut out of the money as it arrives, so the shop was never owed that
+     * part of the gross. Leaving it out made small jobs look profitable — the
+     * ₱24 job on the books earns ₱0.36 of commission against ₱15.60 of fee.
      */
     public function net(): int
     {
-        return $this->amount - $this->commission;
+        return self::netFrom($this->amount, $this->commission, $this->processing_fee);
+    }
+
+    /**
+     * The same subtraction, for callers that hold the three integers rather than
+     * a model.
+     *
+     * The payout CSV streams flat rows through a cursor on purpose — it never
+     * builds a Payment — so it cannot call `net()` without giving that up. This
+     * exists so it can still reach the one definition instead of writing
+     * `amount - commission - fee` a second time and drifting from it later.
+     */
+    public static function netFrom(int $amount, int $commission, int $fee): int
+    {
+        return $amount - $commission - $fee;
     }
 
     public function isSettled(): bool

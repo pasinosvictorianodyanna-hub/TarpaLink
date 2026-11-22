@@ -27,6 +27,7 @@ class PlatformStats extends StatsOverviewWidget
     {
         $gmv = (int) Payment::where('status', 'paid')->sum('amount');
         $commission = (int) Payment::where('status', 'paid')->sum('commission');
+        $fees = (int) Payment::where('status', 'paid')->sum('processing_fee');
         $activeShops = Shop::where('status', 'active')->count();
         $pendingShops = Shop::where('status', 'pending')->count();
         $jobsThisMonth = Job::where('created_at', '>=', now()->startOfMonth())->count();
@@ -38,12 +39,12 @@ class PlatformStats extends StatsOverviewWidget
                 ->descriptionIcon('heroicon-m-banknotes')
                 ->color('success'),
 
-            Stat::make('Commission earned', Money::short($commission))
-                ->description($gmv > 0
-                    ? rtrim(rtrim(number_format($commission / $gmv * 100, 2), '0'), '.').'% effective take rate'
-                    : 'No revenue yet')
+            // Margin, not commission: the processor's fee comes out of every
+            // payment before the platform keeps anything.
+            Stat::make('Platform margin', Money::signed($commission - $fees))
+                ->description(Money::short($commission).' commission − '.Money::short($fees).' fees')
                 ->descriptionIcon('heroicon-m-chart-pie')
-                ->color('primary'),
+                ->color($commission - $fees >= 0 ? 'primary' : 'danger'),
 
             Stat::make('Active shops', (string) $activeShops)
                 ->description($pendingShops > 0

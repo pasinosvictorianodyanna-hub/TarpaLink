@@ -76,6 +76,10 @@ matrix_version: 6612
 tier: "Large (≤96in)"
 ```
 
+The fingerprint is `crc32` over the tier rows' **database ids**, so it is only meaningful
+inside the installation that produced it — the same price list on MySQL gives `8113`. Compare
+it to itself over time (the job's copy against the service's current one), never to a literal.
+
 Note what the example proves: the tier is picked by the **long edge** (96 in lands in
 "Large ≤96in", not "Medium ≤48in"), the base line is `area × unit_price` rather than a
 flat per-size price, and the discount is applied to the subtotal *after* the

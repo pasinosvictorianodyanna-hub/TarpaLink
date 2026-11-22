@@ -7,9 +7,7 @@ use App\Models\Plan;
 use App\Models\Shop;
 use App\Models\User;
 use App\Services\Billing as BillingService;
-use App\Filament\Shop\Pages\Reports;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 /**
@@ -42,7 +40,7 @@ class ReportsTest extends TestCase
     public function test_the_reports_page_renders_the_ledger(): void
     {
         $this->actingAs($this->owner())
-            ->get('/shop/reports')
+            ->get('/console/reports')
             ->assertSuccessful()
             ->assertSee('Payout ledger')
             ->assertSee('Top services by revenue')
@@ -51,10 +49,10 @@ class ReportsTest extends TestCase
 
     public function test_every_ledger_row_balances(): void
     {
-        $rows = Livewire::actingAs($this->owner())
-            ->test(Reports::class)
-            ->instance()
-            ->ledger();
+        $rows = $this->actingAs($this->owner())
+            ->get('/console/reports')
+            ->assertOk()
+            ->viewData('ledger');
 
         $this->assertNotEmpty($rows);
 
@@ -71,8 +69,8 @@ class ReportsTest extends TestCase
     {
         $shop = $this->inkwell();
 
-        $component = Livewire::actingAs($this->owner())->test(Reports::class)->instance();
-        $totals = $component->totals();
+        $response = $this->actingAs($this->owner())->get('/console/reports')->assertOk();
+        $totals = $response->viewData('totals');
 
         $expectedGross = (int) Payment::whereIn('job_id', $shop->jobs()->select('id'))
             ->where('status', 'paid')
@@ -91,7 +89,7 @@ class ReportsTest extends TestCase
             ->whereBetween('paid_at', [now()->startOfMonth(), now()->endOfMonth()])
             ->sum('amount');
 
-        $this->assertSame($monthSum, $component->monthTotal());
+        $this->assertSame($monthSum, $response->viewData('month'));
     }
 
     public function test_a_plan_change_does_not_rewrite_past_payouts(): void
@@ -109,22 +107,25 @@ class ReportsTest extends TestCase
 
     public function test_the_ledger_only_shows_this_shops_payments(): void
     {
-        $component = Livewire::actingAs($this->owner())->test(Reports::class)->instance();
+        $ledger = $this->actingAs($this->owner())
+            ->get('/console/reports')
+            ->assertOk()
+            ->viewData('ledger');
 
         $ownJobIds = $this->inkwell()->jobs()->pluck('id')->all();
 
-        foreach ($component->ledger() as $payment) {
+        foreach ($ledger as $payment) {
             $this->assertContains($payment->job_id, $ownJobIds);
         }
 
         $otherShopPayment = Payment::whereNotIn('job_id', $ownJobIds)->firstOrFail();
 
-        $this->assertNotContains($otherShopPayment->id, $component->ledger()->pluck('id')->all());
+        $this->assertNotContains($otherShopPayment->id, $ledger->pluck('id')->all());
     }
 
     public function test_payouts_export_as_csv(): void
     {
-        $response = $this->actingAs($this->owner())->get('/shop/reports/export');
+        $response = $this->actingAs($this->owner())->get('/console/reports/export');
 
         $response->assertSuccessful();
         $response->assertHeader('content-type', 'text/csv; charset=UTF-8');
@@ -140,7 +141,7 @@ class ReportsTest extends TestCase
         $customer = User::where('email', 'jomar@tarpalink.ph')->firstOrFail();
 
         $this->actingAs($customer)
-            ->get('/shop/reports/export')
+            ->get('/console/reports/export')
             ->assertForbidden();
     }
 }

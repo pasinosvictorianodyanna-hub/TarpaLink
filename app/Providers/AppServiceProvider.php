@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Livewire\ShopPicker;
 use App\Models\Invoice;
 use App\Models\Job;
 use App\Models\JobActivity;
@@ -40,7 +39,6 @@ use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
-use Livewire\Livewire;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -59,20 +57,15 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->authorization();
 
-        // A visible sign-out in both panels. Filament keeps its own behind the
-        // avatar menu, which is a click on an unlabelled picture — and while the
-        // panel theme was uncompiled there was nothing to click at all.
+        // A visible sign-out in the admin panel. Filament keeps its own behind
+        // the avatar menu, which is a click on an unlabelled picture — and while
+        // the panel theme was uncompiled there was nothing to click at all.
+        //
+        // The shop side no longer needs this hook: its sign-out is a real form in
+        // the console's sidebar footer.
         FilamentView::registerRenderHook(
             PanelsRenderHook::USER_MENU_BEFORE,
             fn () => view('filament.sign-out-button'),
-        );
-
-        // An owner with more than one shop needs a way to say which one they are
-        // looking at. The component renders nothing when there is only one, so
-        // this costs every single-shop owner in the country exactly one query.
-        FilamentView::registerRenderHook(
-            PanelsRenderHook::TOPBAR_END,
-            fn () => Livewire::mount(ShopPicker::class),
         );
 
         // The footer blurb is CMS copy but appears on every page, so it is shared

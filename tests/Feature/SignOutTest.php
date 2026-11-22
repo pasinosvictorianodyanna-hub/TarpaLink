@@ -56,24 +56,15 @@ class SignOutTest extends TestCase
      *
      * Filament keeps its own sign-out behind the avatar menu — a click on an
      * unlabelled picture — and while the panel theme was uncompiled there was
-     * nothing to click at all. Both panels now render a labelled button in the
-     * topbar through a render hook, and the console has one in its sidebar
-     * footer. The marker is `data-sign-out`, so this asserts the hook rendered
-     * rather than counting the word "Sign out" on the page.
+     * nothing to click at all. The admin panel renders a labelled button in the
+     * topbar through a render hook; the marker is `data-sign-out`, so this
+     * asserts the hook rendered rather than counting the word "Sign out".
      *
-     * The two panels are checked in separate tests on purpose. Signing in as a
-     * second user inside one test leaves the first user's password hash in the
-     * session, and Filament's AuthenticateSession middleware reads that mismatch
-     * as a stolen cookie and redirects to the login page — which looks exactly
-     * like a broken panel.
+     * The console is a separate test, not a second assertion here: it renders a
+     * real form rather than using the hook, and signing in as a second user
+     * inside one test leaves the first user's password hash in the session,
+     * which Filament's AuthenticateSession middleware reads as a stolen cookie.
      */
-    public function test_the_shop_panel_offers_a_labelled_sign_out(): void
-    {
-        $this->actingAs(User::where('email', 'kevin@inkwell.ph')->firstOrFail())
-            ->get('/shop')
-            ->assertOk()
-            ->assertSee('data-sign-out', false);
-    }
 
     public function test_the_admin_panel_offers_a_labelled_sign_out(): void
     {

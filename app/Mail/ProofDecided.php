@@ -48,7 +48,10 @@ class ProofDecided extends Mailable
         return new Content(
             view: 'mail.proof-decided',
             with: [
-                'jobUrl' => route('filament.shop.resources.jobs.view', ['record' => $this->job]),
+                // The console, not the panel: this mail goes to the shop, and
+                // the panel's job screen no longer exists. A dead link in an
+                // approval email is the one click that matters.
+                'jobUrl' => route('console.jobs.show', $this->job),
             ],
         );
     }

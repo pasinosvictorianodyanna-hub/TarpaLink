@@ -9,6 +9,7 @@ use App\Models\Shop;
 use App\Models\SiteSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 /**
@@ -76,7 +77,7 @@ class SmokeTest extends TestCase
             '/shops/inkwell-press/checkout',
             '/login',
             '/admin/login',
-            '/shop/login',
+            '/login',
         ]);
     }
 
@@ -93,7 +94,7 @@ class SmokeTest extends TestCase
         ]);
     }
 
-    public function test_shop_panel_pages_render(): void
+    public function test_console_pages_render(): void
     {
         $owner = $this->user('kevin@inkwell.ph');
         $shop = $owner->currentShop();
@@ -105,20 +106,78 @@ class SmokeTest extends TestCase
         $this->actAs($owner);
 
         $this->assertNoServerErrors([
-            '/shop',
-            '/shop/reports',
-            '/shop/billing',
-            '/shop/production-board',
-            '/shop/jobs',
-            '/shop/jobs/'.$job->getRouteKey(),
-            '/shop/services',
-            '/shop/services/create',
-            '/shop/services/'.$service->getRouteKey(),
-            '/shop/services/'.$service->getRouteKey().'/edit',
-            '/shop/quantity-discounts',
-            '/shop/quantity-discounts/create',
-            '/shop/quantity-discounts/'.$discount->getRouteKey().'/edit',
+            '/console',
+            '/console/reports',
+            '/console/billing',
+            '/console/production-board',
+            '/console/jobs',
+            '/console/jobs/'.$job->getRouteKey(),
+            '/console/services',
+            '/console/services/create',
+            '/console/services/'.$service->getRouteKey().'/edit',
+            '/console/quantity-discounts',
+            '/console/quantity-discounts/create',
+            '/console/quantity-discounts/'.$discount->getRouteKey().'/edit',
         ]);
+    }
+
+
+    /**
+     * The shop panel is retired, and this is what keeps it retired.
+     *
+     * Deleting the files is not enough: a `ShopPanelProvider` left in
+     * `bootstrap/providers.php`, or a resource re-registered by hand, would put
+     * seventeen routes back on the shop prefix and quietly rebuild the second
+     * shell that #66 spent a whole pass removing.
+     */
+    public function test_the_filament_shop_panel_is_gone(): void
+    {
+        $left = collect(Route::getRoutes())
+            ->map(fn ($route) => $route->uri())
+            ->filter(fn (string $uri) => $uri === 'shop' || str_starts_with($uri, 'shop/'))
+            ->values()
+            ->all();
+
+        $this->assertSame([], $left, 'The shop panel is back: '.implode(', ', $left));
+    }
+
+    /**
+     * And nothing may point at it either.
+     *
+     * A 404 on `/shop` is only half the promise — a console page that still
+     * links there would send the owner to a dead end, which is worse than the
+     * second shell was.
+     */
+    public function test_no_console_page_links_into_the_old_panel(): void
+    {
+        $this->actAs($this->user('kevin@inkwell.ph'));
+
+        $shop = $this->user('kevin@inkwell.ph')->currentShop();
+        $job = $shop->jobs()->firstOrFail();
+
+        $pages = [
+            '/console',
+            '/console/jobs',
+            '/console/jobs/'.$job->getRouteKey(),
+            '/console/production-board',
+            '/console/price-matrix',
+            '/console/reports',
+            '/console/billing',
+            '/console/services',
+            '/console/quantity-discounts',
+        ];
+
+        foreach ($pages as $page) {
+            $html = $this->get($page)->assertOk()->getContent();
+
+            foreach (['href="/shop', 'action="/shop'] as $needle) {
+                $this->assertStringNotContainsString(
+                    $needle,
+                    $html,
+                    "{$page} still links into the retired panel.",
+                );
+            }
+        }
     }
 
     public function test_admin_panel_pages_render(): void
@@ -154,16 +213,16 @@ class SmokeTest extends TestCase
         $admin = $this->user('sofia@tarpalink.ph');
 
         $this->actAs($customer);
-        $this->get('/shop')->assertForbidden();
+        $this->get('/console')->assertForbidden();
         $this->get('/admin')->assertForbidden();
         $this->get('/account')->assertOk();
 
         $this->actAs($owner);
         $this->get('/admin')->assertForbidden();
-        $this->get('/shop')->assertOk();
+        $this->get('/console')->assertOk();
 
         $this->actAs($admin);
-        $this->get('/shop')->assertForbidden();
+        $this->get('/console')->assertForbidden();
         $this->get('/admin')->assertOk();
     }
 
@@ -174,7 +233,9 @@ class SmokeTest extends TestCase
         $this->get('/admin/shops/999999/edit')->assertNotFound();
 
         $this->actAs($this->user('kevin@inkwell.ph'));
-        $this->get('/shop/services/999999')->assertNotFound();
+        // The console's service screen is the edit form; there is no separate
+        // read-only view, so that is the route an unknown id has to 404 on.
+        $this->get('/console/services/999999/edit')->assertNotFound();
     }
 
     public function test_a_shop_owner_cannot_open_another_shops_service(): void
@@ -186,7 +247,7 @@ class SmokeTest extends TestCase
 
         // 404 rather than 403: the record is out of scope, so it does not exist
         // for this shop. Hiding it is the point.
-        $this->get('/shop/services/'.$foreign->getRouteKey())->assertNotFound();
+        $this->get('/console/services/'.$foreign->getRouteKey().'/edit')->assertNotFound();
     }
 
     public function test_the_quote_endpoint_rejects_garbage_without_a_500(): void

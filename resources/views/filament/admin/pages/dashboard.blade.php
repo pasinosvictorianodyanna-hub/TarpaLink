@@ -1,4 +1,4 @@
-@include('filament.shop.partials.theme')
+@include('filament.partials.theme')
 
 <x-filament-panels::page>
     <div class="tl-wrap" style="display:grid;gap:14px">

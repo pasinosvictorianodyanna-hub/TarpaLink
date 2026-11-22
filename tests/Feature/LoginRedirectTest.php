@@ -95,7 +95,7 @@ class LoginRedirectTest extends TestCase
 
     public function test_a_customer_bounced_off_the_shop_panel_is_not_sent_back_to_it(): void
     {
-        $this->get('/shop')->assertRedirect('/shop/login');
+        $this->get('/console')->assertRedirect('/login');
 
         $this->login('jomar@tarpalink.ph')->assertRedirect(route('account'));
     }

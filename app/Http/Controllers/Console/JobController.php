@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Console;
 
 use App\Models\Job;
 use App\Models\Proof;
+use App\Services\JobNudge;
 use App\Services\JobWorkflow;
 use App\Services\ProofExchange;
 use Illuminate\Contracts\View\View;
@@ -143,5 +144,25 @@ class JobController extends ConsoleController
         return redirect()
             ->route('console.jobs.show', $job)
             ->with('status', $job->reference.' is now '.$job->fresh()->statusLabel().'.');
+    }
+
+    /**
+     * Chase the customer about a job that is waiting on them.
+     *
+     * The activity row is written whether or not the mail leaves, so the shop's
+     * record of having chased is never a lie — and the banner says which of the
+     * two actually happened rather than claiming a send that failed silently.
+     */
+    public function nudge(Job $job): RedirectResponse
+    {
+        abort_unless($job->shop_id === $this->shop()->id, 404);
+
+        $job->loadMissing('user');
+
+        $sent = app(JobNudge::class)->send($job, $this->user());
+
+        return back()->with('status', $sent
+            ? 'Nudge emailed to '.($job->user?->name ?? 'the customer').'.'
+            : 'Nudge recorded on '.$job->reference.'. Mail is not configured here, so nothing was sent.');
     }
 }

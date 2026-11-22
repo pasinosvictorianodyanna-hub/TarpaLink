@@ -241,6 +241,9 @@ class DashboardController extends ConsoleController
                 'waiting' => $this->waited($reason['since']),
                 'since' => $reason['since']->getTimestamp(),
                 'url' => route('console.jobs.show', $job),
+                // The row exists to be acted on, so the chase is one click from
+                // the list rather than a trip through the job page and back.
+                'nudge' => route('console.jobs.nudge', $job),
             ];
         }
 
@@ -278,8 +281,22 @@ class DashboardController extends ConsoleController
                 : null;
         }
 
-        if ($job->status === 'quoted' && $job->created_at->lt($now->copy()->subHours(self::QUOTE_HOURS))) {
-            return ['issue' => "Quote sent, customer hasn't ordered", 'since' => $job->created_at];
+        if ($job->status === 'quoted') {
+            // `quoted` means the order is in and the money is not — there is no
+            // "ordering" left for the customer to do, so saying they "haven't
+            // ordered" describes a step that does not exist. Who the shop is
+            // waiting on depends on the payment, and the two cases deserve
+            // different words: unpaid is the customer's move, paid-with-no-proof
+            // is the shop's own delay and is the more urgent of the two.
+            if ($job->isPaid()) {
+                return $job->created_at->lt($now->copy()->subHours(self::PROOF_HOURS))
+                    ? ['issue' => 'Paid, proof not sent yet', 'since' => $job->created_at]
+                    : null;
+            }
+
+            return $job->created_at->lt($now->copy()->subHours(self::QUOTE_HOURS))
+                ? ['issue' => 'Unpaid, payment not confirmed', 'since' => $job->created_at]
+                : null;
         }
 
         if ($job->status === 'ready' && $job->updated_at->lt($now->copy()->subHours(self::PICKUP_HOURS))) {

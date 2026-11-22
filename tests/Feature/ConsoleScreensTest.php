@@ -184,6 +184,27 @@ class ConsoleScreensTest extends TestCase
         $this->assertSame('ready', $job->fresh()->status);
     }
 
+    /**
+     * The board is a picture of one shop's day. A foreign reference on it would
+     * be a job the owner cannot act on and must not see.
+     */
+    public function test_the_board_only_shows_this_shops_jobs(): void
+    {
+        $own = Job::where('shop_id', $this->shop()->id)
+            ->whereIn('status', JobWorkflow::BOARD)
+            ->firstOrFail();
+
+        $other = Job::where('shop_id', '!=', $this->shop()->id)
+            ->whereIn('status', JobWorkflow::BOARD)
+            ->firstOrFail();
+
+        $this->actingAs($this->owner())
+            ->get('/console/production-board')
+            ->assertOk()
+            ->assertSee($own->reference)
+            ->assertDontSee($other->reference);
+    }
+
     // --------------------------------------------------------- price matrix
 
     public function test_the_price_matrix_preview_is_the_real_quote(): void
@@ -216,6 +237,53 @@ class ConsoleScreensTest extends TestCase
 
         $this->assertSame(24, $response->viewData('width'));
         $this->assertSame(1, $response->viewData('qty'));
+    }
+
+    /**
+     * A spec the engine refuses is a message, not a 500 — the preview is a form
+     * somebody is halfway through filling in.
+     */
+    public function test_the_preview_never_throws_when_the_engine_rejects_the_spec(): void
+    {
+        $service = $this->shop()->services()->create([
+            'name' => 'Tiny stickers',
+            'slug' => 'tiny-stickers-'.uniqid(),
+            'unit' => 'pc',
+            'sort' => 99,
+            'active' => true,
+        ]);
+
+        $service->tiers()->create([
+            'label' => 'Up to 10 in',
+            'min_width' => 0,
+            'max_width' => 10,
+            'unit_price' => 1000,
+            'sort' => 0,
+        ]);
+
+        $response = $this->actingAs($this->owner())
+            ->get('/console/price-matrix?service='.$service->id.'&width=500&height=500&qty=1')
+            ->assertOk();
+
+        // The controller keeps the refusal in its own slot rather than inside the
+        // quote: a quote is what the customer sees, and a half-built one is not
+        // a quote.
+        $this->assertNull($response->viewData('quote'));
+        $this->assertNotEmpty($response->viewData('error'));
+    }
+
+    public function test_the_matrix_only_offers_this_shops_services(): void
+    {
+        $services = $this->actingAs($this->owner())
+            ->get('/console/price-matrix')
+            ->assertOk()
+            ->viewData('services');
+
+        $this->assertNotEmpty($services);
+        $this->assertSame(
+            [$this->shop()->id],
+            $services->pluck('shop_id')->unique()->values()->all(),
+        );
     }
 
     // ------------------------------------------------------------- reports
@@ -511,5 +579,53 @@ class ConsoleScreensTest extends TestCase
                 ->post('/console/shop', ['shop_id' => $second->id, 'return_to' => $to])
                 ->assertRedirect(route('console.dashboard'));
         }
+    }
+
+    /**
+     * The brand changing is not the same thing as the data changing. Every list
+     * in the console is scoped to `currentShop()`, so switching has to move the
+     * rows too — otherwise the header says one shop and the table shows another.
+     */
+    public function test_switching_changes_which_jobs_the_list_shows(): void
+    {
+        $second = $this->secondShop();
+
+        $theirs = Job::where('shop_id', $second->id)->firstOrFail();
+        $ours = Job::where('shop_id', $this->shop()->id)->firstOrFail();
+
+        $this->actingAs($this->owner())
+            ->get('/console/jobs')
+            ->assertOk()
+            ->assertSee($ours->reference)
+            ->assertDontSee($theirs->reference);
+
+        $this->actingAs($this->owner())
+            ->post('/console/shop', ['shop_id' => $second->id])
+            ->assertRedirect();
+
+        $this->actingAs($this->owner())
+            ->get('/console/jobs')
+            ->assertOk()
+            ->assertSee($theirs->reference)
+            ->assertDontSee($ours->reference);
+    }
+
+    /**
+     * A session pointing at a suspended shop must fall back rather than lock the
+     * owner out — the shop is refused at the door, so without a fallback a shop
+     * that stopped trading would take the whole console with it.
+     */
+    public function test_a_session_pointing_at_a_suspended_shop_falls_back_to_an_active_one(): void
+    {
+        $second = $this->secondShop();
+
+        $this->shop()->forceFill(['status' => 'suspended'])->save();
+
+        $this->actingAs($this->owner())
+            ->withSession(['shop_id' => $this->shop()->id])
+            ->get('/console')
+            ->assertOk();
+
+        $this->assertSame($second->id, $this->owner()->fresh()->currentShop()?->id);
     }
 }

@@ -102,23 +102,8 @@ class PriceCalculator
             'discount' => $discount,
             'total' => max(0, $subtotal - $discount),
             'currency' => 'PHP',
-            'matrix_version' => $this->matrixVersion($service),
+            'matrix_version' => $service->matrixVersion(),
             'tier' => $tier->label,
         ];
-    }
-
-    /**
-     * A short, stable fingerprint of the matrix a job was priced against.
-     *
-     * Changes whenever a tier or option changes, so a historical job can always be
-     * traced back to the exact price list the customer agreed to.
-     */
-    private function matrixVersion($service): int
-    {
-        $fingerprint = $service->tiers
-            ->map(fn ($t) => $t->id.':'.$t->unit_price.':'.$t->min_width.':'.$t->max_width)
-            ->implode('|');
-
-        return crc32($fingerprint) % 10000;
     }
 }

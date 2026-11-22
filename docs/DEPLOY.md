@@ -204,12 +204,35 @@ unreachable except through the proxy.
   SQLite, which is more forgiving than MySQL 8 in two ways that have already bitten
   this project: `only_full_group_by` (the reports query selects through a join) and
   `TIMESTAMP` conversion through the connection's time zone. Before the first deploy,
-  run the suite against MySQL rather than assuming:
+  run the suite against MySQL rather than assuming. Three things have to happen first,
+  and the stack does none of them: MySQL is not published to the host, `tarpalink_test`
+  does not exist, and the `tarpalink` user has no rights on it.
 
   ```bash
-  DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_DATABASE=tarpalink_test \
-  DB_USERNAME=root DB_PASSWORD=secret php artisan test
+  # 1. Publish the database to the host. This override is auto-loaded by every
+  #    later `docker compose` call, so it has to be removed again at step 4.
+  printf 'services:\n  db:\n    ports: ["3307:3306"]\n' > docker-compose.override.yml
+  docker compose up -d db
+
+  # 2. Create the schema database and let the app user write to it.
+  docker compose exec db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "
+    CREATE DATABASE IF NOT EXISTS tarpalink_test;
+    GRANT ALL PRIVILEGES ON tarpalink_test.* TO \"tarpalink\"@\"%\";"'
+
+  # 3. Run. All four variables, together: phpunit.xml pins DB_DATABASE to
+  #    :memory:, so exporting only DB_CONNECTION asks MySQL for a database
+  #    called ":memory:" and the run dies with an error that reads like a
+  #    config problem rather than a half-finished override.
+  DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_PORT=3307 DB_DATABASE=tarpalink_test \
+    php artisan test
+
+  # 4. Put the database back behind the compose network.
+  rm docker-compose.override.yml && docker compose up -d db
   ```
+
+  Expect 21 minutes, against three on SQLite. That cost is already repaid: the first
+  full MySQL run caught a test that had hard-coded a SQLite row id into a version
+  number and would have failed on the first real deploy.
 - **Inbound mail needs a forwarder.** `/webhooks/inbound` takes a signed JSON body
   and does not speak IMAP. Point a provider's inbound rule (Mailgun, Postmark, or a
   small relay) at it with an `X-Inbound-Signature` HMAC over the raw body. A body that
@@ -233,12 +256,17 @@ Built and run on Docker Desktop (Windows, engine 29.9.3), from a clean volume:
 | `ProductionSeeder` | 3 plans, 6 sections, 1 admin |
 | Admin credentials | password verifies, `canAccessPanel` allows |
 | Signed webhook → queue → settlement | 200, worker `DONE` in 84ms, payment `paid` |
+| Full suite on MySQL 8.4 | 505 passed, 2,438 assertions, 21 min |
 
 One bug was found this way and fixed: the worker originally declared
 `depends_on: app: service_started`, so it booted before migrations had created
 `queue_jobs` and crash-looped until the schema caught up. It now waits for
 `service_healthy`. If you copy this compose file anywhere, keep that condition —
 `service_started` is not enough when the app migrates on boot.
+
+A second one came out of the suite run: a test had frozen a SQLite row id into an
+assertion and passed for the whole life of the project, because the suite had never
+been run on the database production uses. The recipe above is what surfaced it.
 
 The build stage order matters for the same reason: `assets` runs **after**
 `vendor`, because the panel theme imports Filament's `theme.css` out of

@@ -929,6 +929,56 @@ collecting a row.
 
 ---
 
+## #90 — The pre-deploy MySQL run pointed at a database that did not exist
+
+`DEPLOY.md` has recommended, since #88, that the suite be run against MySQL before the first
+deploy, and prints a one-liner to do it. Running it for the first time on the live stack
+showed the one-liner cannot work as written: `DB_DATABASE=tarpalink_test` is a database the
+compose stack never creates, `DB_USERNAME=root DB_PASSWORD=secret` are not the credentials
+`.env.docker.example` asks for, and the stack does not publish MySQL to the host at all, so
+nothing on the host can reach it. The command fails — and a check that fails the first time
+it is run is a check that gets struck off the list rather than fixed.
+
+**What it found once it could run.** `CheckoutFlowTest` asserted `$job->matrix_version ===
+6612`. On MySQL the same code produced `8113`, and nothing was wrong: the fingerprint is
+`crc32` over `tier.id` values, which the database assigns, so it is only meaningful inside
+the installation that produced it. The test had frozen one database's row ids into an
+assertion and called it a business rule. It was green on SQLite every day of the project's
+life and would have been red on the first real deploy.
+
+**The fix is not a looser assertion.** `matrixVersion()` moved from `PriceCalculator` to
+`Service`, where it belongs — it is a property of the price list, the console prints it on a
+job (`v6612`), the receipt prints it, and a test that wants to say *the job recorded the
+matrix it was priced against* should be able to ask the service the same question the
+calculator asked. `PriceCalculator` now calls `$service->matrixVersion()` and keeps no
+second copy, so there is still exactly one definition. The assertion compares the job
+against the service: it holds on any database and still fails if a job ever stores a stale
+version.
+
+**One diagnosis was wrong, and is written down so it is not re-derived.** The first reading
+was that `artisan test` swallows exported variables — Collision's `TestCommand::clearEnv`
+does clear every key of `.env` from the parent environment, which made the theory look
+supported. It is irrelevant: running with `DB_PORT=3399` fails with "actively refused",
+which proves the export reaches PHPUnit intact. The failure was the database name, not the
+mechanism. This mattered, because the wrong diagnosis would have shipped a second
+`phpunit.mysql.xml` to work around a bug that did not exist; the file was deleted once the
+run proved it was unnecessary.
+
+**The trap that is left.** `phpunit.xml` pins `DB_DATABASE=:memory:`, so a reader who exports
+only `DB_CONNECTION=mysql` asks MySQL for a database called `:memory:` and gets an error
+that reads like a misconfiguration rather than half an override. The four variables have to
+move together, and `DEPLOY.md` now says so in the comment above the command.
+
+**Proven by:** the full suite on both engines — 505 tests, 2,438 assertions, green on SQLite
+(3 min) and on MySQL 8.4 (21 min). On MySQL the reports query's `only_full_group_by` and
+every `TIMESTAMP` read go through the production code path, which SQLite never exercises.
+
+**Verified live:** `tarpalink_test` held 27 tables in migration batch 1 after the documented
+command ran, so the connection demonstrably reached MySQL rather than falling back to the
+in-memory default — which is the check the old one-liner could not have offered.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

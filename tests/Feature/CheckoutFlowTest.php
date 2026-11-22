@@ -78,7 +78,13 @@ class CheckoutFlowTest extends TestCase
         $this->assertSame(214400, $job->subtotal);
         $this->assertSame(10720, $job->discount);
         $this->assertSame(203680, $job->total);
-        $this->assertSame(6612, $job->matrix_version);
+
+        // The job recorded the fingerprint of the matrix it was priced against —
+        // compared against the service, not against a literal. The number is
+        // built from tier ids, so it differs between databases; asserting 6612
+        // passed on SQLite and failed on MySQL without anything being wrong.
+        $this->assertSame($service->matrixVersion(), $job->matrix_version);
+
         $this->assertSame($shop->id, $job->shop_id);
         $this->assertCount(3, $job->lines);
 

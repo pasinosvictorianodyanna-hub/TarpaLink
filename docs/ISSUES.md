@@ -866,6 +866,69 @@ The job went `cancelled`, the payment `refunded`, and Studio Sampaguita's ledger
 
 ---
 
+## #83 — Subscription revenue was invoiced once and never collected, and never again
+
+`Billing::subscribe()` issues an invoice when a shop moves onto a paid plan. Nothing ever
+issued another one, and nothing ever recorded a payment against the first. So the product had
+a revenue line on paper and none in the bank, and an `open` invoice from any month ago was
+still sitting there looking collectable.
+
+**Why it could not be fixed with a cron.** The invoice table had no idea *which month* it was
+billing. `status = 'open'` plus `issued_at` cannot answer "does this shop already have this
+month's bill?", so a recurring command would either duplicate every period or skip every
+period. The period had to become a column first.
+
+| Added | Why |
+|---|---|
+| `period_start` / `period_end` | The question "is this period billed?" needs an answer that does not depend on when the job last ran |
+| `due_at` | Terms can change without silently restating how late every historical invoice was |
+| `paid_by` | A subscription is settled by GCash or a bank transfer — "paid" is a person's claim, so it carries their name |
+
+**Recurring, and safe to run daily.** `billing:issue` runs at 01:10 from a `scheduler`
+service. Daily rather than monthly: a monthly schedule gets one chance to run, and a machine
+that is asleep on the 1st leaves every shop unbilled with nothing to say so. It is idempotent
+by construction — the period is derived from the subscription's anniversary, and it asks
+whether that period already has an invoice — so thirty runs produce one bill and the
+thirty-first produces none.
+
+Periods follow the day the shop signed up, and `addMonthNoOverflow` keeps a subscription
+started on the 31st from rolling into March.
+
+**Overdue is computed, not stored.** `open` plus a past `due_at`. A stored `overdue` would
+need a nightly job to keep it true and would be wrong every night between the deadline and
+the run — which is exactly when somebody is looking at it.
+
+**Void is not a free month.** A voided invoice does not suppress its period: the next run
+re-bills it. Void means "this bill was wrong", not "skip this one".
+
+**A mid-month switch was double-billing.** Found while testing: switching Growth → Pro in the
+same month left both invoices `open`, so the shop was collectable twice and the superseded
+bill was unpayable forever. `subscribe()` now voids the open invoices for the month the
+switch lands in — and only that month, because an unpaid invoice from an earlier month is
+arrears and upgrading does not erase arrears. Four such rows were sitting in the dev database
+and were voided.
+
+**Who collects.** An administrator, on `/admin/invoices`, which stamps `paid_by`. There is no
+card on file to charge, and pretending otherwise would produce invoices marked paid by nobody.
+The action refuses to collect a bill twice, to collect a void one, or to void a paid one.
+
+**Deployment changed.** `DEPLOY.md` said "no scheduled tasks", which is no longer true and
+would have meant the command never ran in production. There is now a `scheduler` service in
+`docker-compose.yml` and a `scheduler` case in the entrypoint.
+
+**Proven by:** `BillingInvoiceTest` (12) — one invoice per period however often the command
+runs, a new period on the month roll, free and suspended shops skipped, due date seven days
+after the period starts, overdue computed and clearing the moment it is paid, recording a
+payment twice refused, a void invoice never collected, a voided period re-billed, a mid-month
+switch voiding the superseded bill, the command's own output, and the admin screen listing and
+collecting a row.
+
+**Verified live:** `billing:issue` issued `INV-202611-0005` for Inkwell Press (₱599.00, due
+30 Nov) and the second run answered "Nothing due". `/console/billing` shows
+**Outstanding ₱599.00** with the superseded invoices reading `Void`.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

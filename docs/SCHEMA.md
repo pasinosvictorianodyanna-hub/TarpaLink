@@ -186,9 +186,13 @@ erDiagram
         int subscription_id FK
         string number UK
         int amount "centavos"
-        string status
+        date period_start "which month this bills"
+        date period_end
+        string status "open | paid | void"
         datetime issued_at
+        datetime due_at
         datetime paid_at
+        int paid_by FK "who recorded the money"
     }
 
     integrations {
@@ -375,10 +379,29 @@ cannot file the same reply twice.
 |---|---|
 | `plans` | `code` (`starter` · `growth` · `pro`), `name`, `price` (centavos), `commission_rate` (basis points), `features` (JSON), `sort` |
 | `subscriptions` | `shop_id`, `plan_id`, `status`, `started_at`, `ends_at` |
-| `invoices` | `shop_id`, `subscription_id`, `number` (unique), `amount`, `status`, `issued_at`, `paid_at` |
+| `invoices` | `shop_id`, `subscription_id`, `number` (unique), `amount`, `period_start`, `period_end`, `status`, `issued_at`, `due_at`, `paid_at`, `paid_by` |
 
 A plan change updates `shops.plan` and `shops.commission_rate` and issues an invoice. It
 does not touch `payments`. That is the whole point of storing commission per payment.
+
+**`period_start` is what makes recurring billing answerable.** Without it, "does this shop
+already have this month's invoice?" cannot be asked, so a nightly command either duplicates
+or skips. Periods follow the day the subscription started, and the issuing command is
+idempotent because it checks the period rather than the clock.
+
+**`status` has three values and overdue is not one of them.** `open` · `paid` · `void`.
+Overdue is `open` plus a past `due_at`, computed in `Invoice::isOverdue()` — a stored
+`overdue` would need a nightly job to stay true and would be wrong every night between the
+deadline and the run.
+
+**A switch mid-period voids the bill it supersedes.** Otherwise the shop is collectable
+twice for the same month, once for the plan it left and once for the plan it joined, and the
+first invoice stays `open` forever because nobody will ever pay it. Only the month the switch
+lands in is voided: an unpaid invoice from an earlier month is arrears, and upgrading does
+not erase arrears.
+
+`paid_by` exists because a subscription invoice is settled by GCash or a bank transfer, not by
+a card we hold. "Paid" is a person's claim, so it carries their name.
 
 ### 2.14 `page_sections` / `site_settings`
 

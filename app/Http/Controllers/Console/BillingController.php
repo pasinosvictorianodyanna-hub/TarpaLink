@@ -53,7 +53,11 @@ class BillingController extends ConsoleController
             [
                 'current' => $current,
                 'plans' => $plans,
-                'invoices' => $shop->invoices()->take(10)->get(),
+                'invoices' => $shop->invoices()->orderByDesc('issued_at')->take(10)->get(),
+                // What is still collectable, so a shop can see what it owes
+                // without adding the column up itself.
+                'outstanding' => (int) $shop->invoices()->unpaid()->sum('amount'),
+                'overdue' => $shop->invoices()->unpaid()->whereNotNull('due_at')->where('due_at', '<', now())->count(),
             ],
         );
     }

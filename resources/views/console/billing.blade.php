@@ -61,7 +61,18 @@
     </div>
 
     <div class="fil-card">
-        <div class="fil-toolbar"><b style="font-size:12.5px">Invoices</b></div>
+        <div class="fil-toolbar">
+            <b style="font-size:12.5px">Invoices</b>
+            @if ($outstanding > 0)
+                <span style="margin-left:auto;font-size:11px;color:#6B7280">
+                    Outstanding:
+                    <strong style="color:{{ $overdue > 0 ? '#B42318' : '#111827' }}">{{ \App\Support\Money::format($outstanding) }}</strong>
+                    @if ($overdue > 0)
+                        · {{ $overdue }} overdue
+                    @endif
+                </span>
+            @endif
+        </div>
 
         @if ($invoices->isEmpty())
             <div style="padding:16px;font-size:12.5px;color:#6B7280">
@@ -74,14 +85,26 @@
         @else
             <div class="ftbl-wrap">
                 <table class="ftbl">
-                    <thead><tr><th>Number</th><th>Issued</th><th class="r">Amount</th><th>Status</th></tr></thead>
+                    <thead><tr><th>Number</th><th>Period</th><th>Due</th><th class="r">Amount</th><th>Status</th></tr></thead>
                     <tbody>
                         @foreach ($invoices as $invoice)
                             <tr>
                                 <td class="t">{{ $invoice->number }}</td>
-                                <td>{{ $invoice->issued_at?->format('d M Y') }}</td>
+                                <td>{{ $invoice->periodLabel() }}</td>
+                                <td style="white-space:nowrap">{{ $invoice->due_at?->format('d M Y') ?? '—' }}</td>
                                 <td class="r" style="font-variant-numeric:tabular-nums">{{ \App\Support\Money::format($invoice->amount) }}</td>
-                                <td>{{ ucfirst($invoice->status) }}</td>
+                                <td>
+                                    @if ($invoice->isOverdue())
+                                        <span class="fb fb-r">Overdue {{ $invoice->daysOverdue() }}d</span>
+                                    @elseif ($invoice->isPaid())
+                                        <span class="fb fb-g">Paid</span>
+                                        <span style="font-size:11px;color:#6B7280;margin-left:5px">{{ $invoice->paid_at?->format('d M') }}</span>
+                                    @elseif ($invoice->status === \App\Models\Invoice::VOID)
+                                        <span class="fb fb-n">Void</span>
+                                    @else
+                                        <span class="fb fb-y">Open</span>
+                                    @endif
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>

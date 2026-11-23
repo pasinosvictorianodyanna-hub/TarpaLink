@@ -12,9 +12,9 @@ use Illuminate\Support\Facades\Hash;
 /**
  * What a fresh production database needs, and nothing else.
  *
- * `DatabaseSeeder` is demo data — six shops, twenty-one jobs, customers with
- * known passwords. It must never run against a live database. This seeder
- * creates only the rows the application cannot start without:
+ * `DatabaseSeeder` is demo data — seven shops with their services, jobs and
+ * customers with known passwords. It must never run against a live database.
+ * This seeder creates only the rows the application cannot start without:
  *
  *   - the plan catalogue (billing reads it; a shop cannot be priced without it)
  *   - the six CMS sections (the landing page falls back to defaults, but an

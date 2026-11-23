@@ -117,9 +117,15 @@
                 'label' => match ($resumeJob->status) {
                     'awaiting_proof' => 'Approve proof',
                     'ready' => 'Collect '.$resumeJob->reference,
-                    // Created but never paid. "Finish" would promise an action
-                    // the job page cannot offer, so the chip says what is true.
-                    'quoted' => 'Unpaid '.$resumeJob->reference,
+                    // Created but never paid. "Finish" was rejected for
+                    // promising an action the page cannot offer; "Unpaid" had
+                    // the same fault one step further out — no route charges an
+                    // existing job, so the word implied a payment the
+                    // destination cannot take. Name the move the job page can
+                    // actually perform, in the words its own row button uses.
+                    'quoted' => $resumeJob->artworks->isEmpty()
+                        ? 'Send design '.$resumeJob->reference
+                        : 'Track '.$resumeJob->reference,
                     default => 'Track '.$resumeJob->reference,
                 },
                 'title' => $resumeJob->statusLabel().' · '.$resumeJob->shop->name.' · '.$resumeJob->reference,

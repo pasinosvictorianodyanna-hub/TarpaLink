@@ -270,7 +270,10 @@ class CheckoutController extends Controller
                         'provider' => 'paymongo',
                         'intent_id' => 'pending-'.$job->reference,
                         'amount' => $quote['total'],
-                        'processing_fee' => (int) round($quote['total'] * 0.025) + 1500,
+                        // An estimate until the processor reports its actual
+                        // fee with the settled payment. The shop bears this, so
+                        // the rate lives in config rather than in this line.
+                        'processing_fee' => Payment::estimateFee($quote['total']),
                         'commission' => (int) round($quote['total'] * $shop->commission_rate / 10000),
                         'status' => 'pending',
                     ]);

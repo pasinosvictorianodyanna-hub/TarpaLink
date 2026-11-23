@@ -2,8 +2,11 @@
 
 namespace Database\Seeders;
 
+use App\Models\Invoice;
 use App\Models\Job;
 use App\Models\PageSection;
+use App\Models\Payment;
+use App\Models\Plan;
 use App\Models\PriceOption;
 use App\Models\PriceTier;
 use App\Models\Proof;
@@ -11,7 +14,9 @@ use App\Models\QuantityDiscount;
 use App\Models\Service;
 use App\Models\Shop;
 use App\Models\SiteSetting;
+use App\Models\Subscription;
 use App\Models\User;
+use App\Services\Billing;
 use App\Services\PriceCalculator;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
@@ -26,6 +31,7 @@ class DatabaseSeeder extends Seeder
         $shops = $this->shops();
 
         $this->people($shops);
+        $this->subscriptions($shops);
         $this->content();
 
         // The proof rows below point at `proofs/sample.pdf`. Without the file,
@@ -318,6 +324,63 @@ class DatabaseSeeder extends Seeder
     }
 
     /**
+     * Real subscriptions, and the invoices they produce.
+     *
+     * `shops.plan` is only a label. Nothing is ever billed without a
+     * `subscriptions` row, because `issueDueInvoices()` walks that table — so
+     * this seed used to show three shops on Growth and Pro, ₱0 of subscription
+     * revenue, and an empty Invoices screen in the admin panel.
+     *
+     * The bills are produced by the real billing service rather than written by
+     * hand, so the seed exercises the same path a live upgrade takes: the period
+     * arithmetic, the numbering, and the seven-day due date.
+     *
+     * @param  array<int, Shop>  $shops
+     */
+    private function subscriptions(array $shops): void
+    {
+        $billing = app(Billing::class);
+
+        // Spread the anniversaries so the three bills land in three states: one
+        // already collected, two overdue, one still inside its seven days. A
+        // seed where every invoice is identical proves only that the column can
+        // hold a number.
+        $startedDaysAgo = [
+            'inkwell-press' => 45,
+            'tinta-and-co' => 20,
+            'halftone-hub' => 3,
+        ];
+
+        foreach ($shops as $shop) {
+            $plan = Plan::where('code', $shop->plan)->first();
+
+            // A free plan has nothing to invoice, and a pending shop cannot use
+            // the console yet — billing a shop before it is open would be the
+            // same mistake as creating a shop before it is approved.
+            if ($plan === null || $plan->isFree() || $shop->status !== 'active') {
+                continue;
+            }
+
+            Subscription::create([
+                'shop_id' => $shop->id,
+                'plan_id' => $plan->id,
+                'status' => 'active',
+                'started_at' => now()->subDays($startedDaysAgo[$shop->slug] ?? 30),
+            ]);
+        }
+
+        $billing->issueDueInvoices();
+
+        // One collected, so the admin's subscription figure is not zero and the
+        // ledger shows the difference between "issued" and "paid".
+        $collected = Invoice::where('status', Invoice::OPEN)->orderBy('id')->first();
+
+        if ($collected !== null) {
+            $billing->recordPayment($collected, User::where('role', 'admin')->first());
+        }
+    }
+
+    /**
      * Turnaround and service options, per shop.
      *
      * The values are deliberately spread so every filter in the rail has a
@@ -606,7 +669,7 @@ class DatabaseSeeder extends Seeder
                     'provider' => 'paymongo',
                     'intent_id' => 'pi_test_'.$job->reference,
                     'amount' => $quote['total'],
-                    'processing_fee' => (int) round($quote['total'] * 0.025) + 1500,
+                    'processing_fee' => Payment::estimateFee($quote['total']),
                     'commission' => (int) round($quote['total'] * $shop->commission_rate / 10000),
                     'status' => 'pending',
                 ]);
@@ -646,7 +709,7 @@ class DatabaseSeeder extends Seeder
                     'provider' => 'paymongo',
                     'intent_id' => 'pi_test_'.$job->reference,
                     'amount' => $quote['total'],
-                    'processing_fee' => (int) round($quote['total'] * 0.025) + 1500,
+                    'processing_fee' => Payment::estimateFee($quote['total']),
                     'commission' => (int) round($quote['total'] * $shop->commission_rate / 10000),
                     'status' => 'paid',
                     'paid_at' => $paidAt,

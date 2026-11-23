@@ -759,11 +759,6 @@ textarea.finp{height:auto;padding:8px 10px;line-height:1.5;resize:vertical}
 @media(max-width:640px){
 .ftbl{min-width:520px}
 }
-/* account footer block (keeps the profile row from reading as a job row) */
-.acct-foot{margin-top:26px;padding-top:18px;border-top:1px solid var(--line)}
-.acct-foot-h{font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
-.acct-foot-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 16px;border:1px dashed #D8D3C6;border-radius:12px;background:transparent}
-.acct-foot-row .avatar{background:var(--ink)}
 /* integrations grid */
 .int-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .int-card{padding:16px 17px;overflow:visible}

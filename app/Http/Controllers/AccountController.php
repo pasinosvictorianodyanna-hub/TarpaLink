@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Job;
-use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -79,7 +78,6 @@ class AccountController extends Controller
                 'search' => ['q' => $q, 'filter' => $filter],
                 'jobs' => $jobs->map(fn (Job $job) => $this->row($job))->values()->all(),
                 'empty' => $jobs->isEmpty() ? $this->emptyState($q, $filter, $counts) : null,
-                'account' => $this->account($request->user()),
                 'routes' => [
                     'shops' => route('shops.index'),
                     'account' => route('account'),
@@ -308,33 +306,6 @@ class AccountController extends Controller
             'body' => 'Find a shop, set your size, and see the exact price before you order.',
             'cta' => ['label' => 'Browse shops', 'url' => route('shops.index')],
         ];
-    }
-
-    /**
-     * The account strip at the foot of the list.
-     *
-     * @return array<string, string>
-     */
-    private function account(User $user): array
-    {
-        return [
-            'initials' => $this->initials($user->name),
-            'name' => $user->name,
-            'contact' => collect([$user->email, $user->phone])->filter()->implode(' · '),
-            'city' => $user->city ?: 'Metro Manila',
-            'url' => route('profile.edit'),
-        ];
-    }
-
-    /** "Jomar Mendoza" -> "JM". Two letters, like the design's avatar. */
-    private function initials(string $name): string
-    {
-        $parts = preg_split('/\s+/', trim($name), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-
-        return collect($parts)
-            ->take(2)
-            ->map(fn (string $part) => mb_strtoupper(mb_substr($part, 0, 1)))
-            ->implode('');
     }
 
     /** "2 jobs in progress, 1 waiting for your proof approval, 2 waiting for your design." */

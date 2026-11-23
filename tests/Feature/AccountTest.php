@@ -346,16 +346,6 @@ class AccountTest extends TestCase
         $this->assertStringContainsString('Find a shop', $props['summary']);
     }
 
-    public function test_the_account_strip_names_the_customer_and_links_to_the_profile(): void
-    {
-        $account = $this->props()['account'];
-
-        $this->assertSame($this->customer()->name, $account['name']);
-        $this->assertSame('JM', $account['initials']);
-        $this->assertStringContainsString($this->customer()->email, $account['contact']);
-        $this->assertSame(route('profile.edit'), $account['url']);
-    }
-
     public function test_another_customers_jobs_never_appear(): void
     {
         $mine = collect($this->props()['jobs'])->pluck('title');

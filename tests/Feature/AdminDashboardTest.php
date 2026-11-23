@@ -103,9 +103,11 @@ class AdminDashboardTest extends TestCase
     {
         // Net of reversals, because commission we gave back on a refund is not
         // revenue — and the fee is deliberately not subtracted, since the shop
-        // bears it (#81).
-        $expected = (int) Payment::moved()->sum('commission') - (int) Payment::moved()->sum('commission_refunded');
-        $gmv = (int) Payment::moved()->sum('amount');
+        // bears it (#81). Scoped to collected jobs: money taken on a job that was
+        // later cancelled was never revenue (#108).
+        $earned = Payment::moved()->onCollectedJobs();
+        $expected = (int) $earned->sum('commission') - (int) $earned->sum('commission_refunded');
+        $gmv = (int) $earned->sum('amount');
 
         // The two only coincide if every shop were on the same plan, which they
         // are not — so this is a real check, not a tautology.

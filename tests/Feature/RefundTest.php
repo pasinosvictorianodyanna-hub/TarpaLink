@@ -235,20 +235,36 @@ class RefundTest extends TestCase
         $this->assertSame('quoted', $job->fresh()->status);
     }
 
-    public function test_the_shop_cancelling_after_approval_refunds_nothing_automatically(): void
+    public function test_the_shop_cancelling_after_approval_returns_the_money(): void
     {
         $job = Job::where('status', 'approved')->where('shop_id', $this->inkwell()->id)->firstOrFail();
+
+        // One payment per job is the model's assumption (`Job::payment()` is a
+        // hasOne), so the seeded row goes first. Without this the payment this
+        // test creates is the *second* on the job, `$job->payment` resolves to
+        // the other one, and the assertions below measure a row nothing touched
+        // — which is how the previous version passed while asserting the
+        // opposite of what the code did.
+        $job->payment()->delete();
+
         $payment = $this->settled($job);
 
-        // The material is committed, so a refund here is the shop's call on the
-        // payment — not a side effect of the status change.
         $this->actingAs($this->owner())
             ->post(route('console.jobs.status', $job), ['status' => 'cancelled'])
             ->assertRedirect(route('console.jobs.show', $job));
 
         $this->assertSame('cancelled', $job->fresh()->status);
-        $this->assertSame(0, $payment->fresh()->refunded_amount);
-        $this->assertSame('paid', $payment->fresh()->status);
+
+        // FR-105 still stops the *customer* walking away after approval — that
+        // is a rule about who decides. It was never a licence to keep their
+        // money: a job that will not be printed cannot leave the platform
+        // holding the payment, so whoever cancels, the remainder goes back.
+        $this->assertSame('refunded', $payment->fresh()->status);
+        $this->assertSame(100_000, $payment->fresh()->refunded_amount);
+
+        // The processor keeps its fee, so a full refund still nets the shop
+        // negative — the same arithmetic as #82.
+        $this->assertSame(-4_000, $payment->fresh()->net());
     }
 
     public function test_cancelling_an_unpaid_job_moves_no_money(): void

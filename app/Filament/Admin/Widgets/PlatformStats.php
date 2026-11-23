@@ -33,12 +33,22 @@ class PlatformStats extends StatsOverviewWidget
     protected function getStats(): array
     {
         $gmv = (int) Payment::moved()->sum('amount') - (int) Payment::moved()->sum('refunded_amount');
-        $commission = (int) Payment::moved()->sum('commission') - (int) Payment::moved()->sum('commission_refunded');
+
+        // Earned on collection, not on capture. The published pricing says "per
+        // completed job", and counting at settlement booked revenue for work
+        // still on the press — or, worse, cancelled before it was printed.
+        $commission = (int) Payment::moved()->onCollectedJobs()->sum('commission')
+            - (int) Payment::moved()->onCollectedJobs()->sum('commission_refunded');
+
         $fees = (int) Payment::moved()->sum('processing_fee');
         $activeShops = Shop::where('status', 'active')->count();
         $pendingShops = Shop::where('status', 'pending')->count();
         $jobsThisMonth = Job::where('created_at', '>=', now()->startOfMonth())->count();
         $settled = Payment::moved()->count();
+
+        $held = (int) Payment::where('status', 'paid')
+            ->whereHas('job', fn ($job) => $job->whereNotIn('status', ['collected', 'cancelled']))
+            ->sum('commission');
 
         return [
             Stat::make('GMV', Money::short($gmv))
@@ -47,8 +57,10 @@ class PlatformStats extends StatsOverviewWidget
                 ->color('success'),
 
             Stat::make('Commission earned', Money::short($commission))
-                ->description(Money::short($fees).' of processor fees, borne by shops')
-                ->descriptionIcon('heroicon-m-chart-pie')
+                ->description($held > 0
+                    ? Money::short($held).' still held on unfinished jobs'
+                    : Money::short($fees).' of processor fees, borne by shops')
+                ->descriptionIcon($held > 0 ? 'heroicon-m-clock' : 'heroicon-m-chart-pie')
                 ->color($commission >= 0 ? 'primary' : 'danger'),
 
             Stat::make('Active shops', (string) $activeShops)

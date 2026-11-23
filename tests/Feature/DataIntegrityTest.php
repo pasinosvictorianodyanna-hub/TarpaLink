@@ -143,8 +143,10 @@ class DataIntegrityTest extends TestCase
 
     public function test_a_shop_never_has_more_than_one_active_subscription(): void
     {
-        // Subscriptions are created on upgrade, not seeded, so zero is normal.
-        // Two active rows would mean a shop is being billed twice.
+        // Seeded shops on a paid plan carry one each; a shop that upgraded
+        // through `Billing::subscribe()` has one, because that method cancels
+        // the previous row first. Two active rows would mean a shop is being
+        // billed twice for the same month.
         foreach (Shop::all() as $shop) {
             $active = Subscription::where('shop_id', $shop->id)->where('status', 'active')->count();
 

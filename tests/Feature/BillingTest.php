@@ -98,13 +98,17 @@ class BillingTest extends TestCase
         $this->assertSame($before, $after);
     }
 
-    public function test_a_free_plan_issues_no_invoice(): void
+    public function test_a_free_plan_issues_no_new_bill(): void
     {
         $shop = $this->inkwell();
 
         app(BillingService::class)->subscribe($shop, Plan::where('code', 'starter')->firstOrFail());
 
-        $this->assertSame(0, Invoice::where('shop_id', $shop->id)->count());
+        // No *open* bill. A shop that has been on a paid plan keeps its history
+        // — the invoice it already settled does not vanish because it downgraded
+        // — so "no invoice at all" was only ever true of a shop that had never
+        // been billed.
+        $this->assertSame(0, Invoice::where('shop_id', $shop->id)->unpaid()->count());
     }
 
     /**

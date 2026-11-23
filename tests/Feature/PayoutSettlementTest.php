@@ -172,8 +172,11 @@ class PayoutSettlementTest extends TestCase
     {
         $payment = $this->releasable();
 
-        // The job is cancelled from `approved`, which refunds nothing by the
-        // decision on #82 — so the payment stays paid and used to stay payable.
+        // Status is flipped directly rather than through `Cancellation`, so this
+        // exercises the release gate and not the refund. Since #108 cancelling
+        // from `approved` returns the money, but the gate must hold even for a
+        // payment that was never refunded — a bulk release is the wrong place to
+        // discover that.
         $payment->job->update(['status' => 'cancelled']);
 
         $payment->refresh();

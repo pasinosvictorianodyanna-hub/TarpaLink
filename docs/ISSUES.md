@@ -1078,6 +1078,37 @@ up — `Server running on [http://127.0.0.1:8000]`, `Processing jobs from the [d
 
 ---
 
+## #98 — A killed dev server left `public/hot` behind and turned the suite red
+
+`public/hot` is Vite's marker that a dev server is running: a one-line file holding its URL.
+`npm run dev` writes it on boot and deletes it on a clean exit. Kill the process instead —
+which is what a task runner does, and what I did twice while verifying #96 — and the file
+survives, pointing at a port nothing is listening on.
+
+**Two symptoms from one file.** A browser gets every page with its stylesheet and bundle
+addressed to `http://[::1]:5173`, which is dead, so the page renders unstyled. And
+`ConsoleTest > the console has its own stylesheet and no storefront shell` fails, because it
+asserts `/build/assets/console-` appears in the HTML and a hot file swaps that for the
+dev-server URL.
+
+**Why the test is right and the environment is wrong.** That assertion is not incidental: it
+is how the suite knows `console.css` reached the build. Relaxing it to accept a dev-server
+URL would let a genuine regression — the console stylesheet missing from the build — pass
+whenever a developer happened to have Vite open. The application should keep obeying the hot
+file, because that is how Laravel ships; a test suite is not a browser, so during a test run
+the file can only be stale.
+
+**Fix.** `TestCase::setUp()` removes a leftover hot file before the app boots, so the suite is
+deterministic regardless of what the developer last ran. The README carries the human-facing
+half — delete `public/hot` when a page comes up unstyled — because the failure looks like a
+broken template and nothing on the page names the cause.
+
+**Verified:** with the file planted the test fails and the page serves dead asset URLs; the
+guard removes it, the same test passes, and `public/hot` is gone afterwards. Full suite with
+no hot file: **509 passed, 2,458 assertions**.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

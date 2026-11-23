@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Job;
 use App\Models\Shop;
 use App\Models\User;
+use App\Services\JobWorkflow;
 use App\Support\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -65,7 +66,19 @@ class ConsoleTest extends TestCase
         // The console is a tool, not a page of the brochure: it must not carry
         // the marketing app bar or the storefront footer, and it must load the
         // console's own stylesheet.
-        $this->assertStringContainsString('/build/assets/console-', $html);
+        //
+        // The stylesheet is matched by name, not by build path. It arrives as
+        // `/build/assets/console-*.css` normally and as `/resources/css/console.css`
+        // when Vite is serving — and asserting the first form made this test
+        // depend on whether the developer happened to have `npm run dev` open.
+        // The question worth asking is "does the console load console.css", and
+        // that has one answer in both modes.
+        $this->assertMatchesRegularExpression(
+            '#(/build/assets/console-[^"]+\.css|/resources/css/console\.css)#',
+            $html,
+            'The console page does not reference console.css.',
+        );
+
         $this->assertStringNotContainsString('class="appbar"', $html);
         $this->assertStringNotContainsString('class="footer"', $html);
     }
@@ -75,8 +88,11 @@ class ConsoleTest extends TestCase
         $html = $this->dashboard()->getContent();
 
         // The dashboard has no island, so the page must not pull the Vue bundle
-        // in "just in case" — that is a runtime a drawer does not need.
+        // in "just in case" — that is a runtime a drawer does not need. Both
+        // forms are checked: the built bundle and the dev-server entry point,
+        // because asserting only the first passes vacuously whenever Vite is up.
         $this->assertStringNotContainsString('/build/assets/app-', $html);
+        $this->assertStringNotContainsString('resources/js/app.js', $html);
     }
 
     public function test_revenue_today_equals_a_plain_sum_over_paid_payments(): void
@@ -317,7 +333,7 @@ class ConsoleTest extends TestCase
         $job = $this->shop()->jobs()->where('status', 'ready')->firstOrFail();
         $job->forceFill(['due_at' => now()->subDay()])->save();
 
-        \App\Services\JobWorkflow::transition($job, 'collected', $this->owner());
+        JobWorkflow::transition($job, 'collected', $this->owner());
 
         $after = $this->onTime();
 
@@ -330,7 +346,7 @@ class ConsoleTest extends TestCase
         $job = $this->shop()->jobs()->where('status', 'ready')->firstOrFail();
         $job->forceFill(['due_at' => now()->addDay()])->save();
 
-        \App\Services\JobWorkflow::transition($job, 'collected', $this->owner());
+        JobWorkflow::transition($job, 'collected', $this->owner());
 
         $job->refresh();
 

@@ -229,6 +229,30 @@ class ArtworkTest extends TestCase
         $this->assertCount(0, $job->fresh()->artworks);
     }
 
+    public function test_a_job_closed_before_any_file_was_sent_explains_itself(): void
+    {
+        // The card renders either way, so the empty state has to know whether it
+        // is still waiting or has stopped waiting. It used to say "Not sent yet"
+        // and "X prints the file you send" on a cancelled order: an instruction
+        // with no form under it and no way to ever clear it.
+        $job = $this->quoted();
+        $job->update(['status' => 'cancelled']);
+
+        $html = $this->actingAs($this->customer())
+            ->get(route('jobs.show', $job))
+            ->assertOk()
+            ->assertSee('closed before you sent a design')
+            ->assertDontSee('Not sent yet')
+            ->assertDontSee('prints the file you send')
+            ->getContent();
+
+        $this->assertStringNotContainsString(
+            route('jobs.artwork.store', $job),
+            $html,
+            'A cancelled job still offers an upload form.',
+        );
+    }
+
     public function test_a_file_the_shop_cannot_open_is_refused_with_advice(): void
     {
         $job = $this->quoted();

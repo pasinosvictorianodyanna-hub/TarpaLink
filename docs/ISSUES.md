@@ -1203,6 +1203,93 @@ shop scanning the queue cannot see at a glance which jobs are still waiting for 
 
 ---
 
+## #102 — Four things the browser showed that the suite could not
+
+Every defect here was found by opening the pages after #100 landed, and the suite was green
+for all four. Three are copy and layout on the customer's job page. The fourth is the reason
+the first three were hard to see.
+
+### The test was passing for the wrong reason, and had started deleting a file to keep doing it
+
+`ConsoleTest` asserted `/build/assets/console-`, which is only true when Vite is *not*
+running. With `npm run dev` open the page references `/resources/css/console.css` and the
+assertion fails — so #98 "fixed" it by deleting `public/hot` before every test.
+
+That was wrong in a way worth writing down. `public/hot` is Vite's "a dev server is running"
+marker; `npm run dev` writes it and deletes it on a clean exit, and only a *killed* server
+leaves it behind. A test suite cannot tell those two cases apart, so #98's guard deleted a
+**live** marker whenever the suite ran beside a dev server. The browser then quietly fell
+back to `public/build` and rendered the previous build instead of the working tree — and
+because screenshots were being taken to verify #100, the result was a screenshot that
+appeared to show the fix had not been applied. That cost a round of investigation and nearly
+a wrong diagnosis.
+
+The test was asking the wrong question. It wanted "does the console load its own stylesheet",
+which has one answer in both modes:
+
+```php
+$this->assertMatchesRegularExpression(
+    '#(/build/assets/console-[^"]+\.css|/resources/css/console\.css)#',
+    $html,
+);
+```
+
+With that, nothing has to be deleted. `tests/TestCase.php` is back to an empty class with a
+docblock explaining why it is empty, and the "ships no storefront JavaScript" test now checks
+both forms for the same reason — asserting only the build path passes vacuously while Vite is
+up.
+
+### One instruction, printed twice
+
+The job page showed **"Your design — Not sent yet"** in one card and **"Send your design"** in
+the next. Both were about the same file, and the second was the way to clear the first. A
+customer had to work that out from the wording. They are now one card: tag, explanation and
+form under one heading.
+
+### The progress rail named the wrong party's file
+
+Step 1 read **"Design file received"** and meant *the shop's proof*. That was accurate when
+the proof was the only file in the system; once the customer can send artwork, it names the
+wrong upload and reads as though the shop received a file it did not. It is now "Proof sent
+by the shop", and the two waiting states are distinguished:
+
+| State | Copy |
+|---|---|
+| proof exists | `Proof v3 prepared by the shop` |
+| artwork, no proof | `Your design arrived — waiting for the shop` |
+| neither | `Waiting for your design` |
+
+The `matrix v` suffix also left step 3. `matrix_version` has been a `crc32` fingerprint since
+#90, so "matrix v8113" was an internal number shown to a customer — the same mistake the
+receipt made until #100.
+
+### A closed job asked for a file it would not accept
+
+The design card renders whether or not a file exists, deliberately: a job page with no card
+reads as "nothing to do here". But the empty state did not know whether it was *still* waiting.
+A job cancelled before any artwork showed a yellow **"Not sent yet"**, the line *"Inkwell Press
+prints the file you send"*, and no form — an instruction with no way to satisfy it, sitting
+there forever.
+
+It now says the order closed before a design was sent, in a neutral `tag-n` rather than a
+yellow to-do, and offers no upload. `test_a_job_closed_before_any_file_was_sent_explains_itself`
+asserts the explanation appears, the yellow tag and the instruction do not, and the upload
+route is absent from the HTML.
+
+### Verified
+
+Full suite **536 passed, 2,544 assertions**. The console side was checked in a browser as the
+job's own shop: the **Customer's artwork** card renders above **Proofs** with the filename,
+size and a working Download, and the shop's History logs the arrival.
+
+The first reading of that page was `artwork card: 0`, which looked like a missing card and was
+a **404**: the capture was logged in as Inkwell's owner while `TL-92810` belongs to Northline
+Print, and `Console\JobController::show()` 404s on a job that is not the current shop's. The
+screenshot was an error page. Worth recording because the instinct — "the view change did not
+take" — was wrong, and the test that said the card existed was right.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

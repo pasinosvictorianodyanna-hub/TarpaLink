@@ -250,14 +250,22 @@ class Job extends Model
                         .' ₱'.number_format($payment->amount / 100, 2)
                     : 'Cash at pickup',
                 $this->created_at],
-            [1, 'Design file received',
-                $proof ? 'Proof v'.$proof->version.' prepared by the shop' : 'Waiting for the shop to upload artwork',
+            // This step is the shop's proof, not the customer's file. It was
+            // called "Design file received" back when the only file in the
+            // system was a proof — now that customers actually send artwork, the
+            // label named the wrong party's upload.
+            [1, 'Proof sent by the shop',
+                match (true) {
+                    $proof !== null => 'Proof v'.$proof->version.' prepared by the shop',
+                    $this->artworks()->exists() => 'Your design arrived — waiting for the shop',
+                    default => 'Waiting for your design',
+                },
                 $proof?->created_at],
             [2, 'Proof approved by you',
                 $proof ? 'Version '.$proof->version : null,
                 $proof?->approved_at],
             [3, 'Printing in progress',
-                ($this->shop?->name ?? 'The shop').' · matrix v'.$this->matrix_version,
+                ($this->shop?->name ?? 'The shop'),
                 null],
             [4, 'Ready for pickup',
                 'Bring your order number to the counter',

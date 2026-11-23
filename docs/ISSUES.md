@@ -1363,6 +1363,60 @@ now agree.
 
 ---
 
+## #106 — A counter that counted presence, and a claim about a button that is not there
+
+Both found by reading a screen against its own numbers.
+
+### "Needs your action: 1" over a list showing two
+
+The dashboard said **1** while two rows beneath it offered a "Send design" button:
+
+```php
+$actions = $proofs + ($needsArtwork === null ? 0 : 1);
+```
+
+`$needsArtwork` is a single job, picked so the alert banner can name one. Counting its
+*presence* made any number of missing designs read as one. This is the same defect #100 fixed
+for proofs — "three proofs waiting read as one" — left standing in the bucket next to it,
+which is what makes it worth recording: the fix was applied to the thing being looked at and
+not to its neighbour.
+
+| | Before | After |
+|---|---|---|
+| Number | `1` | `2` |
+| Note | `Send your design` | `2 designs to send` |
+| Subtitle | `5 jobs in progress.` | `5 jobs in progress, 2 waiting for your design.` |
+
+A dead `$actions` local in `index()` went with it — assigned, never read.
+
+### "only after you confirm pickup"
+
+Every shop page ended with:
+
+> Payment is held by TarpaLink and released to the shop only after **you confirm pickup**.
+
+Nothing in the customer's journey confirms a pickup. The shop marks a job collected from its
+console and the payout gate reads `collected_at`. The job page had always worded the same fact
+correctly — *"Payment is released to the shop once you collect"* — so the two pages disagreed
+about who does what, and the one the customer reads before ordering invented an action for
+them.
+
+Now: **"released to the shop only after you collect your order."**
+
+Same shape as #82 (a refund policy with no refund) and #100 (a privacy policy describing an
+upload that did not exist): a published claim with nothing behind it. This one is milder — the
+money really is held and really is released after collection — but it teaches the customer to
+expect a confirmation step that never comes.
+
+### Verified
+
+`545 passed (2570 assertions)`. `AccountTest` gained a design-counter test, and the proof
+counter now excludes quoted jobs so the two buckets cannot mask each other.
+`DirectoryTest` gained a shop-page test asserting both the corrected sentence and the absence
+of the old one.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

@@ -7,9 +7,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * The directory's filter rail. Each filter is asserted against the data it
- * claims to filter — a test that only checks the page returns 200 would pass
- * even if every checkbox did nothing.
+ * The directory's filter rail, and what a shop's own page claims.
+ *
+ * Each filter is asserted against the data it claims to filter — a test that
+ * only checks the page returns 200 would pass even if every checkbox did
+ * nothing. The shop page is here for the same reason: it is the other half of
+ * the storefront, and the copy on it is a claim like any other.
  */
 class DirectoryTest extends TestCase
 {
@@ -67,6 +70,22 @@ class DirectoryTest extends TestCase
         $ids = collect($shops)->pluck('id');
 
         $this->assertSame($ids->count(), $ids->unique()->count());
+    }
+
+    public function test_the_shop_page_does_not_name_a_pickup_confirmation(): void
+    {
+        // The sidebar said payment is "released to the shop only after you
+        // confirm pickup". Nothing in the customer's journey confirms a pickup:
+        // the shop marks the job collected from its console, and the payout gate
+        // reads that. The fact was right and the agency was not, which is the
+        // same shape as #100's promises — a claim about a button that is not
+        // there.
+        $shop = Shop::active()->firstOrFail();
+
+        $this->get(route('shops.show', $shop))
+            ->assertOk()
+            ->assertSee('released to the shop only after you collect your order')
+            ->assertDontSee('confirm pickup');
     }
 
     public function test_the_turnaround_buckets_match_the_labels(): void

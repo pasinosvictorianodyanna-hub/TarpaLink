@@ -108,7 +108,11 @@
                        href="{{ route('shops.builder', $shop) }}">Start an order</a>
 
                     <p class="tiny" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line-2);line-height:1.55">
-                        Payment is held by TarpaLink and released to the shop only after you confirm pickup.
+                        {{-- "only after you confirm pickup" named a button the
+                             customer never presses: the shop marks a job collected
+                             from its console, and the payout gate reads that. The
+                             fact is right, the agency was not. --}}
+                        Payment is held by TarpaLink and released to the shop only after you collect your order.
                     </p>
                 </div>
             </aside>

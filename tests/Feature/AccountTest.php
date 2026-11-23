@@ -257,20 +257,46 @@ class AccountTest extends TestCase
         // already has one, so the expected number is counted, not assumed.
         $already = $customer->jobs()->where('status', 'awaiting_proof')->count();
 
-        $jobs = $customer->jobs()->where('status', '!=', 'awaiting_proof')->take(2)->get();
+        // Quoted jobs are excluded: moving one to `awaiting_proof` would take a
+        // design out of the other bucket the counter also counts, and this test
+        // is about proofs.
+        $jobs = $customer->jobs()
+            ->whereNotIn('status', ['awaiting_proof', 'quoted'])
+            ->take(2)
+            ->get();
         $this->assertGreaterThanOrEqual(2, $jobs->count());
 
         foreach ($jobs as $job) {
             $job->update(['status' => 'awaiting_proof']);
         }
 
-        $expected = $already + $jobs->count();
+        $designs = $customer->jobs()->where('status', 'quoted')->doesntHave('artworks')->count();
+
+        $expected = $already + $jobs->count() + $designs;
 
         $kpi = collect($this->props('renz@example.com')['kpis'])
             ->firstWhere('label', 'Needs your action');
 
         $this->assertSame((string) $expected, $kpi['value']);
         $this->assertSame('warn', $kpi['tone']);
+    }
+
+    public function test_the_action_counter_counts_every_missing_design_not_just_one(): void
+    {
+        // jomar has two unpaid orders with no file attached. The count was
+        // `$needsArtwork === null ? 0 : 1`, so the box said 1 while the list
+        // underneath showed two "Send design" buttons.
+        $customer = $this->customer();
+
+        $proofs = $customer->jobs()->where('status', 'awaiting_proof')->count();
+        $designs = $customer->jobs()->where('status', 'quoted')->doesntHave('artworks')->count();
+
+        $this->assertGreaterThanOrEqual(2, $designs, 'The seed should give jomar two quotes with no file.');
+
+        $kpi = collect($this->props()['kpis'])->firstWhere('label', 'Needs your action');
+
+        $this->assertSame((string) ($proofs + $designs), $kpi['value']);
+        $this->assertStringContainsString($designs.' design', $kpi['note']);
     }
 
     public function test_a_collected_row_recedes_and_a_live_row_does_not(): void

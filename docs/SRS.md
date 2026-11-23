@@ -1,6 +1,6 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.15 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.16 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
 > profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
@@ -52,6 +52,10 @@
 > and unstarted, so it now shows the shop's turnaround instead of a pickup date — in all
 > three places the old page showed one, and which disagreed with each other. It also fixes
 > `Shop::estimatedReadyAt()` moving the date it was handed (§5.4).
+> Version 1.16 corrects a counter and a claim. The dashboard's "needs your action" counted
+> *whether* a design was missing rather than how many were, so it read "1" above a list
+> showing two. And every shop page said payment is released "only after you confirm pickup" —
+> an action the customer never takes, because the shop marks the job collected (§5.2).
 
 ---
 

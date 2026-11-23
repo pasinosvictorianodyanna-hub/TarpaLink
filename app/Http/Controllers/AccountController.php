@@ -56,18 +56,24 @@ class AccountController extends Controller
         // reason a job is not moving: a proof to approve, and a design file the
         // shop has never received. The old code counted only the first, and
         // counted it as a hard-coded "1" — three proofs waiting read as one.
+        //
+        // The design count is a count, not a yes/no. It was `$needsArtwork ===
+        // null ? 0 : 1`, so two unpaid orders both missing their file read as
+        // one while the list beneath showed two "Send design" buttons.
         $awaitingProof = $all->where('status', 'awaiting_proof');
         $needsProof = $awaitingProof->first();
-        $needsArtwork = $all
-            ->where('status', 'quoted')
-            ->first(fn (Job $job): bool => $job->artworks->isEmpty());
 
-        $actions = $awaitingProof->count() + ($needsArtwork === null ? 0 : 1);
+        $awaitingDesign = $all
+            ->where('status', 'quoted')
+            ->filter(fn (Job $job): bool => $job->artworks->isEmpty());
+
+        $needsArtwork = $awaitingDesign->first();
+        $designs = $awaitingDesign->count();
 
         return view('account', [
             'props' => [
-                'summary' => $this->summary($counts['active'], $counts['all'], $awaitingProof->count()),
-                'kpis' => $this->kpis($counts, $all, $awaitingProof->count(), $needsArtwork),
+                'summary' => $this->summary($counts['active'], $counts['all'], $awaitingProof->count(), $designs),
+                'kpis' => $this->kpis($counts, $all, $awaitingProof->count(), $designs),
                 'alert' => $this->alert($needsProof, $needsArtwork),
                 'tabs' => $this->tabs($counts, $filter, $q),
                 'search' => ['q' => $q, 'filter' => $filter],
@@ -93,19 +99,21 @@ class AccountController extends Controller
      * @param  Collection<int, Job>  $all
      * @return list<array<string, string>>
      */
-    private function kpis(array $counts, Collection $all, int $proofs, ?Job $needsArtwork): array
+    private function kpis(array $counts, Collection $all, int $proofs, int $designs): array
     {
         $inProduction = $all->where('status', 'in_production')->count();
         $readyShop = $all->firstWhere('status', 'ready')?->shop->name;
 
         // A number with no explanation sends the customer hunting. Say which
         // thing is waiting, and how many of each.
-        $actions = $proofs + ($needsArtwork === null ? 0 : 1);
+        $actions = $proofs + $designs;
 
         $note = match (true) {
-            $proofs > 0 && $needsArtwork !== null => $proofs.' proof'.($proofs === 1 ? '' : 's').' · design to send',
+            $proofs > 0 && $designs > 0 => $proofs.' proof'.($proofs === 1 ? '' : 's')
+                .' · '.$designs.' design'.($designs === 1 ? '' : 's').' to send',
             $proofs > 0 => $proofs.' proof'.($proofs === 1 ? '' : 's').' to approve',
-            $needsArtwork !== null => 'Send your design',
+            $designs > 1 => $designs.' designs to send',
+            $designs === 1 => 'Send your design',
             default => 'Nothing waiting on you',
         };
 
@@ -329,8 +337,8 @@ class AccountController extends Controller
             ->implode('');
     }
 
-    /** "2 jobs in progress, 1 waiting for your proof approval." */
-    private function summary(int $active, int $total, int $proofs): string
+    /** "2 jobs in progress, 1 waiting for your proof approval, 2 waiting for your design." */
+    private function summary(int $active, int $total, int $proofs, int $designs): string
     {
         if ($total === 0) {
             return 'Find a shop, set your size, and see the exact price before you order.';
@@ -344,6 +352,10 @@ class AccountController extends Controller
 
         if ($proofs > 0) {
             $parts[] = $proofs.' waiting for your proof approval';
+        }
+
+        if ($designs > 0) {
+            $parts[] = $designs.' waiting for your design';
         }
 
         return $parts === []

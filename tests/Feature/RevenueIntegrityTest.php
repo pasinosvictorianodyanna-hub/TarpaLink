@@ -83,6 +83,16 @@ class RevenueIntegrityTest extends TestCase
         $this->assertSame(7_110, Payment::estimateFee(203_680));
     }
 
+    public function test_an_empty_fee_setting_falls_back_instead_of_charging_nothing(): void
+    {
+        // `PAYMONGO_FEE_RATE_BP=` in a .env file yields '', not null, and
+        // `(int) ''` is 0 — which would drop the percentage and credit the shop
+        // the difference without anything failing.
+        config(['services.paymongo.fee_rate_bp' => '', 'services.paymongo.fee_flat' => '']);
+
+        $this->assertSame(6_592, Payment::estimateFee(203_680));
+    }
+
     public function test_a_settled_payment_takes_the_processors_fee(): void
     {
         $payment = $this->pendingPayment();

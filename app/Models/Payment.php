@@ -49,8 +49,13 @@ class Payment extends Model
      */
     public static function estimateFee(int $amount): int
     {
-        $rateBp = (int) config('services.paymongo.fee_rate_bp', 250);
-        $flat = (int) config('services.paymongo.fee_flat', 1500);
+        // `env('PAYMONGO_FEE_RATE_BP', 250)` returns '' — not 250 — when the
+        // deployment wrote `PAYMONGO_FEE_RATE_BP=` with nothing after it, and
+        // `(int) ''` is 0. That would quietly turn a 2.5% fee into the flat
+        // charge alone and credit the shop the difference. The guard lives here
+        // rather than in the config because this is the only reader.
+        $rateBp = (int) config('services.paymongo.fee_rate_bp') ?: 250;
+        $flat = (int) config('services.paymongo.fee_flat') ?: 1500;
 
         return (int) round($amount * $rateBp / 10000) + $flat;
     }

@@ -8,7 +8,9 @@ use App\Models\Shop;
 use App\Models\Subscription;
 use App\Models\User;
 use Carbon\CarbonInterface;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -22,6 +24,14 @@ use Illuminate\Validation\ValidationException;
  */
 final class Billing
 {
+    /**
+     * The key that makes "issue every due invoice" single-runner.
+     *
+     * Named once because two callers now need to agree on it: the scheduler and
+     * the container's boot hook, which is how a host with no cron still bills.
+     */
+    private const ISSUE_LOCK = 'billing:issue';
+
     /**
      * Move a shop onto a plan, closing the previous subscription and issuing an
      * invoice when the plan costs anything.
@@ -104,6 +114,33 @@ final class Billing
      * @return array<int, Invoice> the invoices actually created
      */
     public function issueDueInvoices(?CarbonInterface $today = null): array
+    {
+        // The check ("does this period have an invoice?") and the insert are two
+        // statements, not one, so two runs that overlap both read "no invoice"
+        // and both write one. On a host with a nightly cron that is a curiosity;
+        // on Render's free plan the run is triggered by a boot, and a rolling
+        // deploy briefly runs two containers. The guard is a lock rather than a
+        // second query, and it waits rather than giving up — a run that skips
+        // would let the command report "nothing due" over an unbilled period,
+        // which is the exact lie #108 removed from its output.
+        try {
+            return Cache::lock(self::ISSUE_LOCK, 60)
+                ->block(10, fn (): array => $this->issueDue($today));
+        } catch (LockTimeoutException) {
+            // Another process held the lock for ten seconds. It is billing; this
+            // run has nothing to add.
+            return [];
+        }
+    }
+
+    /**
+     * The issuing itself, without the lock. Only ever called from the guarded
+     * entry point above, so every caller — the scheduler, the boot hook, an
+     * administrator at a console — shares one guard.
+     *
+     * @return array<int, Invoice>
+     */
+    private function issueDue(?CarbonInterface $today = null): array
     {
         $today = $today ?? now();
         $issued = [];

@@ -1709,12 +1709,74 @@ are documented behaviour, not observed behaviour.
 
 ### Still open
 
-Uploaded files are lost on every redeploy (artwork as well as proofs since #100) — point
-`PROOF_DISK_DRIVER` at S3/R2, no code change. And a month of zero traffic bills nothing, because
-the hook bills the period containing *today*; closing that means backfilling missed periods, which
-is a billing-semantics change rather than a deployment one.
+A month of zero traffic bills nothing, because the hook bills the period containing *today*;
+closing that means backfilling missed periods, which is a billing-semantics change rather than a
+deployment one. Uploaded files were the other item here and #117 closed them.
 
 `563 passed (2626 assertions)`.
+
+---
+
+## #117 — The free plan had nowhere to put a file or a schema
+
+Two gaps #115 left standing, and they were the two that made the free tier a demo rather than a
+deployment. `FILESYSTEM_DISK=local` on a disk that is wiped every spin-down means a shop that
+uploads artwork and comes back after lunch finds it gone. And the database was five `sync: false`
+variables with the advice "some external MySQL" attached — advice that does not survive contact
+with the only free MySQL-compatible host worth naming, because TiDB Cloud refuses a plaintext
+connection.
+
+### R2 is configuration, TiDB is not
+
+Cloudflare R2 needed nothing but environment: both disks already read the whole `AWS_*` block, and
+`ProofController`/`ArtworkController` stream files through `Storage::disk()->response()` and
+`->download()` rather than handing out URLs — so a **private** bucket is enough, and no presigned
+URL, public hostname or `AWS_URL` is involved. Three values make it R2 rather than S3:
+`AWS_ENDPOINT`, `AWS_USE_PATH_STYLE_ENDPOINT=true`, and the region `auto`. Each one fails silently
+if missed, which is why the doc names all three in a table.
+
+TiDB was different in kind. `MYSQL_ATTR_SSL_CA` is a **path**, and a platform environment variable
+is a **string** — so there is no way to point it at a certificate that exists only in a dashboard.
+`DB_SSL_CA_PEM` carries the certificate's contents; the entrypoint writes them to
+`/etc/ssl/certs/db-ca.pem` and exports the path **before** `php artisan optimize`, because
+`config:cache` bakes the resolved value in and a path exported afterwards is a path nothing reads.
+An explicit `MYSQL_ATTR_SSL_CA` still wins, so mounting the certificate as a Render Secret File
+works too and a stale `DB_SSL_CA_PEM` cannot override it.
+
+### The defect this uncovered
+
+The first boot against a TLS-only MySQL failed with `Cannot connect to MySQL using SSL`, and the
+CA was provably correct. The certificate was being found and **rejected** — PHP verifies the peer
+name against the certificate's SANs, and MySQL's auto-generated certificate has none, so no
+hostname could ever satisfy the check. `config/database.php` had no way to say "encrypt, but do not
+pin the host".
+
+Adding that knob exposed a second problem on the way in: the options array was built with a bare
+`array_filter`, which drops every falsy value — and `false` is exactly the value the new switch
+needs to carry. It would have been silently discarded, leaving the option present in the code and
+absent from the connection. The array is now built explicitly, and an **empty** value is treated as
+*not set* rather than `false`, because `MYSQL_ATTR_SSL_VERIFY_SERVER_CERT=` in an env file would
+otherwise switch off the name check without anyone deciding to.
+
+### Verified by booting the image
+
+A configuration claim needs a server that can refuse it, so the test was MySQL 8.4 with
+`require_secure_transport=ON` — plaintext refused outright:
+
+| Attempt | Result |
+|---|---|
+| No CA at all | `[3159] Connections using insecure transport are prohibited` |
+| `DB_SSL_CA_PEM` only | `Peer certificate CN='MySQL_Server_8.4.13_Auto_Generated_Server_Certificate' did not match expected CN='tl-db'` — the CA reached PDO, the chain verified, only the name check failed |
+| `DB_SSL_CA_PEM` + `MYSQL_ATTR_SSL_VERIFY_SERVER_CERT=false` | booted; migrations ran; `Ssl_cipher = TLS_AES_256_GCM_SHA384` |
+| `config:cache` after boot | `{"1009":"/etc/ssl/certs/db-ca.pem","1014":false}` — the path survived into the cache |
+| Both `DB_SSL_CA_PEM` and `MYSQL_ATTR_SSL_CA` | the mounted path wins and the written file is ignored |
+
+Not verified: a live TiDB cluster and a live R2 bucket. TiDB's certificate carries a SAN, so the
+name check should pass there and the switch should stay off — but that is an expectation, not an
+observation, and the doc says so.
+
+`563 passed (2626 assertions)` — the suite is unchanged, because neither change has a code path
+that a SQLite test could exercise.
 
 ---
 

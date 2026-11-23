@@ -3,6 +3,42 @@
 use Illuminate\Support\Str;
 use Pdo\Mysql;
 
+/*
+| TLS options for a MySQL-family server that signs with its own CA.
+|
+| Two knobs, and both are easy to get wrong from an environment file:
+|
+|   MYSQL_ATTR_SSL_CA                    a *path* to the CA certificate
+|   MYSQL_ATTR_SSL_VERIFY_SERVER_CERT    whether the certificate must name
+|                                        the host it was served from
+|
+| The CA makes mysqlnd attempt TLS and verify the chain. The second knob exists
+| because a certificate with no SAN cannot satisfy the name check at all, and
+| MySQL's auto-generated certificate has none — so a self-hosted server with
+| `require_secure_transport=ON` fails with "Cannot connect to MySQL using SSL"
+| even though the CA is correct. TiDB Cloud's certificate does carry a SAN, so
+| it is left alone there.
+|
+| An empty value means *not configured*, not false. `MYSQL_ATTR_SSL_VERIFY_
+| SERVER_CERT=` left blank in an env file resolves to `''`, and treating that
+| as `false` would silently switch off the name check — the one thing this
+| option exists to keep on.
+*/
+$sslOptions = [];
+
+if (extension_loaded('pdo_mysql')) {
+    $ca = env('MYSQL_ATTR_SSL_CA');
+    $verify = env('MYSQL_ATTR_SSL_VERIFY_SERVER_CERT');
+
+    if ($ca !== null && $ca !== '') {
+        $sslOptions[PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA] = $ca;
+    }
+
+    if ($verify !== null && $verify !== '') {
+        $sslOptions[PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_VERIFY_SERVER_CERT : PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = (bool) $verify;
+    }
+}
+
 return [
 
     /*
@@ -64,9 +100,10 @@ return [
             // has to agree with app.timezone or a 17:00 due date comes back as
             // 09:00. Keep this in step with APP_TIMEZONE.
             'timezone' => env('DB_TIMEZONE', '+08:00'),
-            'options' => extension_loaded('pdo_mysql') ? array_filter([
-                (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
-            ]) : [],
+            // A database that signs with its own CA needs both of these; the
+            // reasoning, and why an empty value is not `false`, is in
+            // $sslOptions above.
+            'options' => $sslOptions,
         ],
 
         'mariadb' => [
@@ -84,9 +121,10 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
-            'options' => extension_loaded('pdo_mysql') ? array_filter([
-                (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
-            ]) : [],
+            // A database that signs with its own CA needs both of these; the
+            // reasoning, and why an empty value is not `false`, is in
+            // $sslOptions above.
+            'options' => $sslOptions,
         ],
 
         'pgsql' => [

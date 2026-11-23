@@ -305,6 +305,13 @@ the query, so a forged URL returns 404 rather than someone else's data.
 **BR-8 — The server decides the price, the state, and the money.** The client may preview
 and may optimistically render, but it never becomes the source of truth.
 
+**BR-9 — Money is released on delivery, not on payment.** A captured payment is money the
+platform holds; it becomes money the shop has earned only when the job is `collected`. The
+published policy says so — *"Payouts are released from the platform ledger after the job is
+collected"* — and `Payment::mayBeReleased()` is where that sentence is enforced. A job
+cancelled after approval refunds nothing, by the decision recorded on #82, so without this
+rule a cancelled job's payment stays `paid` and looks exactly like a deliverable one.
+
 ---
 
 ## 7. Non-functional requirements

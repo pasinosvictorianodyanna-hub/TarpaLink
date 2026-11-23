@@ -30,9 +30,25 @@ class PayoutSettlementTest extends TestCase
         return User::where('email', 'sofia@tarpalink.ph')->firstOrFail();
     }
 
-    private function pending(): Payment
+    /**
+     * Captured, unreleased, and for a job that has actually been collected.
+     *
+     * The seeder carries payments for jobs in every state, so "pending payout"
+     * and "releasable" are no longer the same set — see #94.
+     */
+    private function releasable(): Payment
     {
-        return Payment::awaitingPayout()->firstOrFail();
+        return Payment::awaitingPayout()
+            ->whereHas('job', fn ($q) => $q->where('status', 'collected'))
+            ->firstOrFail();
+    }
+
+    /** Captured and unreleased, but the job has not reached collection. */
+    private function notYetCollected(): Payment
+    {
+        return Payment::awaitingPayout()
+            ->whereHas('job', fn ($q) => $q->whereNotIn('status', ['collected', 'cancelled']))
+            ->firstOrFail();
     }
 
     public function test_only_an_administrator_can_open_the_payouts_screen(): void
@@ -51,7 +67,7 @@ class PayoutSettlementTest extends TestCase
     public function test_an_administrator_can_release_a_pending_payout(): void
     {
         $admin = $this->admin();
-        $payment = $this->pending();
+        $payment = $this->releasable();
 
         $this->assertSame('pending', $payment->payout_status);
         $this->assertNull($payment->payout_date);
@@ -68,7 +84,7 @@ class PayoutSettlementTest extends TestCase
 
     public function test_settling_never_changes_the_money(): void
     {
-        $payment = $this->pending();
+        $payment = $this->releasable();
         $before = [$payment->amount, $payment->commission, $payment->net(), $payment->status];
 
         Livewire::actingAs($this->admin())
@@ -83,7 +99,7 @@ class PayoutSettlementTest extends TestCase
     public function test_an_already_paid_payout_is_not_offered_for_release(): void
     {
         $admin = $this->admin();
-        $payment = $this->pending();
+        $payment = $this->releasable();
 
         // Release it, then backdate so a second release would be visible.
         $payment->update(['payout_status' => 'paid', 'payout_date' => '2026-01-15']);
@@ -101,15 +117,18 @@ class PayoutSettlementTest extends TestCase
     {
         $admin = $this->admin();
 
-        $pending = Payment::awaitingPayout()->take(3)->get();
+        $releasable = Payment::awaitingPayout()
+            ->whereHas('job', fn ($q) => $q->where('status', 'collected'))
+            ->take(3)
+            ->get();
         $alreadyPaid = Payment::where('status', 'paid')->where('payout_status', 'paid')->firstOrFail();
         $originalDate = $alreadyPaid->payout_date?->toDateString();
 
         Livewire::actingAs($admin)
             ->test(ListPayouts::class)
-            ->callTableBulkAction('settleSelected', $pending->pluck('id')->push($alreadyPaid->id)->all());
+            ->callTableBulkAction('settleSelected', $releasable->pluck('id')->push($alreadyPaid->id)->all());
 
-        foreach ($pending as $payment) {
+        foreach ($releasable as $payment) {
             $this->assertSame('paid', $payment->fresh()->payout_status);
         }
 
@@ -117,10 +136,77 @@ class PayoutSettlementTest extends TestCase
         $this->assertSame($originalDate, $alreadyPaid->fresh()->payout_date?->toDateString());
     }
 
+    public function test_a_payout_is_not_released_before_the_job_is_collected(): void
+    {
+        $payment = $this->notYetCollected();
+
+        $this->assertFalse($payment->mayBeReleased());
+        $this->assertStringContainsString('collected', $payment->releaseBlockedReason());
+
+        // The button is there but greyed out: hiding it would make a blocked row
+        // look like a row that has already been dealt with.
+        Livewire::actingAs($this->admin())
+            ->test(ListPayouts::class)
+            ->assertActionDisabled(TestAction::make('settle')->table($payment))
+            // And the badge says so, instead of calling it "Pending" alongside
+            // money that really is payable.
+            ->assertSee('Awaiting collection');
+
+        $this->assertSame('pending', $payment->fresh()->payout_status);
+        $this->assertNull($payment->fresh()->payout_date);
+    }
+
+    public function test_a_collected_job_is_released_with_the_button_enabled(): void
+    {
+        $payment = $this->releasable();
+
+        $this->assertTrue($payment->mayBeReleased());
+        $this->assertNull($payment->releaseBlockedReason());
+
+        Livewire::actingAs($this->admin())
+            ->test(ListPayouts::class)
+            ->assertActionEnabled(TestAction::make('settle')->table($payment));
+    }
+
+    public function test_a_cancelled_job_is_never_paid_out(): void
+    {
+        $payment = $this->releasable();
+
+        // The job is cancelled from `approved`, which refunds nothing by the
+        // decision on #82 — so the payment stays paid and used to stay payable.
+        $payment->job->update(['status' => 'cancelled']);
+
+        $payment->refresh();
+
+        $this->assertFalse($payment->mayBeReleased());
+        $this->assertSame(
+            'The job was cancelled, so there is nothing to pay for.',
+            $payment->releaseBlockedReason(),
+        );
+
+        Livewire::actingAs($this->admin())
+            ->test(ListPayouts::class)
+            ->assertActionDisabled(TestAction::make('settle')->table($payment));
+    }
+
+    public function test_the_bulk_action_leaves_uncollected_rows_alone(): void
+    {
+        $notYet = $this->notYetCollected();
+        $ready = $this->releasable();
+
+        Livewire::actingAs($this->admin())
+            ->test(ListPayouts::class)
+            ->callTableBulkAction('settleSelected', [$notYet->id, $ready->id]);
+
+        $this->assertSame('pending', $notYet->fresh()->payout_status);
+        $this->assertNull($notYet->fresh()->payout_date);
+        $this->assertSame('paid', $ready->fresh()->payout_status);
+    }
+
     public function test_a_shop_owner_cannot_settle_their_own_payout(): void
     {
         $owner = User::where('email', 'kevin@inkwell.ph')->firstOrFail();
-        $payment = $this->pending();
+        $payment = $this->releasable();
 
         $this->assertFalse($owner->can('settle', $payment));
         $this->assertTrue($this->admin()->can('settle', $payment));

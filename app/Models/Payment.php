@@ -113,10 +113,69 @@ class Payment extends Model
     }
 
     /**
+     * Whether the money may be released to the shop yet.
+     *
+     * Payment is not delivery. The customer is charged at checkout, which is
+     * before the proof, before the press, and long before anybody carries a
+     * banner out of a shop — so `status = paid` says the platform is holding
+     * money, not that the shop earned it. The published policy draws the line
+     * in the same place: *"Payouts are released from the platform ledger after
+     * the job is collected."*
+     *
+     * Until #94 nothing enforced that. A job cancelled from `approved` — which
+     * refunds nothing, by the decision on #82 — left a paid payment sitting on
+     * the payouts screen, indistinguishable from a deliverable one, and a bulk
+     * release paid the shop for work that was never printed.
+     */
+    public function mayBeReleased(): bool
+    {
+        return $this->releaseBlockedReason() === null;
+    }
+
+    /**
+     * Why the money is not releasable, or null when it is.
+     *
+     * A sentence rather than a boolean because the screen has to say *why*: a
+     * disabled button with no explanation is a support ticket, and "the job was
+     * cancelled" and "the job is still on the press" are different answers that
+     * lead to different actions.
+     */
+    public function releaseBlockedReason(): ?string
+    {
+        if ($this->isSettled()) {
+            return 'Already released.';
+        }
+
+        if ($this->isFullyRefunded()) {
+            return 'Fully refunded — there is nothing left to pay out.';
+        }
+
+        if ($this->status !== 'paid') {
+            return 'The payment has not settled yet.';
+        }
+
+        $job = $this->job;
+
+        if ($job === null) {
+            return 'No job is attached to this payment.';
+        }
+
+        return match ($job->status) {
+            'collected' => null,
+            'cancelled' => 'The job was cancelled, so there is nothing to pay for.',
+            default => 'The job is still "'.strtolower($job->statusLabel()).'" — payouts release once it is collected.',
+        };
+    }
+
+    /**
      * Money we hold for the shop but have not released yet.
      *
      * Only paid payments qualify: a pending intent is not revenue, and a failed
      * one is not owed to anybody.
+     *
+     * **This is not the payable set.** A captured payment for a job that has not
+     * been collected is still awaiting payout — it is just not releasable yet,
+     * which is `mayBeReleased()`. Keeping the two apart is the point of #94.
      *
      * Columns are qualified because this scope also runs through
      * `$shop->payments()`, a hasManyThrough that joins `jobs` — and `jobs` has a

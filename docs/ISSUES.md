@@ -1603,6 +1603,60 @@ The honest caveat, recorded rather than discovered later: editing `docs/SRS.md` 
 
 ---
 
+## #113 — The shop could read the design but not tell it had arrived
+
+The customer has been able to send a file since #100. The shop could open it, on one screen.
+
+Everything else said nothing. The upload sends an email, and mail is best-effort by design
+(FR-82, #61) — with `MAIL_MAILER=log` nothing leaves the machine at all. So the only reliable way
+for a shop to learn that a design had arrived was to open each job and look. With fifteen open
+jobs that is fifteen pages, and the one that matters is the one nobody opened.
+
+Three surfaces now answer the question:
+
+| Where | Before | Now |
+|---|---|---|
+| Job queue (`/console/jobs`) | no column | `sent` / `not sent` beside the spec, `—` once the job is collected or cancelled |
+| Production board | nothing | `design` on the card, `no design` while the job is still before its proof |
+| Dashboard, needs attention | `Paid, proof not sent yet` | `Paid, waiting for the customer's design` when there is no file |
+
+### The dashboard was blaming the shop
+
+`classify()` treated every paid `quoted` job the same way:
+
+```php
+return $job->created_at->lt($now->copy()->subHours(self::PROOF_HOURS))
+    ? ['issue' => 'Paid, proof not sent yet', 'since' => $job->created_at]
+    : null;
+```
+
+Paid and no proof is the shop's own delay **only when the input is in hand**. A paid job whose
+customer has not sent a design is the shop unable to start, waiting on somebody else — and the row
+told the owner to hurry up, beside a nudge button that mails the customer. The two waits are
+opposite, and the sentence now says which one it is:
+
+- design present, no proof → `Paid, proof not sent yet` (the shop's move)
+- no design → `Paid, waiting for the customer's design` (the customer's move)
+
+The old test passed because its fixture had no artwork either — it asserted the wrong sentence for
+its own scenario. It now attaches a file, and a second test covers the blocked case.
+
+### Why the board only marks some cards
+
+`design` shows on every card that has one. `no design` shows only in `quoted` and `awaiting_proof`,
+because after the proof the file is locked (`acceptsArtwork()`), and a missing one is no longer
+something to chase — the job may well be one the shop designed itself. The queue keeps the plain
+fact for every open job, because a list is a record and a board is a work surface.
+
+### Verified
+
+`562 passed (2625 assertions)`. The new assertions isolate the row and the card they are about —
+`sent` is a substring of `not sent`, so a page-wide `assertSee` would pass on the wrong job. The
+table was checked against its own header count (nine and nine) after the column was added, because
+a `<td>` short breaks the layout without failing a content assertion.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

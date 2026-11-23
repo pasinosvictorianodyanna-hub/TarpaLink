@@ -223,6 +223,7 @@ class DashboardController extends ConsoleController
     {
         $jobs = $shop->jobs()
             ->with(['user', 'service', 'proofs'])
+            ->withCount('artworks')
             ->whereNotIn('status', ['collected', 'cancelled'])
             ->get();
 
@@ -289,6 +290,19 @@ class DashboardController extends ConsoleController
             // different words: unpaid is the customer's move, paid-with-no-proof
             // is the shop's own delay and is the more urgent of the two.
             if ($job->isPaid()) {
+                // Paid and no design is a different wait from paid and no proof.
+                // The second is the shop's own delay — the input is in hand and
+                // the proof has not been made. The first is the shop blocked on a
+                // file only the customer can send, and saying "proof not sent
+                // yet" there blames the shop for the customer's silence. The
+                // nudge beside the row is the right action in both cases, but for
+                // opposite reasons, and the sentence has to say which.
+                if ((int) $job->artworks_count === 0) {
+                    return $job->created_at->lt($now->copy()->subHours(self::PROOF_HOURS))
+                        ? ['issue' => 'Paid, waiting for the customer\'s design', 'since' => $job->created_at]
+                        : null;
+                }
+
                 return $job->created_at->lt($now->copy()->subHours(self::PROOF_HOURS))
                     ? ['issue' => 'Paid, proof not sent yet', 'since' => $job->created_at]
                     : null;

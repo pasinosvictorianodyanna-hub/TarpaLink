@@ -1,6 +1,6 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.17 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.18 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
 > profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
@@ -63,6 +63,11 @@
 > guess stamped at checkout and never corrected from the webhook (FR-112); and a refund issued
 > after the payout had gone out was accepted with no record that the shop now owes it back
 > (FR-113).
+> Version 1.18 makes the customer's design visible to the shop. The file could be sent since
+> v1.13 and the shop could read it on the job page, but nothing said it had *arrived* — the
+> upload sent an email and mail is best-effort, so a shop had to open every job to find out. The
+> queue and the production board now say so (FR-114), and a paid job with no design is no longer
+> labelled "proof not sent yet", which blamed the shop for a file only the customer can send.
 
 ---
 
@@ -262,6 +267,7 @@ issues were adopted, not the order the sections appear in.
 | FR-91 | The console shall let the shop edit its catalogue — services, size tiers, finishing add-ons and quantity-discount bands — and shall apply an edit to the next quote without changing jobs already priced. | #66 |
 | FR-92 | The console shall let an account that owns more than one shop switch between them, and shall accept a shop only when it belongs to the account and is trading. | #66 |
 | FR-93 | The console shall hide the price, catalogue and billing screens from shop staff and shall refuse them at the route, so hiding the link is a courtesy and not the rule. | #66 |
+| FR-114 | The console shall show, without opening the job, whether the customer's artwork has arrived — a badge on the job queue and a mark on the production board — and shall name a paid job with no artwork as waiting on the customer rather than as a proof the shop has not sent. | #113 |
 
 ### 5.10 Shop admission — FR-94 …
 
@@ -426,6 +432,7 @@ given so a reader can open it; several issues are covered by more than one file.
 | #83 | FR-106, FR-107 | `BillingInvoiceTest` — one invoice per period however often the command runs, a new period on the month roll, void re-billed, and no double collection |
 | #82 | FR-66, FR-104, FR-105 | `RefundTest` — a full refund leaves the shop carrying the fee, a partial reverses the commission in proportion, refunds stop at the gross, and the customer's cancel closes after the proof |
 | #108 | FR-105, FR-111, FR-112, FR-113 | `RevenueIntegrityTest` — the fee is an estimate until the webhook reports one, commission counts only on collected jobs, and a refund after release leaves a visible debt. `RefundTest` — the shop cancelling after approval returns the money. `SubscriptionRevenueTest` — every paid-plan shop has a subscription and a bill |
+| #113 | FR-114 | `ArtworkTest` — the queue says whether the design has arrived and stops nagging about a closed job, the board marks a job waiting on the customer's file, and `ConsoleTest` — a paid job with a design is the shop's delay, a paid job without one waits on the customer |
 
 Two honest notes about this table:
 

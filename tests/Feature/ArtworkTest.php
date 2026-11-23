@@ -343,4 +343,100 @@ class ArtworkTest extends TestCase
             ->get(route('jobs.show', $job))
             ->assertOk();
     }
+
+    /**
+     * The shop has to open each job to find out whether a design arrived, and the
+     * email the upload sends is best-effort (#82) — so the queue itself has to
+     * answer the question the owner is asking it.
+     */
+    public function test_the_job_queue_says_whether_the_design_has_arrived(): void
+    {
+        $job = $this->quoted();
+
+        $before = $this->queueRow($job);
+
+        $this->assertNotSame('', $before, 'The job should be in the queue.');
+        $this->assertStringContainsString('not sent', $before);
+
+        $this->actingAs($this->customer())
+            ->post(route('jobs.artwork.store', $job), ['file' => $this->pdf('queue.pdf')]);
+
+        $after = $this->queueRow($job);
+
+        $this->assertStringNotContainsString('not sent', $after, 'The badge must stop saying "not sent".');
+        $this->assertStringContainsString('sent', $after);
+    }
+
+    /** A job that has been collected is no longer waiting on anything. */
+    public function test_the_queue_does_not_nag_about_a_closed_job(): void
+    {
+        $job = $this->quoted();
+        $job->forceFill(['status' => 'cancelled'])->save();
+
+        $row = $this->queueRow($job);
+
+        $this->assertNotSame('', $row, 'A cancelled job still belongs in the list.');
+        $this->assertStringNotContainsString('not sent', $row);
+    }
+
+    /**
+     * The board is where a shop looks while it works, so the same fact belongs
+     * there — and it stops mattering once a proof has gone out, because the file
+     * is locked at that point and its absence is no longer something to chase.
+     */
+    public function test_the_board_marks_a_job_waiting_for_the_customers_design(): void
+    {
+        $job = $this->quoted();
+
+        $before = $this->boardCard($job);
+
+        $this->assertNotSame('', $before, 'A quoted job belongs on the board.');
+        $this->assertStringContainsString('no design', $before);
+
+        $this->actingAs($this->customer())
+            ->post(route('jobs.artwork.store', $job), ['file' => $this->pdf('board.pdf')]);
+
+        $after = $this->boardCard($job);
+
+        $this->assertStringNotContainsString('no design', $after);
+        $this->assertStringContainsString('design', $after);
+    }
+
+    /** The queue row for one job, isolated so an assertion cannot read a neighbour. */
+    private function queueRow(Job $job): string
+    {
+        $html = $this->actingAs($this->owner())
+            ->get(route('console.jobs'))
+            ->assertOk()
+            ->getContent();
+
+        preg_match_all('/<tr>.*?<\/tr>/s', $html, $rows);
+
+        foreach ($rows[0] as $row) {
+            if (str_contains($row, $job->reference)) {
+                return $row;
+            }
+        }
+
+        return '';
+    }
+
+    /** The board card for one job, for the same reason. */
+    private function boardCard(Job $job): string
+    {
+        $html = $this->actingAs($this->owner())
+            ->get(route('console.board'))
+            ->assertOk()
+            ->getContent();
+
+        preg_match_all('/<a\s+class="board-card".*?<\/a>/s', $html, $cards);
+
+        foreach ($cards[0] as $card) {
+            if (str_contains($card, $job->reference)) {
+                return $card;
+            }
+        }
+
+        return '';
+    }
 }

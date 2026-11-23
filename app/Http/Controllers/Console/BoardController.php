@@ -24,6 +24,9 @@ class BoardController extends ConsoleController
 
         $jobs = $shop->jobs()
             ->with(['user', 'service'])
+            // Whether the customer's file has arrived, so a card can say so
+            // without a click into the job.
+            ->withCount('artworks')
             ->whereIn('status', JobWorkflow::BOARD)
             ->orderBy('due_at')
             ->get()

@@ -8,6 +8,10 @@ containers cannot come along**. Read the table before you start, not after.
 The blueprint is `render.yaml`. It encodes everything that can be encoded; the
 secrets, the database and the bucket are yours to fill in.
 
+If you would rather have the order to do things in than the reasons things are the way they
+are, [DEPLOY-CHECKLIST.md](DEPLOY-CHECKLIST.md) is this page as a linear runbook, with a
+checkpoint at the end of each stage.
+
 ## What the free plan does to this application
 
 Every number below is from Render's own free-tier documentation, not from experience — this

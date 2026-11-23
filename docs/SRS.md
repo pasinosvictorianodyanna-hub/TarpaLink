@@ -1,6 +1,6 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.14 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.15 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
 > profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
@@ -48,6 +48,10 @@
 > "design file", and a job cancelled before any artwork still asked for one in yellow. The
 > fourth was a test that had been passing for the wrong reason, and had started deleting a
 > live file to keep passing.
+> Version 1.15 stops the job page dating work that has not been scheduled. A quote is unpaid
+> and unstarted, so it now shows the shop's turnaround instead of a pickup date — in all
+> three places the old page showed one, and which disagreed with each other. It also fixes
+> `Shop::estimatedReadyAt()` moving the date it was handed (§5.4).
 
 ---
 
@@ -158,7 +162,7 @@ feature names.
 | FR-36 | The system shall record `matrix_version` on the job so that a later price edit does not alter an agreed price. | #4 |
 | FR-37 | The system shall send the total it displayed to the server with the order, and shall refuse to place the order — before any row is written — if the server's fresh quote disagrees, returning the new total so the customer can confirm it deliberately. | #63 |
 
-### 5.4 Job lifecycle — FR-40 …
+### 5.4 Job lifecycle — FR-40 … FR-46, FR-110 …
 
 | ID | Requirement | Issue |
 |---|---|---|
@@ -169,6 +173,7 @@ feature names.
 | FR-44 | The system shall stamp `collected_at` when and only when a job reaches `collected`, and shall derive on-time rate from `collected_at <= due_at`. | #17 |
 | FR-45 | The system shall show a customer their own jobs only, and shall return **404** — not 403 — for another customer's job. | #13 |
 | FR-46 | The system shall record each proof as a numbered version with a status, and shall tell the customer on their account page when a proof is waiting for them. | #5 |
+| FR-110 | The system shall not show a pickup date for work that has not been scheduled: a `quoted` job shall show its shop's published turnaround instead of a date, in every place the page states one, and shall show no timestamp on a lifecycle step it has not reached. | #104 |
 
 ### 5.5 Shop operations — FR-50 …
 

@@ -268,7 +268,12 @@ class Shop extends Model
     {
         $hours = max(1, (int) ($this->turnaround_hours ?: 48));
 
-        return ($from ?? Carbon::now())->addHours($hours);
+        // Copied, not used directly. `addHours()` mutates in place and returns
+        // the same instance, so the old `($from ?? Carbon::now())->addHours()`
+        // moved the caller's date as well as returning the answer — a caller
+        // holding both ends of a window got the same timestamp twice. Checkout
+        // never noticed because it passes nothing; the seeder did.
+        return ($from?->copy() ?? Carbon::now())->addHours($hours);
     }
 
     public function turnaroundLabel(): string
@@ -277,6 +282,22 @@ class Shop extends Model
             $this->turnaround_hours <= 8 => 'Same day',
             $this->turnaround_hours <= 24 => '24 hours',
             default => '2–3 days',
+        };
+    }
+
+    /**
+     * The same claim as a clause rather than a badge.
+     *
+     * `turnaroundLabel()` is a label — "Same day" — and drops into a sentence
+     * badly: "Ready Same day after you pay". This is the form that reads, and it
+     * is what the job page uses before a job has a date of its own.
+     */
+    public function turnaroundPhrase(): string
+    {
+        return match (true) {
+            $this->turnaround_hours <= 8 => 'the same day',
+            $this->turnaround_hours <= 24 => 'within 24 hours',
+            default => 'within 2–3 days',
         };
     }
 

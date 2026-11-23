@@ -269,7 +269,12 @@ class Job extends Model
                 null],
             [4, 'Ready for pickup',
                 'Bring your order number to the counter',
-                $this->due_at],
+                // A date on a step that has not happened is a promise. Once the
+                // job is in the shop's queue it is a fair forecast and the header
+                // says the same thing; on a quote it is the date checkout
+                // pencilled in, printed beside "Ready within 24 hours once you
+                // pay" as though both were true.
+                in_array($this->status, ['quoted', 'cancelled'], true) ? null : $this->due_at],
             [5, 'Collected',
                 null,
                 $this->status === 'collected' ? $this->updated_at : null],

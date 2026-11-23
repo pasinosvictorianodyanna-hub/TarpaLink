@@ -67,8 +67,20 @@
                 <div class="card job-panel">
                     <div class="job-panel-head">
                         <h4>Progress</h4>
-                        @if ($job->due_at && ! in_array($job->status, ['collected', 'cancelled'], true))
-                            <span class="tiny">Est. ready {{ $job->due_at->format('D, d M · g:i A') }}</span>
+                        @if (! in_array($job->status, ['collected', 'cancelled'], true))
+                            {{-- A quote has no date yet: nothing is paid and no file
+                                 has been sent, so the shop has promised nothing and
+                                 `due_at` is only the date checkout pencilled in. It
+                                 used to print "Est. ready <date>" here, which put a
+                                 concrete promise beside the shop's own "24 hours"
+                                 badge and could contradict it by days. The shop's
+                                 published turnaround is the only honest answer
+                                 until the job is actually in the queue. --}}
+                            @if ($job->status === 'quoted')
+                                <span class="tiny">Ready {{ $job->shop->turnaroundPhrase() }} once you pay and send your design</span>
+                            @elseif ($job->due_at)
+                                <span class="tiny">Est. ready {{ $job->due_at->format('D, d M · g:i A') }}</span>
+                            @endif
                         @endif
                     </div>
 
@@ -244,7 +256,17 @@
                         <span>Address</span><b>{{ $job->shop->address }}, {{ $job->shop->city }}</b>
                     </div>
                     <div class="kv">
-                        <span>Ready</span><b>{{ $job->due_at?->format('D, g:i A') ?? '—' }}</b>
+                        <span>Ready</span>
+                        <b>
+                            {{-- Same rule as the Progress card: a quote has no date.
+                                 This row printed one anyway, so the two cards
+                                 disagreed in the same viewport. --}}
+                            @if ($job->status === 'quoted')
+                                Not scheduled yet
+                            @else
+                                {{ $job->due_at?->format('D, g:i A') ?? '—' }}
+                            @endif
+                        </b>
                     </div>
 
                     <p class="tiny" style="margin-top:12px;line-height:1.55">

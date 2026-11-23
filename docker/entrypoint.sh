@@ -46,6 +46,21 @@ if [ "${RUN_SEEDER:-false}" = "true" ]; then
     php artisan db:seed --class=ProductionSeeder --force
 fi
 
+# Hosts with no scheduler (Render's free plan has none) still have to bill.
+# `billing:issue` asks "does this period have an invoice?" rather than "has it
+# been a month" (#83), so running it on every boot issues each period exactly
+# once however often the container starts — and a free instance boots on the
+# first request after every spin-down, which is more often than a nightly cron.
+# Off by default: a host with a real scheduler should not bill twice for it.
+#
+# The limit is worth knowing: it bills the period containing *today*. A service
+# that receives no traffic for a whole calendar month never boots, and that
+# month's invoice is never issued — see docs/DEPLOY-RENDER.md.
+if [ "${RUN_BILLING:-false}" = "true" ]; then
+    echo "[entrypoint] issuing subscription invoices"
+    php artisan billing:issue
+fi
+
 # Caches are built at start rather than at build time because config:cache bakes
 # in environment variables, and the image is built without any.
 if [ "${CACHE_CONFIG:-true}" = "true" ]; then

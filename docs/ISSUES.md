@@ -1657,6 +1657,67 @@ a `<td>` short breaks the layout without failing a content assertion.
 
 ---
 
+## #115 — On the free plan, subscription billing never ran
+
+`DEPLOY-RENDER.md` said it plainly: *"No cron jobs — `billing:issue` never runs. Subscription
+invoices are issued once, when a shop subscribes, and then never again."* That was honest, and it
+was why the free plan was not really a deployment: the recurring revenue from #108 would issue one
+invoice per shop and go quiet.
+
+### Bill on boot
+
+`billing:issue` asks *"does this period have an invoice?"* rather than *"has it been a month?"*
+(#83), so it is safe to run as often as you like. A free instance boots on the first request after
+every spin-down — up to once per fifteen minutes — which is more often than a nightly cron. So
+`RUN_BILLING=true` puts it in the boot hook after seeding. Off by default: a host with a real
+scheduler should not bill twice for the privilege.
+
+### The race that made it unsafe to add
+
+The check and the insert were two statements, and a rolling deploy briefly runs two containers
+booting at once — both read "no invoice" before either writes one. `issueDueInvoices()` now takes
+a cache lock around the whole run, so the scheduler, the boot hook and an administrator at a
+console share one guard. It **waits** rather than skipping, because a skipped run would let the
+command print "Nothing due" over an unbilled period — the exact lie #108 removed from its output.
+A lock taken and never released would stop billing silently forever, so there is a test for that
+and not for the race.
+
+### The storefront deploys empty
+
+`ProductionSeeder` creates plans, page copy and the administrator and **no shops**. Correct for a
+real deployment, wrong for a demo. `DatabaseSeeder` cannot go on the boot hook — it uses `create()`
+and collides with `ProductionSeeder`'s page sections (`Duplicate entry 'hero' for key
+'page_sections_key_unique'`, verified). The documented answer: seed it from your laptop against the
+external database before the first boot.
+
+### Verified by booting the image
+
+The page used to say the deployment had never been run anywhere. It has now, with the environment
+Render would give it — MySQL 8.4, `PORT=10000`, all three boot flags true:
+
+| Check | Result |
+|---|---|
+| Boot sequence | nginx on 10000 → migrations → seeding → `billing:issue` → optimize |
+| `/up`, `/`, `/admin/login` | 200; `/up` after 9 s |
+| `/console` | 302 (correct: signed out) |
+| First boot, 3 subscriptions | `INV-202611-0001/0002/0003` issued |
+| Second boot | "Nothing due", invoice count stayed 3 |
+| `db:seed` after `ProductionSeeder` | fails on `page_sections_key_unique` |
+
+Still not tested: Render itself. Spin-down, cold start, the ephemeral disk, blocked SMTP and TiDB
+are documented behaviour, not observed behaviour.
+
+### Still open
+
+Uploaded files are lost on every redeploy (artwork as well as proofs since #100) — point
+`PROOF_DISK_DRIVER` at S3/R2, no code change. And a month of zero traffic bills nothing, because
+the hook bills the period containing *today*; closing that means backfilling missed periods, which
+is a billing-semantics change rather than a deployment one.
+
+`563 passed (2626 assertions)`.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

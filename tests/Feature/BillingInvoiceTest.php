@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Billing as BillingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -97,6 +98,25 @@ class BillingInvoiceTest extends TestCase
         // already billed. This is what makes a daily schedule safe.
         $this->assertCount(0, $service->issueDueInvoices());
         $this->assertCount(0, $service->issueDueInvoices(now()->addDay()));
+    }
+
+    /**
+     * The guard around issuing, and the one failure it could cause.
+     *
+     * `issueDueInvoices()` takes a cache lock so two overlapping runs cannot
+     * both read "no invoice for this period" and both write one — a rolling
+     * deploy on Render briefly has two containers booting, and billing now runs
+     * from the boot hook. A lock that is taken and never released would stop
+     * every future run silently, which is worse than the race it prevents.
+     */
+    public function test_the_issue_lock_is_released_when_the_run_ends(): void
+    {
+        app(BillingService::class)->issueDueInvoices();
+
+        $this->assertTrue(
+            Cache::lock('billing:issue', 1)->get(),
+            'The lock must be free again, or nothing bills after the first run.',
+        );
     }
 
     public function test_a_new_period_is_invoiced_when_the_month_rolls_over(): void

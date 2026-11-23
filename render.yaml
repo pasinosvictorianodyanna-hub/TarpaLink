@@ -92,8 +92,10 @@ services:
       - key: LOG_LEVEL
         value: warning
 
-      # Uploaded proofs still land on the ephemeral disk and are lost on the
-      # next spin-down. Move this to S3/R2 before accepting real artwork.
+      # Uploaded files still land on the ephemeral disk and are lost on the next
+      # spin-down — both proofs and, since #100, the customer's artwork, which
+      # follows the proof disk unless ARTWORK_DISK_DRIVER overrides it. Move both
+      # to S3/R2 before accepting real artwork.
       - key: FILESYSTEM_DISK
         value: local
       - key: PROOF_DISK_DRIVER
@@ -105,6 +107,13 @@ services:
       - key: RUN_MIGRATIONS
         value: "true"
       - key: RUN_SEEDER
+        value: "true"
+      # No cron on a free plan, so billing rides on the boot. `billing:issue` is
+      # idempotent by period, not by clock (#83), and a free instance boots on
+      # the first request after every spin-down — so this bills more reliably
+      # than a nightly job would. The one hole: a service that gets no traffic
+      # for a whole month never boots, and that month is never invoiced.
+      - key: RUN_BILLING
         value: "true"
       - key: ADMIN_NAME
         sync: false

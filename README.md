@@ -91,6 +91,11 @@ php artisan serve
 
 Then open <http://127.0.0.1:8000>.
 
+If the page comes up unstyled after you stop the dev server, delete `public/hot`. It is
+Vite's marker that a dev server is running; `npm run dev` removes it on Ctrl+C but leaves it
+behind when the process is killed, and every page then asks a dead port for its CSS. The
+test suite clears it on boot for the same reason.
+
 To run the site, the queue worker and Vite together, use `composer dev` — it needs the
 dependencies above installed once. **`composer dev:logs`** adds a live log tail, but only
 on macOS and Linux: `php artisan pail` requires the `pcntl` extension, which PHP does not

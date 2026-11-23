@@ -19,7 +19,7 @@ class JobController extends Controller
         // response does not confirm that the job exists at all.
         abort_unless(Gate::allows('view', $job), 404);
 
-        $job->load(['shop', 'service', 'lines', 'proofs', 'payment']);
+        $job->load(['shop', 'service', 'lines', 'proofs', 'payment', 'artworks']);
 
         return view('jobs.show', ['job' => $job]);
     }

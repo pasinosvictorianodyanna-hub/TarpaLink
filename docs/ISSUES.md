@@ -1109,6 +1109,100 @@ no hot file: **509 passed, 2,458 assertions**.
 
 ---
 
+## #100 — The customer journey never asked for the design, and promised four things it did not do
+
+An audit of every customer-facing screen, starting from one question: *when a customer orders
+a flyer, where do they send the file?* The answer was nowhere. `CheckoutController::store()`
+validated a service, a size, a quantity, a payment method and a 500-character note. There was
+no upload field, no `artworks` table, no route, and no mention of artwork on any customer
+screen.
+
+**The published pages said otherwise, in four places.** The privacy policy lists "the artwork
+file you upload" among the data a job collects and promises "artwork files are kept with the
+job so a reprint is possible". The terms make the customer responsible for "the artwork you
+upload". The shop-facing pitch sells "jobs that arrive priced and paid with the artwork
+attached". None of it existed. This is the same failure as #82 (a refund policy with no
+refund) and #94 (a payout rule with no gate), and it is worse, because the missing step is
+the *input to the entire business*: a shop cannot print a file nobody sent it.
+
+### The feature
+
+`artworks` (2.10a) holds `job_id`, `uploaded_by`, `file_path`, `original_name`, `mime`,
+`bytes`. Rows are append-only — a corrected file is a second row, not an overwrite — and the
+newest is the one to print. A private `artwork` disk mirrors the `proofs` disk and inherits
+its driver, so one `PROOF_DISK_DRIVER=s3` moves both.
+
+The upload lives on the job page, not in checkout, and that is a design decision rather than
+an omission: checkout posts JSON inside the payment transaction, and the job page is where
+"request changes" already lives. The order is created, the page says *"Send your design next
+— Inkwell Press cannot start without it"*, and the file goes on the job.
+
+Refused by rule, not by hiding a button: a non-owner gets 403 and a stranger gets 404, the
+shop cannot upload on the customer's behalf, and nothing can be added once a proof is
+approved — the page already promises "what goes on press is what you signed off".
+
+Formats are PNG, JPEG, WebP and PDF, 20 MB. Illustrator and PSD are deliberately absent: no
+shop on this platform is obliged to own software for them, and a file the shop cannot open is
+worse than a message at the door that says what to send instead.
+
+### The four promises
+
+| Claim | Where | What was behind it |
+|---|---|---|
+| "approve within 12 hrs or the job is paused" | dashboard alert | nothing — no timer, no pause, no status |
+| "You'll get the digital proof within 4 hours" | checkout | nothing — the shop's own turnaround says 24 hours or 2–3 days |
+| "VAT included" | checkout summary | no VAT anywhere in the pricing |
+| "★ 4.9 · 1284 reviews" | checkout, shop page | `jobs_done`, the count of completed jobs |
+
+Each is now either removed or replaced with the true sentence. The "reviews" label was the
+worst of them: it told a customer that 1,284 people had reviewed a shop when the number was
+how many jobs it had printed.
+
+### Navigation, in the order it confuses
+
+- **"Order status" pointed at a different job.** On a job page it linked to the customer's
+  most urgent *other* order, while highlighting itself as the current screen. It now points
+  at the job being read.
+- **"Checkout" was offered before a size existed.** It prices a spec; with none it opened at
+  the shop's default 3×4 ft, so the bar led to a phantom order. It is dimmed with "Set your
+  size first" until the builder or checkout is open.
+- **Two reasons were collapsed into one.** "Build an order first" covered both "no shop yet"
+  and "shop but no size" — two different actions behind one sentence.
+- **A "Change" button next to the shop** went to the order builder, not to a shop picker, and
+  duplicated the "Edit" link in the summary. Removed; the summary keeps one way to edit.
+- **"Reorder" lost the order.** It passed the service and dropped size, quantity and
+  finishing, so it opened at the default size with a different price. It is now "Order again"
+  and carries size and quantity; the finishing options are re-picked on the builder, where
+  the price moves as they are added.
+- **An empty tab said the customer had no jobs.** Fourteen jobs, click "Ready", get "No jobs
+  here yet" and a Browse shops button. The empty state now distinguishes "nothing in this
+  tab" from "nothing at all", and its button matches.
+- **"Needs your action" was hard-coded to 1.** `$needsProof === null ? '0' : '1'` — three
+  proofs waiting read as one. It counts now, and names what is waiting.
+- **"Ready for pickup" contradicted the shop.** A flat now+2 days printed beside the shop's
+  own "24 hours" badge, and `due_at` was written with the same flat two days. Both now come
+  from `Shop::estimatedReadyAt()`, the number the shop publishes.
+- **The receipt showed a hash as a version.** "Matrix v8113" — `matrix_version` has been a
+  `crc32` fingerprint since #90, so the customer was reading an internal number that looks
+  like it increments. It now says "Price locked at order time".
+
+### Verified
+
+`ArtworkTest` — 17 tests: the file arrives and is stored on the private disk, a second file
+is kept and becomes current, the activity trail names it, a stranger gets 404, the shop
+cannot upload, the shop can download, a guest is redirected, another customer cannot
+download, approval locks it, cancellation locks it, `.exe` is refused with advice, and the
+job page and console both show the file — with the console's card asserted to sit *above* the
+proof form. `AccountTest` 21, `CustomerNavTest` 13. Full suite **535 passed, 2,538
+assertions**.
+
+**Still open:** the file is emailed to the shop as a notification but not attached — the
+message links to the job, because a 20 MB attachment is a bounce waiting to happen. And the
+customer's artwork is not shown on the console's job *list*, only on the job itself, so a
+shop scanning the queue cannot see at a glance which jobs are still waiting for a file.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

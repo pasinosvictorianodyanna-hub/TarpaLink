@@ -87,7 +87,7 @@ class JobController extends ConsoleController
         // not render.
         abort_unless($job->shop_id === $shop->id, 404);
 
-        $job->load(['user', 'service', 'proofs', 'payment', 'activities.user']);
+        $job->load(['user', 'service', 'proofs', 'payment', 'artworks', 'activities.user']);
 
         return $this->page(
             'jobs',

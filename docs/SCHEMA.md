@@ -315,6 +315,22 @@ The frozen breakdown: `label`, `qty`, `unit_price`, `amount`, all centavos excep
 re-upload increments the version rather than overwriting the artwork the customer already
 looked at.
 
+### 2.10a `artworks`
+
+The opposite direction to `proofs`: the file the **customer** sends the shop to print.
+`job_id`, `uploaded_by` (nullable, `nullOnDelete`), `file_path`, `original_name`, `mime`,
+`bytes`, timestamps.
+
+Rows are append-only. A customer who sends the wrong file, or a revised one, adds another
+row rather than replacing the first — what the shop received, and when, is the record, and
+overwriting it would lose the answer to "which file did you actually send me?". The newest
+row by `id` is the current artwork (`Job::latestArtwork()`), which is why the index is
+`(job_id, id)` and not `(job_id, created_at)`: two uploads a second apart are normal.
+
+Separate from `proofs` rather than a `direction` column on one table, because the two have
+different authors, different permissions and different lifetimes — an artwork is kept so a
+reprint is possible, a proof is kept so the shop can show what was approved.
+
 ### 2.11 `payments`
 
 The most important table to understand, because it carries **two lifecycles**.

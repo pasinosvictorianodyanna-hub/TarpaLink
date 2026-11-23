@@ -23,7 +23,7 @@ class AccountController extends Controller
         // collection is what keeps the numbers and the list from disagreeing.
         $all = $request->user()
             ->jobs()
-            ->with(['shop', 'service', 'proofs', 'payment'])
+            ->with(['shop', 'service', 'proofs', 'payment', 'artworks'])
             ->latest()
             ->get();
 
@@ -52,17 +52,27 @@ class AccountController extends Controller
                 || str_contains(mb_strtolower($job->reference), $needle));
         }
 
-        $needsProof = $all->firstWhere('status', 'awaiting_proof');
+        // Two different things can be waiting on a customer, and both are the
+        // reason a job is not moving: a proof to approve, and a design file the
+        // shop has never received. The old code counted only the first, and
+        // counted it as a hard-coded "1" — three proofs waiting read as one.
+        $awaitingProof = $all->where('status', 'awaiting_proof');
+        $needsProof = $awaitingProof->first();
+        $needsArtwork = $all
+            ->where('status', 'quoted')
+            ->first(fn (Job $job): bool => $job->artworks->isEmpty());
+
+        $actions = $awaitingProof->count() + ($needsArtwork === null ? 0 : 1);
 
         return view('account', [
             'props' => [
-                'summary' => $this->summary($counts['active'], $counts['all'], $needsProof !== null),
-                'kpis' => $this->kpis($counts, $all, $needsProof),
-                'alert' => $this->alert($needsProof),
+                'summary' => $this->summary($counts['active'], $counts['all'], $awaitingProof->count()),
+                'kpis' => $this->kpis($counts, $all, $awaitingProof->count(), $needsArtwork),
+                'alert' => $this->alert($needsProof, $needsArtwork),
                 'tabs' => $this->tabs($counts, $filter, $q),
                 'search' => ['q' => $q, 'filter' => $filter],
                 'jobs' => $jobs->map(fn (Job $job) => $this->row($job))->values()->all(),
-                'empty' => $jobs->isEmpty() ? $this->emptyState($q) : null,
+                'empty' => $jobs->isEmpty() ? $this->emptyState($q, $filter, $counts) : null,
                 'account' => $this->account($request->user()),
                 'routes' => [
                     'shops' => route('shops.index'),
@@ -83,10 +93,21 @@ class AccountController extends Controller
      * @param  Collection<int, Job>  $all
      * @return list<array<string, string>>
      */
-    private function kpis(array $counts, Collection $all, ?Job $needsProof): array
+    private function kpis(array $counts, Collection $all, int $proofs, ?Job $needsArtwork): array
     {
         $inProduction = $all->where('status', 'in_production')->count();
         $readyShop = $all->firstWhere('status', 'ready')?->shop->name;
+
+        // A number with no explanation sends the customer hunting. Say which
+        // thing is waiting, and how many of each.
+        $actions = $proofs + ($needsArtwork === null ? 0 : 1);
+
+        $note = match (true) {
+            $proofs > 0 && $needsArtwork !== null => $proofs.' proof'.($proofs === 1 ? '' : 's').' · design to send',
+            $proofs > 0 => $proofs.' proof'.($proofs === 1 ? '' : 's').' to approve',
+            $needsArtwork !== null => 'Send your design',
+            default => 'Nothing waiting on you',
+        };
 
         return [
             [
@@ -103,9 +124,9 @@ class AccountController extends Controller
             ],
             [
                 'label' => 'Needs your action',
-                'value' => $needsProof === null ? '0' : '1',
-                'note' => $needsProof === null ? 'Nothing waiting on you' : 'Proof approval',
-                'tone' => $needsProof === null ? 'muted' : 'warn',
+                'value' => (string) $actions,
+                'note' => $note,
+                'tone' => $actions === 0 ? 'muted' : 'warn',
             ],
         ];
     }
@@ -114,23 +135,37 @@ class AccountController extends Controller
      * The magenta bar, or null.
      *
      * Null is what removes the bar from the page — the component does not decide
-     * whether the customer has something to approve.
+     * whether the customer has something to do. A proof outranks a missing
+     * design: the shop is already holding the job, and one click finishes it.
      *
      * @return array<string, string>|null
      */
-    private function alert(?Job $job): ?array
+    private function alert(?Job $proof, ?Job $needsArtwork): ?array
     {
-        if ($job === null) {
-            return null;
+        if ($proof !== null) {
+            return [
+                'title' => 'Proof ready for approval — #'.$proof->reference,
+                // The old copy ended "approve within 12 hrs or the job is
+                // paused". Nothing pauses a job on a timer, so the sentence was
+                // a deadline the system would not enforce.
+                'meta' => $proof->shop->name.' · '.$proof->titleLine()
+                    .'. Nothing goes to press until you approve.',
+                'label' => 'Review proof',
+                'url' => route('jobs.show', $proof),
+            ];
         }
 
-        return [
-            'title' => 'Proof ready for approval — #'.$job->reference,
-            'meta' => $job->shop->name.' · '.$job->titleLine()
-                .' — approve within 12 hrs or the job is paused.',
-            'label' => 'Review proof',
-            'url' => route('jobs.show', $job),
-        ];
+        if ($needsArtwork !== null) {
+            return [
+                'title' => 'Send your design — #'.$needsArtwork->reference,
+                'meta' => $needsArtwork->shop->name.' · '.$needsArtwork->titleLine()
+                    .'. They cannot start until the file arrives.',
+                'label' => 'Send design',
+                'url' => route('jobs.show', $needsArtwork),
+            ];
+        }
+
+        return null;
     }
 
     /**
@@ -198,11 +233,30 @@ class AccountController extends Controller
             return ['label' => 'Review proof', 'style' => 'magenta', 'url' => route('jobs.show', $job)];
         }
 
+        // A job with no design file cannot move, so the row's button is the
+        // thing that unblocks it rather than a link to a page that only says so.
+        if ($job->status === 'quoted' && $job->artworks->isEmpty()) {
+            return ['label' => 'Send design', 'style' => 'magenta', 'url' => route('jobs.show', $job)];
+        }
+
         if ($job->status === 'collected') {
+            // The size and quantity travel with the link. They used to be left
+            // behind, so "Reorder" opened the builder at the shop's default size
+            // and the customer silently got a different quote. The finishing
+            // options are not carried — they are re-picked on the builder, where
+            // the price updates as they are added.
+            $spec = $job->spec ?? [];
+
             return [
-                'label' => 'Reorder',
+                'label' => 'Order again',
                 'style' => 'ghost',
-                'url' => route('shops.builder', [$job->shop, 'service_id' => $job->spec['service_id'] ?? null]),
+                'url' => route('shops.builder', array_filter([
+                    'shop' => $job->shop,
+                    'service_id' => $spec['service_id'] ?? $job->service_id,
+                    'width_in' => $spec['width_in'] ?? null,
+                    'height_in' => $spec['height_in'] ?? null,
+                    'qty' => $spec['qty'] ?? null,
+                ], fn ($value) => $value !== null)),
             ];
         }
 
@@ -210,20 +264,41 @@ class AccountController extends Controller
     }
 
     /**
+     * What an empty list says.
+     *
+     * Two different emptinesses: nothing matched a search, or nothing is in the
+     * tab you are looking at. The old version answered both with "No jobs here
+     * yet — find a shop", which told a customer with fourteen jobs that they had
+     * none the moment they clicked an empty tab.
+     *
+     * @param  array<string, int>  $counts
      * @return array<string, string>
      */
-    private function emptyState(string $q): array
+    private function emptyState(string $q, string $filter, array $counts): array
     {
         if ($q !== '') {
             return [
                 'title' => 'Nothing matches “'.$q.'”.',
                 'body' => 'Try a shop name, a service or a job number.',
+                'cta' => ['label' => 'Clear the search', 'url' => route('account')],
+            ];
+        }
+
+        if ($filter !== 'all' && $counts['all'] > 0) {
+            return [
+                'title' => 'Nothing in this tab.',
+                'body' => 'You have '.$counts['all'].' job'.($counts['all'] === 1 ? '' : 's').' in total.',
+                // "Browse shops" was the only button this block ever had, which
+                // is the wrong advice for somebody who already has orders — they
+                // need the tab they came from, not the directory.
+                'cta' => ['label' => 'Show all jobs', 'url' => route('account')],
             ];
         }
 
         return [
             'title' => 'No jobs here yet.',
             'body' => 'Find a shop, set your size, and see the exact price before you order.',
+            'cta' => ['label' => 'Browse shops', 'url' => route('shops.index')],
         ];
     }
 
@@ -255,7 +330,7 @@ class AccountController extends Controller
     }
 
     /** "2 jobs in progress, 1 waiting for your proof approval." */
-    private function summary(int $active, int $total, bool $needsProof): string
+    private function summary(int $active, int $total, int $proofs): string
     {
         if ($total === 0) {
             return 'Find a shop, set your size, and see the exact price before you order.';
@@ -267,8 +342,8 @@ class AccountController extends Controller
             $parts[] = $active.' job'.($active === 1 ? '' : 's').' in progress';
         }
 
-        if ($needsProof) {
-            $parts[] = '1 waiting for your proof approval';
+        if ($proofs > 0) {
+            $parts[] = $proofs.' waiting for your proof approval';
         }
 
         return $parts === []

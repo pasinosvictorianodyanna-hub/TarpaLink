@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
 class Shop extends Model
 {
@@ -251,6 +252,25 @@ class Shop extends Model
     }
 
     /** "Same day", "24 hours", "2–3 days" — the buckets the filter rail offers. */
+    /**
+     * When this shop says the job will be ready.
+     *
+     * The shop's own `turnaround_hours`, not a constant. Checkout used to show
+     * "Ready for pickup" at a flat now+2 days while the same screen printed the
+     * shop's badge — "24 hours" — a few centimetres below it, and `due_at` was
+     * written with the same flat two days, so the promise and the record agreed
+     * with each other and with nothing else.
+     *
+     * The shop is the only party that knows how long its press takes, and this
+     * is the number it publishes.
+     */
+    public function estimatedReadyAt(?Carbon $from = null): Carbon
+    {
+        $hours = max(1, (int) ($this->turnaround_hours ?: 48));
+
+        return ($from ?? Carbon::now())->addHours($hours);
+    }
+
     public function turnaroundLabel(): string
     {
         return match (true) {

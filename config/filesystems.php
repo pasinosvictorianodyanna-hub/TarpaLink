@@ -91,6 +91,34 @@ return [
             'report' => false,
         ],
 
+        /*
+        | Customer artwork: the file the customer sends the shop to print.
+        |
+        | Its own disk, and its own env keys, because the two directions have
+        | different lifetimes — a proof is kept so the shop can prove what was
+        | approved, an artwork is kept so a reprint is possible — and a shop may
+        | well want them in different buckets.
+        |
+        | Both default to the proof settings, so an installation that moves to
+        | object storage in one line moves both. Set ARTWORK_DISK_DRIVER to split
+        | them. Objects land under `artwork/...`, so nothing collides with the
+        | `proofs/...` keys.
+        */
+        'artwork' => [
+            'driver' => env('ARTWORK_DISK_DRIVER', env('PROOF_DISK_DRIVER', 'local')),
+            'root' => env('ARTWORK_DISK_ROOT') ?: (env('PROOF_DISK_ROOT') ?: storage_path('app/private')),
+            'key' => env('AWS_ACCESS_KEY_ID'),
+            'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'region' => env('AWS_DEFAULT_REGION', 'ap-southeast-1'),
+            'bucket' => env('AWS_BUCKET'),
+            'endpoint' => env('AWS_ENDPOINT'),
+            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'visibility' => 'private',
+            'serve' => true,
+            'throw' => false,
+            'report' => false,
+        ],
+
     ],
 
     /*

@@ -1,6 +1,6 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.12 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.13 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
 > profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
@@ -38,6 +38,11 @@
 > bill and a due date, and can be collected and voided (§5.6, FR-106/FR-107). Before this a
 > shop was invoiced once on switching plan and never again, and nothing ever recorded a
 > payment against one.
+> Version 1.13 adds the step the whole product was missing: the customer can **send the
+> design file** to the shop they ordered from (§5.2, FR-108/FR-109). The privacy policy
+> listed "the artwork file you upload" as collected data, the terms made the customer
+> responsible for it, and the shop-facing pitch promised jobs arriving "with the artwork
+> attached" — while the only way to tell a shop anything was a 500-character notes field.
 
 ---
 
@@ -189,8 +194,10 @@ feature names.
 | FR-105 | The system shall let the customer cancel an order for a full refund only while it is unpaid-for-work — quoted or awaiting proof — and shall refuse that route once the proof is approved, when the material is committed and cancellation is the shop's decision. | #82 |
 | FR-106 | The system shall issue a subscription invoice for each billing period of every active paid subscription, deriving the period from the day the subscription started, and shall issue each period **exactly once** however often the issuing command runs. | #83 |
 | FR-107 | The system shall let an administrator record an invoice as paid, stamping who recorded it, and shall refuse to collect an invoice twice, to collect a void one, or to void a paid one. | #83 |
+| FR-108 | The system shall let the customer attach the design file for their order — PNG, JPEG, WebP or PDF, up to 20 MB — keep every version they send with the name, type, size and time it arrived, treat the newest as the file to print, and record each arrival on the job's activity trail. | #100 |
+| FR-109 | The system shall serve an artwork file only to the customer who ordered the job, the shop printing it, and an administrator, through a route that checks the policy rather than a public URL, and shall refuse a new file once the proof is approved or the job is cancelled. | #100 |
 
-FR-104 to FR-107 are numbered after §5.10's requirements because numbers follow the order
+FR-104 to FR-109 are numbered after §5.10's requirements because numbers follow the order
 issues were adopted, not the order the sections appear in.
 
 ### 5.7 Administration — FR-70 …

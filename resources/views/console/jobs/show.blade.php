@@ -135,6 +135,37 @@
                 </div>
             </div>
 
+            {{-- What the customer sent us to print. Above the proofs on purpose:
+                 the file is the input, the proof is the output, and a shop reads
+                 this screen top to bottom before it starts. --}}
+            <div class="fil-card">
+                <div class="fil-toolbar">
+                    <b style="font-size:12.5px">Customer's artwork</b>
+                    @if ($job->artworks->isEmpty())
+                        <span class="fb fb-y" style="margin-left:auto">not sent</span>
+                    @endif
+                </div>
+
+                <div style="padding:6px 16px 14px">
+                    @forelse ($job->artworks as $artwork)
+                        <div style="display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid #F3F4F6">
+                            <div style="flex:1;min-width:0">
+                                <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ $artwork->shortName() }}</div>
+                                <div style="font-size:11px;color:#6B7280">
+                                    {{ $artwork->sizeLabel() }} · {{ $artwork->created_at?->format('d M Y, H:i') }}
+                                </div>
+                            </div>
+                            <a class="fbtn" style="flex:none" href="{{ route('jobs.artwork.file', [$job, $artwork]) }}">Download</a>
+                        </div>
+                    @empty
+                        <div style="padding:12px 0;font-size:12.5px;color:#6B7280">
+                            The customer has not sent a design yet. You can still send a proof
+                            if you are designing it for them.
+                        </div>
+                    @endforelse
+                </div>
+            </div>
+
             <div class="fil-card">
                 <div class="fil-toolbar"><b style="font-size:12.5px">Proofs</b></div>
 

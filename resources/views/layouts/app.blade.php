@@ -132,11 +132,25 @@
         // job. Take whichever the current page is about, so those three point at
         // something real instead of at a generic page.
         $currentShop = request()->route('shop');
+        $viewedJob = request()->route('job');
 
         if (! $currentShop instanceof \App\Models\Shop) {
-            $boundJob = request()->route('job');
-            $currentShop = $boundJob instanceof \App\Models\Job ? $boundJob->shop : null;
+            $currentShop = $viewedJob instanceof \App\Models\Job ? $viewedJob->shop : null;
         }
+
+        // Checkout is only a real destination once a size has been chosen: the
+        // page prices a spec, and with no spec it opens at the shop's default —
+        // so the bar used to offer "Checkout" on a job page and lead to a
+        // brand-new order nobody asked for.
+        $hasSpec = request()->routeIs('shops.builder') || request()->routeIs('checkout.*');
+
+        // "Order status" used to point at the customer's most urgent job even
+        // while they were reading a different one, so clicking a highlighted
+        // item moved them somewhere else. On a job page it now points at that
+        // job.
+        $statusUrl = $viewedJob instanceof \App\Models\Job
+            ? route('jobs.show', $viewedJob)
+            : ($resume['url'] ?? null);
 
         $barLinks = [
             [
@@ -159,13 +173,13 @@
             ],
             [
                 'label' => 'Checkout',
-                'url' => $currentShop ? route('checkout.show', $currentShop) : null,
+                'url' => $currentShop && $hasSpec ? route('checkout.show', $currentShop) : null,
                 'on' => request()->routeIs('checkout.*'),
-                'why' => 'Build an order first',
+                'why' => 'Set your size first',
             ],
             [
                 'label' => 'Order status',
-                'url' => $resume['url'] ?? null,
+                'url' => $statusUrl,
                 'on' => request()->routeIs('jobs.*'),
                 'why' => 'No order in progress',
             ],

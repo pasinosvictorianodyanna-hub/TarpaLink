@@ -231,10 +231,9 @@ const busy = computed(() => status.value === 'sending');
                         <b>{{ shop.name }}</b>
                         <div class="small">{{ shop.address }}, {{ shop.city }} · {{ shop.distance }} away</div>
                         <div class="tiny" style="color:var(--green);margin-top:3px">
-                            Ready for pickup {{ shop.readyAt }}
+                            Estimated ready {{ shop.readyAt }}
                         </div>
                     </div>
-                    <a class="btn btn-ghost btn-sm" style="margin-left:auto;flex:none" :href="urls.edit">Change</a>
                 </div>
 
                 <label style="display:block;margin-top:14px">
@@ -310,13 +309,16 @@ const busy = computed(() => status.value === 'sending');
                         <b style="color:var(--green)">−{{ money(quote.discount) }}</b>
                     </div>
 
-                    <div class="sum-line"><span>Pickup</span><b>Free</b></div>
+                    <div class="sum-line">
+                        <span>{{ form.fulfillment === 'delivery' ? 'Delivery' : 'Pickup' }}</span>
+                        <b>{{ form.fulfillment === 'delivery' ? 'Arranged with the shop' : 'Free' }}</b>
+                    </div>
                 </div>
 
                 <div class="sum-total">
                     <div>
                         <div class="l">Total due</div>
-                        <div class="tiny" style="margin-top:3px">VAT included</div>
+                        <div class="tiny" style="margin-top:3px">No platform fee added</div>
                     </div>
                     <div class="v">{{ money(total) }}</div>
                 </div>
@@ -354,7 +356,7 @@ const busy = computed(() => status.value === 'sending');
                     </template>
 
                     <p v-if="authenticated" class="tiny" style="margin-top:9px;text-align:center">
-                        You'll get the digital proof within 4 hours.
+                        Next: send your design file, then {{ shop.name }} sends a proof for you to approve.
                     </p>
                 </div>
             </div>
@@ -365,7 +367,7 @@ const busy = computed(() => status.value === 'sending');
                     <span class="avatar" :style="{ background: shop.gradient }">{{ shop.initials }}</span>
                     <div style="min-width:0">
                         <b style="display:block;font-size:12.5px">{{ shop.name }}</b>
-                        <span class="tiny">★ {{ shop.rating }} · {{ shop.jobsDone }} reviews · {{ shop.turnaround }}</span>
+                        <span class="tiny">★ {{ shop.rating }} · {{ shop.jobsDone }} jobs printed · {{ shop.turnaround }}</span>
                     </div>
                 </div>
             </div>

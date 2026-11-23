@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\ArtworkController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\Auth\RegisteredUserController;
@@ -16,11 +17,13 @@ use App\Http\Controllers\Console\ServiceController as ConsoleServiceController;
 use App\Http\Controllers\Console\ShopSwitchController as ConsoleShopSwitchController;
 use App\Http\Controllers\Console\WaitingController as ConsoleWaitingController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\InboundMailController;
 use App\Http\Controllers\JobController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\PayMongoWebhookController;
 use App\Http\Controllers\PayoutExportController;
-use App\Http\Controllers\ProofController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProofController;
 use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\ShopController;
 use App\Http\Controllers\ShopRequestController;
@@ -58,6 +61,12 @@ Route::post('/jobs/{job}/proofs/{proof}/approve', [ProofController::class, 'appr
     ->middleware('auth')->name('jobs.proof.approve');
 Route::post('/jobs/{job}/proofs/{proof}/reject', [ProofController::class, 'reject'])
     ->middleware('auth')->name('jobs.proof.reject');
+// The design file the customer sends the shop. Written by the customer, read by
+// the shop — the opposite direction to a proof, and gated the same way.
+Route::post('/jobs/{job}/artwork', [ArtworkController::class, 'store'])
+    ->middleware('auth')->name('jobs.artwork.store');
+Route::get('/jobs/{job}/artwork/{artwork}/file', [ArtworkController::class, 'file'])
+    ->middleware('auth')->name('jobs.artwork.file');
 // Cancelling before the proof is approved refunds in full. The controller checks
 // ownership; a shop may view a job it is printing but may not cancel it here.
 Route::post('/jobs/{job}/cancel', [JobController::class, 'cancel'])
@@ -127,13 +136,13 @@ Route::put('/api/profile/password', [ProfileController::class, 'password'])->mid
 // PayMongo calls this directly — no session, no CSRF token, signature instead.
 // CSRF is waived for `webhooks/*` in bootstrap/app.php, not here: a per-route
 // `withoutMiddleware` naming the wrong class fails silently.
-Route::post('/webhooks/paymongo', \App\Http\Controllers\PayMongoWebhookController::class)
+Route::post('/webhooks/paymongo', PayMongoWebhookController::class)
     ->name('webhooks.paymongo');
 
 // The other direction: a customer's reply comes back in, signed the same way.
 // Both webhooks are unauthenticated by design — the signature is the credential,
 // and a session cookie is not something a provider can hold.
-Route::post('/webhooks/inbound', \App\Http\Controllers\InboundMailController::class)
+Route::post('/webhooks/inbound', InboundMailController::class)
     ->name('webhooks.inbound');
 
 Route::get('/login', [LoginController::class, 'show'])->name('login');

@@ -106,10 +106,8 @@ class AccountTest extends TestCase
         $this->assertTrue(collect($props['tabs'])->firstWhere('key', 'active')['on']);
     }
 
-    public function test_the_proof_bar_only_appears_for_a_customer_with_a_proof_waiting(): void
+    public function test_the_bar_shows_the_proof_that_is_waiting(): void
     {
-        $this->assertNull($this->props('jomar@tarpalink.ph')['alert']);
-
         $waiting = Job::where('user_id', $this->customer('renz@example.com')->id)
             ->where('status', 'awaiting_proof')
             ->firstOrFail();
@@ -121,21 +119,158 @@ class AccountTest extends TestCase
         $this->assertSame(route('jobs.show', $waiting), $alert['url']);
     }
 
+    /**
+     * A job the shop cannot start is as much "your move" as a proof, and the
+     * dashboard used to say nothing about it: the customer had a paid order, a
+     * progress rail, and no hint that the one thing the shop needed had never
+     * been sent.
+     */
+    public function test_the_bar_asks_for_a_design_when_the_shop_has_none(): void
+    {
+        // A customer can have more than one job waiting on a file, and the bar
+        // shows one of them — so the assertion is "one of the jobs that needs a
+        // design", not a specific row.
+        $waiting = Job::where('user_id', $this->customer('jomar@tarpalink.ph')->id)
+            ->where('status', 'quoted')
+            ->whereDoesntHave('artworks')
+            ->pluck('reference');
+
+        $this->assertNotEmpty($waiting);
+
+        $alert = $this->props('jomar@tarpalink.ph')['alert'];
+
+        $this->assertIsArray($alert);
+        $this->assertSame('Send design', $alert['label']);
+
+        // The URL is the authority on which job the bar is about.
+        $this->assertContains(
+            basename(parse_url($alert['url'], PHP_URL_PATH)),
+            $waiting->all(),
+        );
+    }
+
+    public function test_the_bar_is_empty_once_nothing_is_waiting(): void
+    {
+        $customer = $this->customer('jomar@tarpalink.ph');
+
+        // Give every quoted job a file: with the design sent, there is nothing
+        // left for this customer to do, and the bar must disappear rather than
+        // keep asking.
+        foreach ($customer->jobs()->where('status', 'quoted')->get() as $job) {
+            $job->artworks()->create([
+                'uploaded_by' => $customer->id,
+                'file_path' => 'artwork/test.pdf',
+                'original_name' => 'poster.pdf',
+                'mime' => 'application/pdf',
+                'bytes' => 1024,
+            ]);
+        }
+
+        $this->assertNull($this->props('jomar@tarpalink.ph')['alert']);
+    }
+
     public function test_each_row_gets_the_button_its_status_asks_for(): void
     {
         $props = $this->props('renz@example.com');
 
         $byStatus = collect($props['jobs'])->keyBy('status');
 
-        // A proof is the only thing the customer is being asked to do, so it is
-        // the only button drawn in the accent colour.
+        // A proof is the thing the customer is being asked to do, so it is drawn
+        // in the accent colour.
         $this->assertSame('Review proof', $byStatus['Proof sent']['action']['label']);
         $this->assertSame('magenta', $byStatus['Proof sent']['action']['style']);
 
-        $this->assertSame('Reorder', $byStatus['Collected']['action']['label']);
+        // "Reorder" promised the same job again and opened the builder at the
+        // shop's default size. The link now carries the size and quantity, and
+        // the label says what it does.
+        $this->assertSame('Order again', $byStatus['Collected']['action']['label']);
         $this->assertSame('ghost', $byStatus['Collected']['action']['style']);
 
         $this->assertSame('View', $byStatus['Ready for pickup']['action']['label']);
+    }
+
+    public function test_a_quoted_row_with_no_artwork_asks_for_the_design(): void
+    {
+        $quoted = Job::where('user_id', $this->customer('jomar@tarpalink.ph')->id)
+            ->where('status', 'quoted')
+            ->whereDoesntHave('artworks')
+            ->firstOrFail();
+
+        $row = collect($this->props('jomar@tarpalink.ph')['jobs'])
+            ->firstWhere('title', $quoted->titleLine());
+
+        $this->assertSame('Send design', $row['action']['label']);
+        $this->assertSame('magenta', $row['action']['style']);
+    }
+
+    public function test_a_quoted_row_goes_back_to_view_once_the_design_is_sent(): void
+    {
+        $customer = $this->customer('jomar@tarpalink.ph');
+
+        $quoted = Job::where('user_id', $customer->id)
+            ->where('status', 'quoted')
+            ->firstOrFail();
+
+        $quoted->artworks()->create([
+            'uploaded_by' => $customer->id,
+            'file_path' => 'artwork/test.pdf',
+            'original_name' => 'poster.pdf',
+            'mime' => 'application/pdf',
+            'bytes' => 1024,
+        ]);
+
+        $row = collect($this->props('jomar@tarpalink.ph')['jobs'])
+            ->firstWhere('title', $quoted->titleLine());
+
+        $this->assertSame('View', $row['action']['label']);
+    }
+
+    /**
+     * A customer with fourteen jobs clicked "Ready", saw an empty list, and was
+     * told "No jobs here yet — find a shop", with a Browse shops button.
+     */
+    public function test_an_empty_tab_does_not_claim_the_customer_has_no_jobs(): void
+    {
+        $props = $this->props('jomar@tarpalink.ph', '?status=ready');
+
+        $this->assertSame([], $props['jobs']);
+        $this->assertIsArray($props['empty']);
+        $this->assertStringContainsString('Nothing in this tab', $props['empty']['title']);
+        $this->assertSame('Show all jobs', $props['empty']['cta']['label']);
+        $this->assertSame(route('account'), $props['empty']['cta']['url']);
+    }
+
+    public function test_a_search_with_no_results_offers_to_clear_it(): void
+    {
+        $props = $this->props('jomar@tarpalink.ph', '?q=zzzznotajob');
+
+        $this->assertStringContainsString('Nothing matches', $props['empty']['title']);
+        $this->assertSame('Clear the search', $props['empty']['cta']['label']);
+    }
+
+    public function test_the_action_counter_counts_every_proof_not_just_one(): void
+    {
+        $customer = $this->customer('renz@example.com');
+
+        // Two proofs waiting is the normal case for a shop that batches, and the
+        // counter used to read "1" no matter how many there were. The seed
+        // already has one, so the expected number is counted, not assumed.
+        $already = $customer->jobs()->where('status', 'awaiting_proof')->count();
+
+        $jobs = $customer->jobs()->where('status', '!=', 'awaiting_proof')->take(2)->get();
+        $this->assertGreaterThanOrEqual(2, $jobs->count());
+
+        foreach ($jobs as $job) {
+            $job->update(['status' => 'awaiting_proof']);
+        }
+
+        $expected = $already + $jobs->count();
+
+        $kpi = collect($this->props('renz@example.com')['kpis'])
+            ->firstWhere('label', 'Needs your action');
+
+        $this->assertSame((string) $expected, $kpi['value']);
+        $this->assertSame('warn', $kpi['tone']);
     }
 
     public function test_a_collected_row_recedes_and_a_live_row_does_not(): void

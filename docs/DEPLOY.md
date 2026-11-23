@@ -54,7 +54,7 @@ Then edit `.env`:
 | `INBOUND_ADDRESS`, `INBOUND_SECRET` | the mailbox replies are forwarded to, and the secret that signs the forward. Both empty means notifications go out with no `Reply-To` and the inbound webhook refuses everything — deliberately, so a half-configured deployment fails closed |
 | `GEOCODER_ENABLED` | `true` by default. Set `false` if the container has no outbound HTTPS, or the address box waits for a timeout before saying it cannot help |
 | `MAIL_*` | real mailer, or leave `log` and read `storage/logs`. Switching to `smtp` needs `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` and `MAIL_SCHEME` — the example file carries them commented out |
-| `PROOF_DISK_DRIVER` | **`s3` before accepting real artwork.** The default `local` writes into the container and is lost on the next rebuild. With `s3`, set `AWS_BUCKET` plus credentials and region |
+| `PROOF_DISK_DRIVER` | **`s3` before accepting real artwork.** The default `local` writes into the container and is lost on the next rebuild. With `s3`, set `AWS_BUCKET` plus credentials and region. Customer artwork follows this setting unless `ARTWORK_DISK_DRIVER` is set, so one switch moves both |
 | `TRUSTED_PROXIES` | only when something else terminates TLS. nginx forwards `X-Forwarded-Proto`, but Laravel ignores it until this names the proxy — without it every emailed link is `http://` |
 
 `PAYMONGO_*`, `INBOUND_ADDRESS` and `INBOUND_SECRET` do not have to stay in `.env`.

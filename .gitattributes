@@ -6,6 +6,14 @@
 *.md diff=markdown
 *.php diff=php
 
+# A .docx is a zip of XML. `text=auto` happened to guess binary for the three in
+# docs/deliverables, but guessing is the whole problem: one whose bytes read as
+# text would have its line endings rewritten on checkout and open as corrupt.
+*.docx binary
+*.pdf binary
+*.png binary
+*.jpg binary
+
 /.github export-ignore
 CHANGELOG.md export-ignore
 .styleci.yml export-ignore

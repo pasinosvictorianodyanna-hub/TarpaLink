@@ -1,6 +1,6 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.18 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.19 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
 > profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
@@ -68,6 +68,14 @@
 > upload sent an email and mail is best-effort, so a shop had to open every job to find out. The
 > queue and the production board now say so (FR-114), and a paid job with no design is no longer
 > labelled "proof not sent yet", which blamed the shop for a file only the customer can send.
+> Version 1.19 is deployment rather than product, and it closes the two gaps §11 had been
+> carrying. Uploads go to Cloudflare R2 and the schema to TiDB Cloud, so the free tier of a
+> platform that offers neither persistent storage nor MySQL can run the application (NFR-10).
+> The database half found a defect rather than a setting: `config/database.php` handed PDO a CA
+> but gave no way to relax the peer-name check, so a certificate without a SAN could never
+> connect — and a bare `array_filter` discarded `false` on the way in, which is precisely the
+> value the switch needs to carry. One pass, two lines of configuration, and a verification
+> that a TLS-only server actually negotiates TLS.
 
 ---
 
@@ -373,6 +381,7 @@ counted, but as **held**, and shown as such.
 | NFR-7 | **Maintainability.** A new interactive screen is one registry line, not a router. | Vue island registry in `resources/js/app.js` |
 | NFR-8 | **Recoverability.** A failed webhook is retried with backoff and surfaced to the administrator rather than lost. | `payments.attempts`, `last_error`, `failed_at`, queue |
 | NFR-9 | **Auditability.** Who changed a job's state, who approved a shop, and when, are all recorded. | `job_activities`, `shops.approved_by`, `status_changed_by` |
+| NFR-10 | **Deployability.** The application runs on a single container with no worker, no scheduler and no disk that survives a restart, by moving each one's work somewhere that does: the webhook settles inside the request (`QUEUE_CONNECTION=sync`), billing runs on the boot hook (`RUN_BILLING`), and uploads go to object storage (R2). | `render.yaml`; the boot hook in `docker/entrypoint.sh`; both disks read the `AWS_*` block, so nothing in the code changes |
 
 ---
 
@@ -391,7 +400,8 @@ own), sixteen policies. The full dictionary, enumerations and invariants are in
 | **PayMongo** | out (create intent) / in (webhook) | HTTPS + JSON, signature header | Unsigned and stale signatures rejected; failed processing retried with backoff and flagged after three attempts |
 | **SMTP** | out | SMTP | Proof sent, proof decided, payment receipt, password reset and the shop's nudge. Every send is best-effort: a failure is reported and never undoes the record it describes — see FR-82 |
 | **Maps** | out | Leaflet tiles (OpenStreetMap), browser geolocation | Tiles degrade to a labelled offline panel; no address-to-coordinate lookup — see §11 |
-| **File storage** | `proofs` disk | Filesystem, or S3 when configured | Proof files live on their own disk and are served only through a checked route; `PROOF_DISK_DRIVER=s3` moves them without a code change |
+| **File storage** | `proofs` and `artwork` disks | Filesystem, or S3-compatible object storage when configured | Proof and artwork files live on disks of their own and are served only through a checked route, so a **private** bucket is enough: nothing needs a presigned URL or a public hostname. `PROOF_DISK_DRIVER=s3` moves them without a code change, and Cloudflare R2 needs only `AWS_ENDPOINT`, `AWS_USE_PATH_STYLE_ENDPOINT` and the region `auto` on top of that |
+| **Database** | out | MySQL protocol, TLS when the server requires it | TiDB Cloud refuses a plaintext connection and signs with its own CA. `MYSQL_ATTR_SSL_CA` takes a *path*, so `DB_SSL_CA_PEM` carries the certificate's contents and the boot writes them to a file before the config cache is built; `MYSQL_ATTR_SSL_VERIFY_SERVER_CERT` relaxes the peer-name check for a certificate that carries no SAN |
 
 ---
 
@@ -433,6 +443,7 @@ given so a reader can open it; several issues are covered by more than one file.
 | #82 | FR-66, FR-104, FR-105 | `RefundTest` — a full refund leaves the shop carrying the fee, a partial reverses the commission in proportion, refunds stop at the gross, and the customer's cancel closes after the proof |
 | #108 | FR-105, FR-111, FR-112, FR-113 | `RevenueIntegrityTest` — the fee is an estimate until the webhook reports one, commission counts only on collected jobs, and a refund after release leaves a visible debt. `RefundTest` — the shop cancelling after approval returns the money. `SubscriptionRevenueTest` — every paid-plan shop has a subscription and a bill |
 | #113 | FR-114 | `ArtworkTest` — the queue says whether the design has arrived and stops nagging about a closed job, the board marks a job waiting on the customer's file, and `ConsoleTest` — a paid job with a design is the shop's delay, a paid job without one waits on the customer |
+| #117 | NFR-10, §9 | **Proven by booting the image, not by PHPUnit** — a configuration claim needs a server that can refuse it. MySQL 8.4 with `require_secure_transport=ON` rejects the app with `[3159] insecure transport are prohibited` when no CA is given, rejects it with `Cannot connect to MySQL using SSL` when the CA is given but the certificate has no SAN, and accepts it — cipher `TLS_AES_256_GCM_SHA384` — with `MYSQL_ATTR_SSL_VERIFY_SERVER_CERT=false`. The CA path survives `config:cache`, and an explicit `MYSQL_ATTR_SSL_CA` overrides `DB_SSL_CA_PEM` |
 
 Two honest notes about this table:
 
@@ -467,8 +478,9 @@ and neither is a bug; v1.12 adds a third that is a business rule rather than a d
   artwork follows the same setting (`ARTWORK_DISK_DRIVER` overrides it), because the two
   files travel together and a deployment that moved one and not the other would be storing
   a job's input and its output in two places with two lifetimes. The default is still
-  `local`, which is lost on rebuild — a deployment must set it to `s3` before a shop
-  uploads anything it needs back.
+  `local`, because that is correct on a laptop and a developer should not need a bucket to
+  run the suite — but a deployment must set it to `s3` before a shop uploads anything it
+  needs back, and since v1.19 the Render blueprint ships with it already set.
 
 Version 1.12 made subscription revenue collectable, and that leaves a third gap which is a
 business rule rather than a defect: **nothing enforces payment.** A shop can be invoiced every

@@ -17,6 +17,24 @@ if [ -n "${PORT:-}" ] && [ "${PORT}" != "80" ]; then
     sed -i "s/listen 80;/listen ${PORT};/" /etc/nginx/http.d/default.conf
 fi
 
+# A database that signs with its own CA (TiDB Cloud does) needs PDO pointed at a
+# certificate *file*, and a platform environment variable can only hold a
+# string. DB_SSL_CA_PEM carries the certificate's contents; write them somewhere
+# stable and export the path config/database.php already reads.
+#
+# This must happen before `php artisan optimize` at the bottom, because
+# config:cache bakes the resolved value in — a path exported after the cache is
+# built is a path nothing ever reads.
+#
+# An explicit MYSQL_ATTR_SSL_CA wins, so mounting the certificate instead (a
+# Render Secret File, a Docker secret, a bind mount) still works and is not
+# silently overridden by a stale DB_SSL_CA_PEM left in the dashboard.
+if [ -n "${DB_SSL_CA_PEM:-}" ]; then
+    echo "[entrypoint] writing database CA certificate"
+    printf '%s\n' "${DB_SSL_CA_PEM}" > /etc/ssl/certs/db-ca.pem
+    export MYSQL_ATTR_SSL_CA="${MYSQL_ATTR_SSL_CA:-/etc/ssl/certs/db-ca.pem}"
+fi
+
 # Composer ran with --no-scripts during the build (artisan cannot boot without
 # an environment), so package discovery is done here instead. Without it the
 # Filament and Livewire providers are never registered.

@@ -3,8 +3,10 @@
 # Read docs/DEPLOY-RENDER.md before using this. The free plan gives you one web
 # service and nothing else, and three things this application needs are not
 # available at any price on that plan: a queue worker, a scheduler, and a disk
-# that survives a restart. The blueprint configures around each of them rather
-# than pretending they are there.
+# that survives a restart. The blueprint configures around all three — the
+# worker and the scheduler by moving their work into the request and the boot
+# hook, the disk by not using it: uploads go to Cloudflare R2, and the database
+# to TiDB Cloud, because Render offers neither MySQL nor persistent storage.
 #
 # What is deliberately absent:
 #   * a `worker` service      — free plans cannot run background workers.
@@ -68,8 +70,18 @@ services:
         sync: false
       - key: DB_PASSWORD
         sync: false
-      # Only for a database that insists on TLS with its own CA, such as TiDB
-      # Cloud. config/database.php already passes this through to PDO.
+      # A certificate file, not a certificate. TiDB Cloud — the free MySQL-
+      # compatible option docs/DEPLOY-RENDER.md recommends — refuses a plaintext
+      # connection and signs with a CA of its own, so PDO needs a *path*.
+      #
+      # A Render environment variable can only hold a string, so paste the
+      # certificate's contents into DB_SSL_CA_PEM: the entrypoint writes them to
+      # /etc/ssl/certs/db-ca.pem and points MYSQL_ATTR_SSL_CA at that file before
+      # the config cache is built. Leave it empty and set MYSQL_ATTR_SSL_CA
+      # yourself if you would rather mount the certificate as a Secret File — an
+      # explicit MYSQL_ATTR_SSL_CA always wins.
+      - key: DB_SSL_CA_PEM
+        sync: false
       - key: MYSQL_ATTR_SSL_CA
         sync: false
 
@@ -92,14 +104,35 @@ services:
       - key: LOG_LEVEL
         value: warning
 
-      # Uploaded files still land on the ephemeral disk and are lost on the next
-      # spin-down — both proofs and, since #100, the customer's artwork, which
-      # follows the proof disk unless ARTWORK_DISK_DRIVER overrides it. Move both
-      # to S3/R2 before accepting real artwork.
+      # Cloudflare R2 (S3-compatible, 10 GB free) rather than the ephemeral
+      # disk. Without this every proof and every customer artwork — artwork
+      # follows the proof disk since #100 — is deleted on the next redeploy,
+      # restart or spin-down, which on the free plan means after fifteen idle
+      # minutes.
+      #
+      # R2 differs from S3 in three ways, and each is one line below: it needs
+      # an explicit endpoint, it needs path-style addressing, and it answers to
+      # the region `auto`. Nothing in the code changes — both disks already read
+      # this block, and proofs and artwork are streamed through a controller, so
+      # the bucket stays private and AWS_URL is not needed.
       - key: FILESYSTEM_DISK
-        value: local
+        value: s3
       - key: PROOF_DISK_DRIVER
-        value: local
+        value: s3
+      # Artwork follows the proof disk unless ARTWORK_DISK_DRIVER splits them.
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_BUCKET
+        sync: false
+      # https://<account-id>.r2.cloudflarestorage.com
+      - key: AWS_ENDPOINT
+        sync: false
+      - key: AWS_DEFAULT_REGION
+        value: auto
+      - key: AWS_USE_PATH_STYLE_ENDPOINT
+        value: "true"
 
       # No shell and no one-off jobs on a free plan, so migrations and the
       # reference data ride on the boot. ProductionSeeder is updateOrCreate

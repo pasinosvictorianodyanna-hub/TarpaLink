@@ -1045,6 +1045,39 @@ this one, and the reason #94 is filed as the payout half only.
 
 ---
 
+## #96 — `composer dev` could not start on Windows, and it took the whole stack down
+
+The `dev` script ran four processes under `concurrently --kill-others`: the web server, the
+queue worker, Pail, and Vite. Three of those work on Windows. Pail does not — it calls
+`pcntl_fork()` to tail the log, and PHP does not build `pcntl` for Windows at all. So the
+fourth pane exited within a second of launch, and `--kill-others` did exactly what it says:
+it killed the three that were working.
+
+**The symptom is misleading.** Nothing in the terminal names the missing extension; the
+window fills with four panes and then closes. The only record is a log line, written by
+`EnsurePcntlIsAvailable` the moment the process starts:
+
+```
+local.ERROR: The [pcntl] extension is required to run Pail.
+```
+
+**Why `--kill-others` is still right.** The flag exists so Ctrl+C stops the stack instead of
+leaving a queue worker and a Vite process orphaned on the ports. The bug is not the flag, it
+is putting a process that cannot run on the target platform inside a group that dies
+together.
+
+**The fix.** `dev` runs the three portable processes; `dev:logs` runs Pail on its own. The
+README says why Pail was moved out, because the obvious reading of the diff is "somebody
+deleted the log pane" and the natural correction is to put it back — which would restore the
+bug for every Windows clone.
+
+**Verified on Windows 10, PHP 8.2.33, Node 22.22.2:** all three panes report ready and stay
+up — `Server running on [http://127.0.0.1:8000]`, `Processing jobs from the [default] queue`,
+`VITE v7.3.8 ready in 1103 ms` — and `/` and `/admin/login` both answer 200 while it runs.
+`php -m` confirms `pcntl` is absent, so the original script could not have worked here.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

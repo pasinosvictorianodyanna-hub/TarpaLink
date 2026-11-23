@@ -91,6 +91,12 @@ php artisan serve
 
 Then open <http://127.0.0.1:8000>.
 
+To run the site, the queue worker and Vite together, use `composer dev` — it needs the
+dependencies above installed once. **`composer dev:logs`** adds a live log tail, but only
+on macOS and Linux: `php artisan pail` requires the `pcntl` extension, which PHP does not
+build for Windows. It is kept out of `composer dev` for that reason, not by oversight —
+with it in, `concurrently --kill-others` takes the whole stack down the moment Pail exits.
+
 **PHP needs `ext-zip`** enabled for Filament to install (it pulls in openspout for
 exports). If `composer install` fails on `ext-zip`, uncomment `extension=zip` in
 `php.ini`.

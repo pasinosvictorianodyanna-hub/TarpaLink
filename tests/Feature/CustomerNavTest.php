@@ -267,7 +267,7 @@ class CustomerNavTest extends TestCase
         $this->assertStringNotContainsString('Unpaid '.$unpaid->reference, $html);
     }
 
-    public function test_an_unpaid_order_is_named_rather_than_promised(): void
+    public function test_an_unpaid_order_names_the_move_its_page_can_make(): void
     {
         $me = $this->customer();
 
@@ -275,11 +275,19 @@ class CustomerNavTest extends TestCase
         // ranking is status first and then newest, with the id as the tie-break.
         $job = $me->jobs()->where('status', 'quoted')->orderByDesc('id')->firstOrFail();
 
+        // A quoted job with no file is stuck on the upload, so state the
+        // precondition rather than inheriting it from the seeder.
+        $job->artworks()->delete();
+        $job->unsetRelation('artworks');
+
         $html = $this->actingAs($me)->get('/account')->assertOk()->getContent();
 
-        // The job page has no way to take a payment, so the chip must not say
-        // "Finish" — that would be a promise the destination cannot keep.
-        $this->assertStringContainsString('Unpaid '.$job->reference, $html);
+        // No route charges an existing job, so neither "Finish" nor "Unpaid" is
+        // a move the destination can perform — both name a payment the job page
+        // cannot take. The chip names the upload instead, in the same words the
+        // row button on this page already uses.
+        $this->assertStringContainsString('Send design '.$job->reference, $html);
+        $this->assertStringNotContainsString('Unpaid '.$job->reference, $html);
         $this->assertStringNotContainsString('Finish '.$job->reference, $html);
     }
 

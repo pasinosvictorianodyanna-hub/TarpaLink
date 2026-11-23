@@ -15,7 +15,6 @@ defineProps({
     search: { type: Object, required: true },
     jobs: { type: Array, default: () => [] },
     empty: { type: Object, default: null },
-    account: { type: Object, default: null },
     routes: { type: Object, required: true },
 });
 
@@ -108,19 +107,6 @@ const actionStyle = (action) => ({
                 <b>{{ empty.title }}</b>
                 <p class="small" style="margin-top:6px">{{ empty.body }}</p>
                 <a v-if="empty.cta" class="btn btn-primary btn-sm" style="margin-top:16px" :href="empty.cta.url">{{ empty.cta.label }}</a>
-            </div>
-
-            <div v-if="account" class="acct-foot">
-                <div class="acct-foot-h">Account</div>
-                <div class="acct-foot-row">
-                    <div class="avatar lg">{{ account.initials }}</div>
-                    <div style="flex:1;min-width:180px">
-                        <b style="font-size:13px">{{ account.name }}</b>
-                        <div class="small" style="margin-top:2px">{{ account.contact }}</div>
-                    </div>
-                    <div class="tiny" style="text-align:right">Pickup at<br>{{ account.city }}</div>
-                    <a class="btn btn-ghost btn-sm" :href="account.url">Edit profile</a>
-                </div>
             </div>
         </div>
     </div>

@@ -31,3 +31,8 @@ Thumbs.db
 
 /database/*.sqlite
 /database/*.sqlite-journal
+
+# The documents pipeline's working directory: intermediate markdown, English and
+# Chinese HTML renders, and the scripts that assemble them. The .docx it produces
+# are the artifact and live in docs/deliverables; this is the machinery (#111).
+/output

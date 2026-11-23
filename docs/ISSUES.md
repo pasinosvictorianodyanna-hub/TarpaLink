@@ -1586,6 +1586,23 @@ the bundle, not the source, because a removed rule is invisible until something 
 
 ---
 
+## #111 — The SDD was never in the repository
+
+`docs/` held the SRS as markdown and **no SDD at all**. The design document lived in `output/`, a
+3.4 MB working directory from a docs pipeline, which was untracked — so the only copy of it, and of
+both submission documents, was on one laptop. A clone could not produce them and a reader could not
+open them.
+
+Three `.docx` now live in `docs/deliverables/` (SRS, SDD, and the writing guide they follow), with a
+README that says plainly that they are snapshots and do not track `SRS.md`. The pipeline stays
+local: `output/` is ignored, because committing five copies of the same text — `.md`, `.html`,
+`.html` in Chinese, twice over — would bloat history and make every `git status` noisier.
+
+The honest caveat, recorded rather than discovered later: editing `docs/SRS.md` does not update
+`TarpaLink-SRS.docx`, and nothing fails when they drift apart.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

@@ -46,6 +46,22 @@ return [
         'public' => env('PAYMONGO_PUBLIC_KEY'),
         'webhook_secret' => env('PAYMONGO_WEBHOOK_SECRET'),
         'base_url' => env('PAYMONGO_BASE_URL', 'https://api.paymongo.com/v1'),
+
+        /*
+         * What the processor is assumed to take, until it tells us.
+         *
+         * The real fee depends on the payment method and is reported on the
+         * settled payment, so this pair is only an *estimate* written at
+         * checkout. `payments.fee_is_estimate` records which of the two numbers
+         * a row carries, and the webhook replaces the estimate with the truth
+         * when the event includes it.
+         *
+         * It lives here because it used to be two literals inside the checkout
+         * controller — and the shop bears this cost, so a hardcoded rate is a
+         * pricing decision nobody could find.
+         */
+        'fee_rate_bp' => env('PAYMONGO_FEE_RATE_BP', 250),
+        'fee_flat' => env('PAYMONGO_FEE_FLAT', 1500),
     ],
 
     /*

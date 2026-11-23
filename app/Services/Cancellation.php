@@ -22,15 +22,29 @@ use Illuminate\Validation\ValidationException;
  * service is the single place that answers "and what happens to the money",
  * which is why both the console and the customer's own cancel go through it.
  *
- * Cancelling **after** the proof is approved does not refund automatically. The
- * material is already committed, so the policy says a refund there is the shop's
- * discretion and may be partial; that is a decision a person makes on the
- * payment, through `Refund`, not a side effect of a status change.
+ * **Cancelling always returns the money that has not been returned yet**, at
+ * every state that can be cancelled. That is not the same rule as *who may
+ * cancel*: FR-105 still stops the customer walking away once the proof is
+ * approved, because at that point the decision is the shop's. But if the job is
+ * cancelled — by either party — the platform cannot go on holding a payment for
+ * work that will not be produced.
+ *
+ * Before this, cancelling from `approved` refunded nothing and left the payment
+ * `paid`, so the customer's money sat with the platform indefinitely: not
+ * payable to the shop (`mayBeReleased` refuses a cancelled job) and not
+ * refundable by the customer (the route is closed). Only an administrator
+ * stumbling across the row could resolve it.
  */
 final class Cancellation
 {
-    /** States where cancelling still owes the customer all of their money back. */
-    private const REFUNDABLE = ['quoted', 'awaiting_proof'];
+    /**
+     * States where the **customer** may walk away on their own.
+     *
+     * Not the same question as "does the money go back". This gate is about who
+     * is allowed to decide (FR-105); the refund below is about what happens to
+     * money that is already captured, whoever decides.
+     */
+    private const CUSTOMER_MAY_CANCEL = ['quoted', 'awaiting_proof'];
 
     /**
      * May the customer still walk away on their own?
@@ -42,7 +56,7 @@ final class Cancellation
      */
     public static function customerMayCancel(Job $job): bool
     {
-        return in_array($job->status, self::REFUNDABLE, true);
+        return in_array($job->status, self::CUSTOMER_MAY_CANCEL, true);
     }
 
     public function __construct(private readonly Refund $refund) {}
@@ -51,8 +65,8 @@ final class Cancellation
      * Cancel the job, and refund it in full when the policy says we must.
      *
      * Returns the payment it refunded, or null when no money moved — which is
-     * not a failure. A job cancelled before it was ever paid, or one cancelled
-     * after approval, both legitimately refund nothing.
+     * not a failure. A job cancelled before it was ever paid legitimately
+     * refunds nothing; one cancelled after approval refunds whatever is left.
      *
      * @throws ValidationException when the job cannot be cancelled at all
      */
@@ -64,8 +78,15 @@ final class Cancellation
             ]);
         }
 
-        $owesMoneyBack = in_array($job->status, self::REFUNDABLE, true);
-        $payment = $owesMoneyBack ? $this->refundable($job) : null;
+        // Whoever decided, and whatever the policy says about *whether* the
+        // customer may ask, captured money cannot simply stay with the platform.
+        // A job cancelled from `approved` used to leave the payment `paid` and
+        // the customer refunded nothing — money that was neither the shop's (the
+        // job will not be printed) nor ours. Refunding the remainder is the only
+        // disposition that leaves nobody holding funds for work that will not
+        // happen; a shop that did real work keeps it by refunding partially, or
+        // not cancelling at all.
+        $payment = $this->refundable($job);
 
         return DB::transaction(function () use ($job, $by, $reason, $payment): ?Payment {
             JobWorkflow::transition($job, 'cancelled', $by, $reason);

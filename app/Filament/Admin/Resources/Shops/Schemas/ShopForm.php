@@ -133,7 +133,14 @@ class ShopForm
                             ->required()
                             ->minValue(0)
                             ->maxValue(10000)
-                            ->helperText('300 = 3.00%. Changing this does not touch payouts already released.'),
+                            // Read-only because the rate *is* the plan. It was
+                            // editable while the section described itself as a
+                            // rate that "can never drift from the plan it came
+                            // from" — so the field was the one thing able to
+                            // break that promise. A bespoke rate now needs a
+                            // plan, which is the only shape billing understands.
+                            ->readOnly()
+                            ->helperText('Set by the plan: 300 = 3.00%. Changing the plan changes this. Settled payouts keep the rate they were charged at.'),
 
                         Select::make('accent')
                             ->options([

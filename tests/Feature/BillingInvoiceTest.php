@@ -62,11 +62,27 @@ class BillingInvoiceTest extends TestCase
         ]);
     }
 
+    /**
+     * The invoices this run issued for one shop.
+     *
+     * A run bills every subscription whose period is unbilled, and the seed now
+     * carries three — so a bare `assertCount(1, $issued)` was really asserting
+     * "this is the only shop in the database". That was true only while nothing
+     * was seeded, which is the state the revenue model had to leave behind.
+     *
+     * @param  array<int, Invoice>  $issued
+     * @return array<int, Invoice>
+     */
+    private function forShop(array $issued, Shop $shop): array
+    {
+        return array_values(array_filter($issued, fn (Invoice $invoice): bool => $invoice->shop_id === $shop->id));
+    }
+
     public function test_an_active_paid_subscription_is_invoiced_once_per_period(): void
     {
         $shop = $this->inkwell();
         $shop->subscriptions()->update(['status' => 'cancelled', 'ends_at' => now()]);
-        Invoice::query()->delete();
+        Invoice::query()->where('shop_id', $shop->id)->delete();
 
         $this->subscribed($shop, $this->growth(), now()->subDays(3)->startOfDay());
 
@@ -87,23 +103,23 @@ class BillingInvoiceTest extends TestCase
     {
         $shop = $this->inkwell();
         $shop->subscriptions()->update(['status' => 'cancelled', 'ends_at' => now()]);
-        Invoice::query()->delete();
+        Invoice::query()->where('shop_id', $shop->id)->delete();
 
         $started = Carbon::parse('2026-11-10 09:00:00');
         $this->subscribed($shop, $this->growth(), $started);
 
         $service = app(BillingService::class);
 
-        $november = $service->issueDueInvoices(Carbon::parse('2026-11-20 10:00:00'));
+        $november = $this->forShop($service->issueDueInvoices(Carbon::parse('2026-11-20 10:00:00')), $shop);
         $this->assertCount(1, $november);
         $this->assertSame('2026-11-10', $november[0]->period_start->toDateString());
         $this->assertSame('2026-12-09', $november[0]->period_end->toDateString());
 
         // Still November, still billed.
-        $this->assertCount(0, $service->issueDueInvoices(Carbon::parse('2026-11-28 10:00:00')));
+        $this->assertCount(0, $this->forShop($service->issueDueInvoices(Carbon::parse('2026-11-28 10:00:00')), $shop));
 
         // December starts a new period.
-        $december = $service->issueDueInvoices(Carbon::parse('2026-12-12 10:00:00'));
+        $december = $this->forShop($service->issueDueInvoices(Carbon::parse('2026-12-12 10:00:00')), $shop);
         $this->assertCount(1, $december);
         $this->assertSame('2026-12-10', $december[0]->period_start->toDateString());
         $this->assertNotSame($november[0]->number, $december[0]->number);
@@ -134,7 +150,7 @@ class BillingInvoiceTest extends TestCase
     {
         $shop = $this->inkwell();
         $shop->subscriptions()->update(['status' => 'cancelled', 'ends_at' => now()]);
-        Invoice::query()->delete();
+        Invoice::query()->where('shop_id', $shop->id)->delete();
 
         $this->subscribed($shop, $this->growth(), Carbon::parse('2026-11-10 09:00:00'));
 
@@ -212,7 +228,7 @@ class BillingInvoiceTest extends TestCase
     {
         $shop = $this->inkwell();
         $shop->subscriptions()->update(['status' => 'cancelled', 'ends_at' => now()]);
-        Invoice::query()->delete();
+        Invoice::query()->where('shop_id', $shop->id)->delete();
 
         $this->subscribed($shop, $this->growth(), Carbon::parse('2026-11-10 09:00:00'));
         $service = app(BillingService::class);
@@ -231,7 +247,7 @@ class BillingInvoiceTest extends TestCase
     {
         $shop = $this->inkwell();
         $shop->subscriptions()->update(['status' => 'cancelled', 'ends_at' => now()]);
-        Invoice::query()->delete();
+        Invoice::query()->where('shop_id', $shop->id)->delete();
 
         $service = app(BillingService::class);
 
@@ -253,7 +269,7 @@ class BillingInvoiceTest extends TestCase
     {
         $shop = $this->inkwell();
         $shop->subscriptions()->update(['status' => 'cancelled', 'ends_at' => now()]);
-        Invoice::query()->delete();
+        Invoice::query()->where('shop_id', $shop->id)->delete();
 
         $this->subscribed($shop, $this->growth(), now()->subDays(2)->startOfDay());
 

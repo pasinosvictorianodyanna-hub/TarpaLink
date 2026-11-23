@@ -1,6 +1,6 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.16 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.17 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
 > profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
@@ -56,6 +56,13 @@
 > *whether* a design was missing rather than how many were, so it read "1" above a list
 > showing two. And every shop page said payment is released "only after you confirm pickup" —
 > an action the customer never takes, because the shop marks the job collected (§5.2).
+> Version 1.17 fixes four ways the revenue model leaked, all of them on paths the suite did
+> not walk. Cancelling from `approved` refunded nothing while the commission stayed booked
+> (FR-105); commission was counted on jobs that were never collected, so a cancelled job left
+> the platform holding revenue it had given back (FR-111); the processor's fee was a hardcoded
+> guess stamped at checkout and never corrected from the webhook (FR-112); and a refund issued
+> after the payout had gone out was accepted with no record that the shop now owes it back
+> (FR-113).
 
 ---
 
@@ -206,13 +213,16 @@ feature names.
 | FR-68 | The system shall let a shop export its payout ledger as CSV, and shall refuse the export to anyone who does not own that shop. | #7 |
 | FR-69 | The system shall bill subscriptions on three tiers — Starter (free, 5%), Growth (₱599, 3%), Pro (₱1,499, 1.5%) — and shall show the crossover point where the next tier becomes cheaper. | #12 |
 | FR-104 | The system shall refund a settled payment in whole or in part, accumulating the refunded amount on the payment row, reversing the commission **in proportion** to what went back, and shall never let the refunds on one payment exceed its gross. The processor's fee is not returned and remains the shop's. | #82 |
-| FR-105 | The system shall let the customer cancel an order for a full refund only while it is unpaid-for-work — quoted or awaiting proof — and shall refuse that route once the proof is approved, when the material is committed and cancellation is the shop's decision. | #82 |
+| FR-105 | The system shall separate **who may cancel** from **what happens to the money**. The customer may cancel only while the job is unpaid-for-work — quoted or awaiting proof — and shall be refused that route once the proof is approved, when the material is committed and cancellation is the shop's decision. Whichever side cancels, every centavo paid and not yet returned shall be refunded. | #82 · #108 |
 | FR-106 | The system shall issue a subscription invoice for each billing period of every active paid subscription, deriving the period from the day the subscription started, and shall issue each period **exactly once** however often the issuing command runs. | #83 |
 | FR-107 | The system shall let an administrator record an invoice as paid, stamping who recorded it, and shall refuse to collect an invoice twice, to collect a void one, or to void a paid one. | #83 |
 | FR-108 | The system shall let the customer attach the design file for their order — PNG, JPEG, WebP or PDF, up to 20 MB — keep every version they send with the name, type, size and time it arrived, treat the newest as the file to print, and record each arrival on the job's activity trail. | #100 |
 | FR-109 | The system shall serve an artwork file only to the customer who ordered the job, the shop printing it, and an administrator, through a route that checks the policy rather than a public URL, and shall refuse a new file once the proof is approved or the job is cancelled. | #100 |
+| FR-111 | The system shall recognise commission as revenue only on jobs the customer has collected. A payment on a job that was cancelled, or is still in progress, shall not count toward the platform's earned commission, though it stays in the ledger. | #108 |
+| FR-112 | The system shall estimate the processor's fee at checkout from configured basis points and a flat amount, mark the row as an estimate, and replace both the amount and the mark with the fee the processor reports in its webhook. | #108 |
+| FR-113 | The system shall record that a refund issued after the payout was released leaves the shop owing the platform the difference, and shall show that debt on the payout screen — because the platform has already paid out money it has now returned. | #108 |
 
-FR-104 to FR-109 are numbered after §5.10's requirements because numbers follow the order
+FR-104 to FR-113 are numbered after §5.10's requirements because numbers follow the order
 issues were adopted, not the order the sections appear in.
 
 ### 5.7 Administration — FR-70 …
@@ -331,8 +341,16 @@ and may optimistically render, but it never becomes the source of truth.
 platform holds; it becomes money the shop has earned only when the job is `collected`. The
 published policy says so — *"Payouts are released from the platform ledger after the job is
 collected"* — and `Payment::mayBeReleased()` is where that sentence is enforced. A job
-cancelled after approval refunds nothing, by the decision recorded on #82, so without this
-rule a cancelled job's payment stays `paid` and looks exactly like a deliverable one.
+cancelled after approval is refunded in full (#108), so its payment no longer looks
+deliverable — but the release still has to be gated on delivery, because a paid job in progress
+is indistinguishable from a finished one by status alone.
+
+**BR-10 — Revenue is recognised at collection, not at payment.** The platform earns its
+commission when the customer collects the job, because until then the money is still
+refundable and a cancelled job would book revenue that was handed back. `Payment::onCollectedJobs()`
+is the single definition of "earned"; every figure that claims to be revenue — the dashboard
+tile, the stats widget, the reports — goes through it. Money on an unfinished job is still
+counted, but as **held**, and shown as such.
 
 ---
 
@@ -407,6 +425,7 @@ given so a reader can open it; several issues are covered by more than one file.
 | #81 | FR-66 | `ReportsTest`, `DataIntegrityTest` — the fee comes off the payout, and the split adds back to the gross |
 | #83 | FR-106, FR-107 | `BillingInvoiceTest` — one invoice per period however often the command runs, a new period on the month roll, void re-billed, and no double collection |
 | #82 | FR-66, FR-104, FR-105 | `RefundTest` — a full refund leaves the shop carrying the fee, a partial reverses the commission in proportion, refunds stop at the gross, and the customer's cancel closes after the proof |
+| #108 | FR-105, FR-111, FR-112, FR-113 | `RevenueIntegrityTest` — the fee is an estimate until the webhook reports one, commission counts only on collected jobs, and a refund after release leaves a visible debt. `RefundTest` — the shop cancelling after approval returns the money. `SubscriptionRevenueTest` — every paid-plan shop has a subscription and a bill |
 
 Two honest notes about this table:
 
@@ -451,6 +470,15 @@ suspension. Overdue invoices are visible to the administrator (`/admin/invoices`
 shop (`/console/billing` shows what is outstanding), and that is the whole of it. Suspending
 a shop for non-payment is a decision a person makes on the shop's record, deliberately, in
 the same way that approving one is.
+
+Version 1.17 closes the fourth gap it found, and leaves a smaller one in its place: **the fee
+is an estimate until the processor says otherwise.** Checkout writes a fee from
+`PAYMONGO_FEE_RATE_BP` and `PAYMONGO_FEE_FLAT` and marks the row `fee_is_estimate`, because
+the real fee is only known after capture. The webhook replaces both the amount and the mark
+when the event carries a fee (FR-112), and the payout screen appends `est.` to any row still
+carrying a guess. A deployment that never receives a fee-bearing webhook — or a processor that
+changes its schedule without a config change — leaves estimates standing. They are labelled,
+not hidden, which is the difference between a known approximation and a wrong number.
 
 Version 1.6 retired the **Filament shop panel**. It had been registered at `/shop` with
 nothing linking to it since §5.9 moved every screen to the console, and it is gone now —

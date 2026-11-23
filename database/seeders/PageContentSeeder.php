@@ -129,7 +129,7 @@ class PageContentSeeder extends Seeder
                         'You can pay online through PayMongo with GCash, Maya or a card, or pay cash at the counter on pickup. The price is the same either way. Online payments are captured when the order is placed; cash is collected at handover.',
                     ]],
                     ['h' => 'Cancellation and refunds', 'p' => [
-                        'A job can be cancelled for a full refund any time before you approve the proof, because nothing has been printed yet. After approval the material is committed, so cancellation is at the shop’s discretion and a refund may be partial.',
+                        'A job can be cancelled for a full refund any time before you approve the proof, because nothing has been printed yet. After approval the material is committed, so cancelling is the shop’s decision rather than yours — but if the job is cancelled, anything you have paid and not yet had returned comes back to you in full. We do not hold your money for a job that will not be printed.',
                         'If the print does not match the proof you approved, tell us within seven days of pickup with photos and the job reference. We will arrange a reprint or a refund with the shop.',
                     ]],
                     ['h' => 'For shop owners', 'p' => [

@@ -1417,6 +1417,175 @@ of the old one.
 
 ---
 
+## #108 — The revenue model leaked in five places, and the biggest one was invisible
+
+Found by auditing the ledger against the code paths the suite never walks: read every table
+that holds money, recompute every total the screens show, and check that the arithmetic the
+database performs agrees with the arithmetic the business rule states. The seeded data was
+clean — the ledger identity held, no net was negative, no invoice was doubled. Every defect
+was on a path that only a *sequence* of actions reaches.
+
+### The shop was never billed at all
+
+```
+subscriptions = 0   invoices = 0
+shops on a paid plan = 3
+```
+
+Inkwell Growth ₱599, Tinta Growth ₱599, Halftone Pro ₱1,499 — **₱2,697 a month that no code
+path could ever collect.** `billing:issue` was correct and idempotent (#83); it simply had
+nothing to iterate. Two writers set `shops.plan` — the shop's own plan screen and the admin's
+`EditShop` — and neither created a subscription. `Billing::subscribe()` existed, was tested,
+and was called from one place that the plan screens did not use.
+
+The fix is the writer, not the reader: `EditShop::afterSave()` now calls `Billing::subscribe()`
+when `plan` changed, so the plan, the commission rate and the first bill move together
+(BR-5). And the command stopped lying about the result — it used to print *"Nothing due"*
+whether every subscription was billed or there were no subscriptions to bill, which is how a
+₱2,697 hole reads as a healthy system:
+
+```
+2 shop(s) are on a paid plan with no active subscription — nothing will ever bill them:
+  Tinta Press            plan=growth  no subscription
+```
+
+`Billing::unbilledShops()` is the query behind that line, and the seeder now creates real
+subscriptions with staggered anniversaries (45, 20 and 3 days ago) and collects one invoice,
+so a fresh database shows a ledger with a paid, an open and an overdue row instead of three
+empty tables.
+
+### Cancelling from `approved` refunded nothing and kept the commission
+
+`Cancellation` branched on status:
+
+```php
+if (in_array($job->status, self::REFUNDABLE, true)) { ...refund... }
+```
+
+`approved` was not in the list. So a job cancelled after the customer paid, before the shop
+delivered, left the customer's money with the platform, left the commission booked as revenue,
+and told the customer the job was cancelled. The published terms had promised a refund since
+the site was written.
+
+The confusion was a constant named `REFUNDABLE` describing *who may cancel* rather than *what
+happens to the money*. Renamed to `CUSTOMER_MAY_CANCEL`; `cancel()` no longer branches on
+status and always returns the remainder. Authority and money are two questions (FR-105).
+
+### Commission was revenue on jobs nobody collected
+
+`PlatformStats` and `Dashboard` both summed `commission − commission_refunded` over every
+moved payment. A job paid for and then cancelled — or one still in the shop — counted as
+earned. On seeded data that was **₱791.90 of commission on eight uncollected jobs**, money the
+platform would have had to give back.
+
+Revenue is now recognised at collection (BR-10, FR-111), and the definition lives in one scope
+so the two screens cannot drift:
+
+```php
+Payment::moved()->onCollectedJobs()
+```
+
+Money on unfinished jobs is still counted, but as **held**, and the tile says so.
+
+### The processor's fee was a guess nobody corrected
+
+Every payment since #7 carried a `processing_fee` computed at checkout:
+
+```php
+(int) round($quote['total'] * 0.025) + 1500
+```
+
+Hardcoded, in two places in the seeder and once in the controller, and never replaced with
+what PayMongo actually charged. On seeded data the exposure was **₱381.21** — money the shop
+was credited or debited on a number invented at checkout. This is the #81 landmine again in a
+new shape: a column that is written and never verified.
+
+Now: the estimate comes from config (`PAYMONGO_FEE_RATE_BP`, `PAYMONGO_FEE_FLAT`) through
+`Payment::estimateFee()`, the row is marked `fee_is_estimate`, and the webhook replaces both
+the amount and the mark with the fee the processor reports (`PayMongo::feeFrom()`). The payout
+screen appends `est.` to any row still carrying a guess, so an approximation is labelled rather
+than presented as fact (FR-112).
+
+### A refund after release was accepted and forgotten
+
+`payout_status = released` means the shop has the money. Refunding that payment returns money
+the platform no longer holds, so the shop owes it back — and nothing recorded that. The refund
+was accepted, the commission was reversed, and the debt appeared in no total on any screen.
+
+`Payment::debtToPlatform()` returns `max(0, -net())` for a settled payment, and the payouts
+table shows it as an "Owed back" column. The refund modal explains, before the admin confirms,
+that the platform absorbs a post-release refund and the shop carries the balance (FR-113).
+
+### Verified
+
+`557 passed (2604 assertions)`. Two new files: `RevenueIntegrityTest` (6 tests — the fee is an
+estimate until the webhook says otherwise, commission only on collected jobs, a refund after
+release leaves a debt and one before it does not) and `SubscriptionRevenueTest` (7 tests —
+every paid-plan shop is subscribed, a free plan is not, the seed produces bills and one
+collection, the command names an unbillable shop, saving a plan creates a bill, and a non-plan
+edit creates nothing).
+
+Two existing tests were passing for the wrong reason and were fixed:
+
+- `test_the_shop_cancelling_after_approval_refunds_nothing_automatically` passed *after* the
+  behaviour changed. Its `settled()` helper created a second payment on a job that already had
+  one, so `$payment` was the row the service never touched. It now deletes the seeded payment
+  first, and is renamed to `…returns_the_money`.
+- `test_commission_is_the_sum_of_commissions_not_gmv_times_one_rate` computed its expectation
+  from every moved payment, which is the definition #108 removed. Scoped to collected jobs.
+
+`BillingInvoiceTest` needed `forShop()`: seeding subscriptions meant the December run billed
+two shops, not one, and `assertCount(1, …)` was counting the wrong thing — the same
+"global assertion over a global table" mistake the file was written to avoid.
+
+The live development database was migrated in place rather than wiped: three subscriptions,
+three invoices (₱599 paid, ₱1,499 open, ₱599 overdue), outstanding ₱2,098, collected ₱599. The
+published cancellation copy in `page_sections` was corrected in the same pass, because
+`PageContentSeeder` only runs on a fresh database.
+
+---
+
+## #109 — A chip that promised a payment, and a card that said the same thing twice
+
+Both found by clicking the thing rather than reading the code.
+
+### "Unpaid TL-42720"
+
+The header chip on every customer screen read **"Unpaid TL-42720"** and linked to the job page.
+That is a label meaning *pay this now*. There is no route in the app that can charge an existing
+job — `routes/web.php` has no such endpoint, and the only payment path is the original checkout,
+closed once the intent is created.
+
+Signed in as the seeded customer and grepped the HTML: the chip's `href` was `/jobs/TL-42720`,
+and `/account` carried **four** links to that job and no payment action anywhere.
+
+| Job state | Chip before | Chip now |
+|---|---|---|
+| `quoted`, no artwork | `Unpaid TL-42720` | `Send design TL-42720` |
+| `quoted`, artwork sent | `Unpaid TL-42720` | `Track TL-42720` |
+
+Same family as #82 (a refund policy with no refund) and #100 (a privacy policy describing an
+upload that did not exist), and the same lesson as #106: a label is a claim about what a click
+does, and nothing in the suite reads a label against its destination.
+
+### "Edit profile" at the bottom of My jobs
+
+The screen linked to the profile twice — once in the top bar, once in a card at the bottom with
+the same destination and the same wording. The second existed to fill a strip that had nothing
+else to say, and it made the page look like it had two different places to go.
+
+Removed: the card, its four `.acct-foot*` rules in `app.css`, the `account` prop, and the
+controller work behind it — `AccountController::account()`, `initials()`, and the `User` import
+that only they used. `AccountTest` lost the test that asserted the strip it described.
+
+### Verified
+
+`557 passed (2604 assertions)`. `CustomerNavTest` now asserts the chip names the move and that the
+string "Unpaid" does not appear. The built CSS no longer contains `.acct-foot` — checked against
+the bundle, not the source, because a removed rule is invisible until something is rebuilt.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

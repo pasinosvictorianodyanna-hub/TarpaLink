@@ -8,6 +8,7 @@ use App\Models\Shop;
 use App\Models\Subscription;
 use App\Models\User;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -244,6 +245,31 @@ final class Billing
         } while (Invoice::where('number', $candidate)->exists());
 
         return $candidate;
+    }
+
+    /**
+     * Active shops sitting on a paid plan with no active subscription.
+     *
+     * `shops.plan` is a denormalised copy of the plan code, so anything that
+     * writes it directly — the admin form did, and this project's own seeder
+     * did — can put a shop on Growth or Pro without a `subscriptions` row.
+     * `issueDueInvoices()` walks subscriptions, so such a shop is never billed:
+     * it keeps the discounted commission rate and pays no fee at all.
+     *
+     * Nothing detected that state. The daily command reported "nothing due",
+     * which was true and completely misleading — there was nothing to be due
+     * *from*. This query is how the state becomes visible.
+     *
+     * @return Collection<int, Shop>
+     */
+    public function unbilledShops(): Collection
+    {
+        return Shop::query()
+            ->where('status', 'active')
+            ->whereIn('plan', Plan::query()->where('price', '>', 0)->pluck('code'))
+            ->whereDoesntHave('subscriptions', fn ($query) => $query->where('status', 'active'))
+            ->orderBy('name')
+            ->get();
     }
 
     /**

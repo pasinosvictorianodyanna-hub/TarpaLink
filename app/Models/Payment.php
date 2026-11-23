@@ -19,6 +19,7 @@ class Payment extends Model
     protected $attributes = [
         'refunded_amount' => 0,
         'commission_refunded' => 0,
+        'fee_is_estimate' => true,
     ];
 
     protected function casts(): array
@@ -27,6 +28,7 @@ class Payment extends Model
             'amount' => 'integer',
             'refunded_amount' => 'integer',
             'processing_fee' => 'integer',
+            'fee_is_estimate' => 'boolean',
             'commission' => 'integer',
             'commission_refunded' => 'integer',
             'paid_at' => 'datetime',
@@ -35,6 +37,22 @@ class Payment extends Model
             'payout_date' => 'date',
             'attempts' => 'integer',
         ];
+    }
+
+    /**
+     * The processor's fee we assume at checkout, before the provider tells us.
+     *
+     * The shop bears this, so the rate is configuration rather than two literals
+     * in the checkout controller — a hardcoded cost is a pricing decision nobody
+     * can find. The real fee depends on the payment method and arrives with the
+     * settled payment; `fee_is_estimate` records which number a row carries.
+     */
+    public static function estimateFee(int $amount): int
+    {
+        $rateBp = (int) config('services.paymongo.fee_rate_bp', 250);
+        $flat = (int) config('services.paymongo.fee_flat', 1500);
+
+        return (int) round($amount * $rateBp / 10000) + $flat;
     }
 
     public function job(): BelongsTo
@@ -113,6 +131,39 @@ class Payment extends Model
     }
 
     /**
+     * What the platform is out of pocket on a payment it has already released.
+     *
+     * A refund after release pays the customer out of the platform's own
+     * balance, because the shop has already been handed its net. Nothing claws
+     * it back, and `awaitingPayout` excludes a released row by design — so the
+     * loss appeared in no total anywhere. A negative `net()` on a released row
+     * *is* that debt; this names it so a screen can show it.
+     *
+     * A payment that was never released owes nothing: the refund comes out of
+     * money the platform is still holding.
+     */
+    public function debtToPlatform(): int
+    {
+        if (! $this->isSettled()) {
+            return 0;
+        }
+
+        return max(0, -$this->net());
+    }
+
+    /**
+     * Released payments that took a refund, so a debt may exist.
+     *
+     * A scope rather than a column because `net()` is derived; this narrows the
+     * set to rows worth computing it for.
+     */
+    public function scopeRefundedAfterRelease($query)
+    {
+        return $query->where('payments.payout_status', 'paid')
+            ->where('payments.refunded_amount', '>', 0);
+    }
+
+    /**
      * Whether the money may be released to the shop yet.
      *
      * Payment is not delivery. The customer is charged at checkout, which is
@@ -123,9 +174,9 @@ class Payment extends Model
      * the job is collected."*
      *
      * Until #94 nothing enforced that. A job cancelled from `approved` — which
-     * refunds nothing, by the decision on #82 — left a paid payment sitting on
-     * the payouts screen, indistinguishable from a deliverable one, and a bulk
-     * release paid the shop for work that was never printed.
+     * refunded nothing under #82's decision, corrected in #108 — left a paid
+     * payment sitting on the payouts screen, indistinguishable from a
+     * deliverable one, and a bulk release paid the shop for work never printed.
      */
     public function mayBeReleased(): bool
     {
@@ -201,6 +252,23 @@ class Payment extends Model
     public function scopeMoved($query)
     {
         return $query->whereIn('payments.status', ['paid', 'refunded']);
+    }
+
+    /**
+     * Payments whose job has been collected.
+     *
+     * The line between money we are holding and money we have earned. The
+     * published pricing says commission is charged "per completed job", so
+     * revenue is recognised here and not at capture — a payment on a job still
+     * on the press, or on one that was cancelled before it was printed, is money
+     * in transit.
+     *
+     * One definition on purpose: the dashboard and the stats widget both read
+     * it, and two hand-written `whereHas` clauses would drift.
+     */
+    public function scopeOnCollectedJobs($query)
+    {
+        return $query->whereHas('job', fn ($job) => $job->where('status', 'collected'));
     }
 
     /** Payments that exhausted their webhook retries and need a human. */

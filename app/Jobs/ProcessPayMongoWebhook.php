@@ -59,10 +59,18 @@ class ProcessPayMongoWebhook implements ShouldQueue
 
         $rate = $payment->job?->shop?->commission_rate ?? 0;
 
+        // The estimate written at checkout is replaced by the number the
+        // processor actually took, when the event carries it. The shop bears
+        // this fee, so a guess that is never corrected is a price we invented —
+        // and the platform silently absorbs the difference, because the
+        // processor deducts from our balance and not the shop's.
+        $fee = $paymongo->feeFrom($this->event);
+
         $payment->update([
             'status' => 'paid',
             'paid_at' => now(),
             'commission' => (int) round($payment->amount * $rate / 10000),
+            ...($fee !== null ? ['processing_fee' => $fee, 'fee_is_estimate' => false] : []),
             'last_error' => null,
         ]);
 

@@ -2,9 +2,12 @@
 
 namespace App\Filament\Admin\Pages;
 
+use App\Models\Invoice;
 use App\Models\Job;
 use App\Models\Payment;
 use App\Models\Shop;
+use App\Models\Subscription;
+use App\Services\Billing;
 use App\Services\ShopApproval;
 use App\Support\Money;
 use Filament\Actions\Action;
@@ -59,8 +62,13 @@ class Dashboard extends BaseDashboard
         $gmvBefore = (int) Payment::moved()->whereBetween('paid_at', $lastMonth)->sum('amount')
             - (int) Payment::moved()->whereBetween('paid_at', $lastMonth)->sum('refunded_amount');
 
-        $commission = (int) Payment::moved()->whereBetween('paid_at', $month)->sum('commission')
-            - (int) Payment::moved()->whereBetween('paid_at', $month)->sum('commission_refunded');
+        // Commission is earned when the job is **collected**, which is what the
+        // published pricing promises ("per completed job"). Counting it at
+        // settlement recognised revenue on jobs still on the press — and on jobs
+        // that were cancelled before anything was printed, where the money had
+        // to go back to the customer.
+        $commission = $this->commissionEarned($month);
+        $commissionHeld = $this->commissionHeld();
         $fees = (int) Payment::moved()->whereBetween('paid_at', $month)->sum('processing_fee');
         $settled = Payment::moved()->whereBetween('paid_at', $month)->count();
 
@@ -69,6 +77,20 @@ class Dashboard extends BaseDashboard
 
         $active = Shop::where('status', 'active')->count();
         $pending = Shop::where('status', 'pending')->count();
+
+        // Subscription revenue is the platform's second pot, and it was missing
+        // from this screen entirely: only commission was counted, so a platform
+        // could bill nothing for a year and the overview would look unchanged.
+        // `unbilled` is the number that matters most — a shop on a paid plan
+        // with no subscription earns the discounted rate and pays no fee.
+        $subscriptionRevenue = (int) Invoice::where('status', Invoice::PAID)
+            ->whereBetween('paid_at', $month)
+            ->sum('amount');
+        $outstanding = (int) Invoice::unpaid()->sum('amount');
+        $unbilled = app(Billing::class)->unbilledShops()->count();
+        $paidSubscriptions = Subscription::where('status', 'active')
+            ->whereHas('plan', fn ($query) => $query->where('price', '>', 0))
+            ->count();
 
         return [
             'gmv' => [
@@ -99,11 +121,53 @@ class Dashboard extends BaseDashboard
                 // net, and keep the commission. Subtracting the fee here would
                 // charge us for a fee we never paid.
                 'value' => Money::short($commission),
-                'note' => $gmv > 0 ? round($commission / $gmv * 100, 1).'% blended' : 'no revenue yet',
+                'note' => $commissionHeld > 0
+                    ? Money::short($commissionHeld).' held on jobs in progress'
+                    : 'every completed job is counted',
                 'sub' => Money::short($fees).' of fees, borne by shops',
                 'tone' => $commission >= 0 ? 'good' : 'bad',
             ],
+            'subscription' => [
+                'label' => 'Subscription revenue',
+                'value' => Money::short($subscriptionRevenue),
+                'note' => $unbilled > 0
+                    ? $unbilled.' shop(s) on a paid plan, unbilled'
+                    : ($outstanding > 0 ? Money::short($outstanding).' still outstanding' : 'all collected'),
+                'sub' => $paidSubscriptions.' active paid subscription(s)',
+                // A shop that carries the rate but never a bill is a wait state,
+                // not a failure — it needs a person, not a retry.
+                'tone' => $unbilled > 0 ? 'wait' : 'good',
+            ],
         ];
+    }
+
+    /**
+     * Commission on jobs that have actually been collected, inside a window.
+     *
+     * A refund reverses the commission in proportion, so a job that was
+     * collected and then partly refunded counts only what we kept.
+     *
+     * @param  array{0: Carbon, 1: Carbon}  $window
+     */
+    private function commissionEarned(array $window): int
+    {
+        $query = fn () => Payment::moved()->onCollectedJobs()->whereBetween('paid_at', $window);
+
+        return (int) $query()->sum('commission') - (int) $query()->sum('commission_refunded');
+    }
+
+    /**
+     * Commission received but not yet earned, because the job is unfinished.
+     *
+     * Reported beside the total rather than added to it. It is money the platform
+     * is already holding, so leaving it out silently would look like a shortfall;
+     * counting it would be the mistake this replaced.
+     */
+    private function commissionHeld(): int
+    {
+        return (int) Payment::where('status', 'paid')
+            ->whereHas('job', fn ($job) => $job->whereNotIn('status', ['collected', 'cancelled']))
+            ->sum('commission');
     }
 
     private function delta(int $now, int $before): string

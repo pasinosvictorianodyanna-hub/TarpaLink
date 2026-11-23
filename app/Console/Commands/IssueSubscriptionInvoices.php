@@ -24,12 +24,7 @@ class IssueSubscriptionInvoices extends Command
     public function handle(Billing $billing): int
     {
         $issued = $billing->issueDueInvoices();
-
-        if ($issued === []) {
-            $this->info('Nothing due — every active paid subscription is already billed for this period.');
-
-            return self::SUCCESS;
-        }
+        $unbilled = $billing->unbilledShops();
 
         foreach ($issued as $invoice) {
             $this->line(sprintf(
@@ -40,7 +35,28 @@ class IssueSubscriptionInvoices extends Command
             ));
         }
 
-        $this->info(count($issued).' invoice(s) issued.');
+        if ($issued !== []) {
+            $this->info(count($issued).' invoice(s) issued.');
+        }
+
+        // An empty result has two meanings and they are not the same: "every
+        // subscription is already billed for this period" and "there are no
+        // subscriptions to bill". The old message collapsed them, so a database
+        // where three shops sat on paid plans with nothing in `subscriptions`
+        // reported a clean run every night.
+        if ($unbilled->isNotEmpty()) {
+            $this->warn($unbilled->count().' shop(s) are on a paid plan with no active subscription — nothing will ever bill them:');
+
+            foreach ($unbilled as $shop) {
+                $this->line(sprintf('  %-22s plan=%s  no subscription', $shop->name, $shop->plan));
+            }
+
+            $this->warn('Re-save the plan on the shop in the admin panel, or switch plan from the shop console, to create one.');
+        }
+
+        if ($issued === [] && $unbilled->isEmpty()) {
+            $this->info('Nothing due — every active paid subscription is already billed for this period.');
+        }
 
         return self::SUCCESS;
     }

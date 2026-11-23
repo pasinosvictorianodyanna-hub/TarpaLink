@@ -115,7 +115,15 @@ class PayoutResource extends Resource
                     ->label('Fee')
                     ->alignEnd()
                     ->toggleable()
-                    ->formatStateUsing(fn (Payment $record) => Money::format($record->processing_fee)),
+                    // "est." is not decoration. The shop bears this fee, and it
+                    // is written at checkout from a configured rate before the
+                    // processor has said anything. A row that still carries the
+                    // estimate is a number nobody has verified.
+                    ->formatStateUsing(fn (Payment $record) => Money::format($record->processing_fee)
+                        .($record->fee_is_estimate ? ' est.' : ''))
+                    ->tooltip(fn (Payment $record) => $record->fee_is_estimate
+                        ? 'Estimated at checkout. The processor reports its real fee on settlement; this row has not been corrected yet.'
+                        : 'The fee the processor reported on settlement.'),
 
                 TextColumn::make('refunded_amount')
                     ->label('Refunded')
@@ -157,6 +165,21 @@ class PayoutResource extends Resource
                     ->label('Payout date')
                     ->date('d M Y')
                     ->placeholder('—'),
+
+                // Money the platform paid out and then had to give back to a
+                // customer. It is a real loss with no clawback behind it, and it
+                // appears in no other total — `awaitingPayout` excludes a
+                // released row by design. Without a column here it is a number
+                // that exists only in the database.
+                TextColumn::make('debt')
+                    ->label('Owed back')
+                    ->alignEnd()
+                    ->state(fn (Payment $record) => $record->debtToPlatform() > 0
+                        ? Money::format($record->debtToPlatform())
+                        : null)
+                    ->placeholder('—')
+                    ->color('danger')
+                    ->tooltip('Refunded after the payout was released. The platform paid the customer from its own balance; the shop still holds the net.'),
             ])
             ->filters([
                 SelectFilter::make('payout_status')
@@ -222,20 +245,32 @@ class PayoutResource extends Resource
                             ->send();
                     }),
 
-                // Cancelling a job after the proof is approved refunds nothing
-                // automatically, because the material is already committed. This
-                // is where a person makes that call, in whole or in part.
+                // A cancelled job now refunds itself (see `Cancellation`), so
+                // this action is for the two cases that still need a person: a
+                // partial refund, and a refund after pickup — the seven-day
+                // promise on the help page, which lands *after* the payout has
+                // already been released.
                 Action::make('refund')
                     ->label('Refund')
                     ->icon('heroicon-m-arrow-uturn-left')
                     ->color('danger')
                     ->visible(fn (Payment $record) => $record->status === 'paid' && $record->remainingRefundable() > 0)
                     ->modalHeading('Refund this payment')
-                    ->modalDescription(fn (Payment $record) => sprintf(
-                        '%s remains refundable. The processor keeps its fee, so a full refund leaves %s against the shop — see #81.',
-                        Money::format($record->remainingRefundable()),
-                        Money::signed(-$record->processing_fee),
-                    ))
+                    // Refunding a released payout is not the same act as
+                    // refunding a held one, and the modal has to say so before
+                    // somebody clicks: the money leaves the platform's balance
+                    // and the shop keeps what it was already paid.
+                    ->modalDescription(fn (Payment $record) => $record->isSettled()
+                        ? sprintf(
+                            '%s remains refundable. This payout was already released%s, so the customer is refunded from the platform\'s own balance — nothing claws it back from the shop. The row will show the shortfall as "Owed back".',
+                            Money::format($record->remainingRefundable()),
+                            $record->payout_date ? ' on '.$record->payout_date->format('d M Y') : '',
+                        )
+                        : sprintf(
+                            '%s remains refundable. The processor keeps its fee, so a full refund leaves %s against the shop — see #81.',
+                            Money::format($record->remainingRefundable()),
+                            Money::signed(-$record->processing_fee),
+                        ))
                     ->schema([
                         TextInput::make('amount')
                             ->label('Amount (₱)')

@@ -129,4 +129,25 @@ final class PayMongo
         return in_array($type, ['payment.paid', 'payment_intent.succeeded'], true)
             || Str::contains($type, ['paid', 'succeeded']);
     }
+
+    /**
+     * The processor's actual fee on a settled payment, in centavos.
+     *
+     * `processing_fee` is written at checkout from a configured estimate, and
+     * the shop bears it — so an estimate that never gets corrected is a price we
+     * invented and charged the shop for. The provider reports the real number on
+     * the settled payment, and this is the only place it can come from.
+     *
+     * Null when the event does not carry it, which is not a failure: the row
+     * keeps its estimate and `fee_is_estimate` stays true, so the difference
+     * between a guess and a fact stays visible instead of being papered over.
+     */
+    public function feeFrom(array $event): ?int
+    {
+        $fee = data_get($event, 'data.attributes.data.attributes.fee')
+            ?? data_get($event, 'data.attributes.data.attributes.payment_fee')
+            ?? data_get($event, 'data.attributes.fee');
+
+        return is_numeric($fee) ? (int) $fee : null;
+    }
 }

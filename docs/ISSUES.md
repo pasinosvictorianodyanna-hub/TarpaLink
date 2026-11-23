@@ -979,6 +979,72 @@ in-memory default — which is the check the old one-liner could not have offere
 
 ---
 
+## #94 — A payout could be released for a job that was never delivered
+
+The Pricing page says it three times: *"You pay commission on completed jobs only"*, *"5%
+commission per completed job"*, and *"Payouts are released from the platform ledger **after
+the job is collected**"*. The payouts screen enforced none of it. Both the row action and the
+bulk action guarded on exactly two things — not already paid, not fully refunded — and never
+looked at the job.
+
+**Why that is money, not tidiness.** The customer is charged at checkout: before the proof,
+before the press, before anything is carried out of a shop. So `payments.status = paid` says
+the platform is holding money, not that the shop earned it. And a job cancelled from
+`approved` refunds nothing — that was the decision on #82, because the material is already
+committed — which leaves a paid payment with `payout_status = pending`, sitting on the queue
+looking exactly like a deliverable one.
+
+The end state of that path is worth saying plainly: the customer paid and got nothing, the
+shop is owed the full net, and the platform keeps its commission on a job that was never
+printed. The only thing standing between that and the bank was an administrator noticing.
+
+**The seeded data was already two-thirds wrong.** Of the fourteen rows awaiting payout, five
+were collected and nine were not:
+
+| Job status | Rows | Payable? |
+|---|---|---|
+| `collected` | 5 | yes |
+| `in_production` | 4 | no |
+| `ready` | 3 | no |
+| `approved` | 2 | no |
+
+A bulk "mark selected as paid out" would have released money for four jobs still on the press
+and two that had only just been approved, and nothing on the screen said so.
+
+**One rule, one place.** `Payment::mayBeReleased()` returns a bool and
+`releaseBlockedReason()` returns the sentence behind it, because "the job was cancelled" and
+"the job is still in production" are different answers that lead to different actions. The
+badge, the row action and the bulk action all read the same method — the alternative was
+three copies of `status === 'collected'` drifting apart, which is how the fee arithmetic
+drifted in #81.
+
+**Disabled, not hidden.** A row that cannot be released still shows the button that would
+release it, greyed out, with the reason in a tooltip. Hiding it would make a blocked row
+indistinguishable from one already dealt with — the same mistake as filtering refunded
+payments out of the ledger, which #82 rejected.
+
+**The badge gained a fourth state.** "Pending" now means payable; money that is captured but
+waiting on delivery reads **"Awaiting collection"** in grey. Without that, the queue said
+"Pending" fourteen times and meant it five times.
+
+**Proven by:** `PayoutSettlementTest` (11) — a payout is not released before collection, the
+button is disabled with the reason, a collected job's button is enabled, a cancelled job is
+never paid out and says why, the bulk action releases the collected row and leaves the other
+alone, and the five pre-existing guarantees still hold: only an admin sees the screen, a shop
+owner cannot settle their own payout, settling never changes the money, an already-paid row
+keeps its date, and the screen lists captured money only.
+
+**Verified against the seeded database:** the same fourteen rows now split five `Pending` and
+nine `Awaiting collection`, and the test asserts that second label reaches the screen rather
+than only the model.
+
+**Still open:** the commission. A cancelled-after-approval job keeps its commission today,
+which contradicts "commission on completed jobs only" in the same way. Fixing it properly
+means moving the commission's trigger from settlement to collection — a larger change than
+this one, and the reason #94 is filed as the payout half only.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

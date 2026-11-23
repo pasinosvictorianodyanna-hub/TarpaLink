@@ -30,6 +30,12 @@ use UnitEnum;
  * pending to paid and stamps the date; it never touches an amount. See #18 for
  * why the ledger is a column and not a second table.
  *
+ * **Release follows delivery, not payment.** A captured payment is money the
+ * platform holds, not money the shop has earned, so `Payment::mayBeReleased()`
+ * gates both the row action and the bulk action on the job having been
+ * collected. Before #94 the only gate was "not already paid", which paid shops
+ * for jobs that were cancelled or still on the press.
+ *
  * Refunds are the other direction, and they are not a status flip either: they
  * accumulate in `refunded_amount` and reverse the commission proportionally.
  * The arithmetic lives in `Refund`; this screen only collects the two things a
@@ -127,16 +133,25 @@ class PayoutResource extends Resource
                 TextColumn::make('payout_status')
                     ->label('Payout')
                     ->badge()
+                    // "Awaiting collection" is a fourth state, not a shade of
+                    // pending: the money is captured and unreleased, but it is
+                    // not payable yet, and a queue of rows that all read
+                    // "Pending" hides that. See Payment::mayBeReleased().
                     ->formatStateUsing(fn (string $state, Payment $record) => match (true) {
                         $record->isFullyRefunded() => 'Refunded',
                         $state === 'paid' => 'Paid out',
-                        default => 'Pending',
+                        $record->mayBeReleased() => 'Pending',
+                        default => 'Awaiting collection',
                     })
                     ->color(fn (string $state, Payment $record) => match (true) {
                         $record->isFullyRefunded() => 'danger',
                         $state === 'paid' => 'success',
-                        default => 'warning',
-                    }),
+                        $record->mayBeReleased() => 'warning',
+                        default => 'gray',
+                    })
+                    ->tooltip(fn (Payment $record) => $record->isSettled() || $record->isFullyRefunded()
+                        ? null
+                        : $record->releaseBlockedReason()),
 
                 TextColumn::make('payout_date')
                     ->label('Payout date')
@@ -168,6 +183,12 @@ class PayoutResource extends Resource
                     // A refunded payment owes the shop nothing — its net is the
                     // fee we could not recover — so there is nothing to release.
                     ->visible(fn (Payment $record) => ! $record->isSettled() && ! $record->isFullyRefunded())
+                    // Visible but disabled rather than hidden: a row that cannot
+                    // be released still has to show the button that would release
+                    // it, or an admin cannot tell "not collected yet" from "not
+                    // there". The tooltip carries the reason.
+                    ->disabled(fn (Payment $record) => ! $record->mayBeReleased())
+                    ->tooltip(fn (Payment $record) => $record->releaseBlockedReason())
                     ->requiresConfirmation()
                     ->modalHeading('Release this payout?')
                     ->modalDescription(fn (Payment $record) => sprintf(
@@ -176,6 +197,20 @@ class PayoutResource extends Resource
                         $record->job?->shop?->name ?? 'the shop',
                     ))
                     ->action(function (Payment $record): void {
+                        // The button is disabled in this case, but a page rendered
+                        // before the job moved can still be submitted — so the
+                        // rule is checked where the write happens, not only where
+                        // the button is drawn.
+                        if (! $record->mayBeReleased()) {
+                            Notification::make()
+                                ->title('Not released')
+                                ->body($record->releaseBlockedReason())
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
                         $record->update([
                             'payout_status' => 'paid',
                             'payout_date' => now()->toDateString(),
@@ -253,14 +288,18 @@ class PayoutResource extends Resource
                     ->icon('heroicon-m-check')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->modalDescription('Only rows still pending are changed. Already-paid rows keep their original date.')
+                    ->modalDescription('Only rows whose job has been collected are released. Anything still on the press, waiting for pickup, or cancelled is left alone and reported back.')
                     ->action(function (Collection $records): void {
-                        $settled = 0;
+                        $released = 0;
+                        $skipped = 0;
 
                         foreach ($records as $payment) {
-                            // A refunded payment owes the shop nothing, so it is
-                            // not "already paid" — it is not payable at all.
-                            if ($payment->isSettled() || $payment->isFullyRefunded()) {
+                            // One rule, in one place: already paid, refunded, and
+                            // not-yet-collected are all "do not release", and
+                            // Payment::mayBeReleased() is what decides.
+                            if (! $payment->mayBeReleased()) {
+                                $skipped++;
+
                                 continue;
                             }
 
@@ -269,11 +308,14 @@ class PayoutResource extends Resource
                                 'payout_date' => now()->toDateString(),
                             ]);
 
-                            $settled++;
+                            $released++;
                         }
 
                         Notification::make()
-                            ->title($settled.' '.str('payout')->plural($settled).' released')
+                            ->title($released.' '.str('payout')->plural($released).' released')
+                            ->body($skipped > 0
+                                ? $skipped.' left alone — not collected, already released, or refunded.'
+                                : null)
                             ->success()
                             ->send();
                     })

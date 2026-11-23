@@ -47,6 +47,7 @@
                         <th>Customer</th>
                         <th>Service</th>
                         <th>Spec</th>
+                        <th>Design</th>
                         <th>Status</th>
                         <th>Due</th>
                         <th class="r">Amount</th>
@@ -64,6 +65,18 @@
                             <td>{{ $job->service?->name ?? '—' }}</td>
                             <td style="color:#6B7280">{{ $job->sizeLabel() }}</td>
                             <td>
+                                {{-- The customer's file, which the shop has no other
+                                     way to notice from this screen: the upload only
+                                     sends an email, and mail is best-effort (#82). --}}
+                                @if ($job->artworks_count > 0)
+                                    <span class="fb fb-g">sent</span>
+                                @elseif (in_array($job->status, ['collected', 'cancelled'], true))
+                                    <span style="color:#9CA3AF">—</span>
+                                @else
+                                    <span class="fb fb-y">not sent</span>
+                                @endif
+                            </td>
+                            <td>
                                 <span class="fb fb-{{ match ($job->status) {
                                     'ready', 'collected' => 'g',
                                     'approved', 'in_production' => 'y',
@@ -79,7 +92,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" style="color:#6B7280">
+                            <td colspan="9" style="color:#6B7280">
                                 @if ($term !== '' || $status !== '')
                                     Nothing matches that filter.
                                 @else

@@ -39,6 +39,10 @@ class JobController extends ConsoleController
 
         $jobs = $shop->jobs()
             ->with(['user', 'service'])
+            // Counted rather than loaded: the queue only needs to know whether a
+            // design arrived, not what it is called. `artworks` is the customer's
+            // input, so "has one" is the fact a shop scans this list for.
+            ->withCount('artworks')
             ->when($status !== '', fn ($query) => $query->where('status', $status))
             ->when($term !== '', function ($query) use ($term): void {
                 $query->where(function ($inner) use ($term): void {

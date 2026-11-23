@@ -183,6 +183,8 @@ a:focus-visible,button:focus-visible{outline:2px solid #111827;outline-offset:2p
 .board-card:active{cursor:grabbing}
 .board-card.is-dragging{opacity:.4}
 .board-ref{font-size:11px;font-weight:700;color:#111827;font-variant-numeric:tabular-nums}
+.board-art{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 4px;border-radius:4px;margin-left:4px;background:#ECFDF3;color:#067647;vertical-align:1px}
+.board-art.is-missing{background:#FFFAEB;color:#B54708}
 .board-what{font-size:12px;color:#374151;margin-top:3px;line-height:1.35}
 .board-meta{display:flex;justify-content:space-between;gap:8px;margin-top:7px;font-size:10.5px;color:#6B7280}
 .board-meta .is-late{color:#B42318;font-weight:600}

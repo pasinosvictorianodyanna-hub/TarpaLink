@@ -277,19 +277,50 @@ class ConsoleTest extends TestCase
     }
 
     /**
-     * The mirror case, and the more urgent one: the customer has paid, so the
-     * only reason the job has not moved is that the shop has not sent a proof.
+     * The mirror case, and the more urgent one: the customer has paid and sent
+     * the design, so the only reason the job has not moved is that the shop has
+     * not made the proof.
      */
-    public function test_a_paid_job_with_no_proof_is_flagged_as_the_shops_own_delay(): void
+    public function test_a_paid_job_with_a_design_and_no_proof_is_flagged_as_the_shops_own_delay(): void
     {
         $job = $this->quotedJob();
         $job->payment()->update(['status' => 'paid', 'paid_at' => now()->subHours(10)]);
         $job->forceFill(['created_at' => now()->subHours(10)])->save();
 
+        // The design is what makes this the shop's delay. Without it the shop is
+        // blocked on a file only the customer can send, which is the next test.
+        $job->artworks()->create([
+            'uploaded_by' => $job->user_id,
+            'file_path' => 'artwork/poster.pdf',
+            'original_name' => 'poster.pdf',
+            'mime' => 'application/pdf',
+            'bytes' => 40_000,
+        ]);
+
         $flagged = $this->flagged($job);
 
         $this->assertNotNull($flagged);
         $this->assertSame('Paid, proof not sent yet', $flagged['issue']);
+    }
+
+    /**
+     * A paid job with no design is not the shop dragging its feet — it is the
+     * shop unable to start. The old copy called both cases "proof not sent yet",
+     * which told the owner to hurry up on a job waiting for somebody else.
+     */
+    public function test_a_paid_job_with_no_design_waits_on_the_customer(): void
+    {
+        $job = $this->quotedJob();
+        $job->payment()->update(['status' => 'paid', 'paid_at' => now()->subHours(10)]);
+        $job->forceFill(['created_at' => now()->subHours(10)])->save();
+
+        $this->assertCount(0, $job->artworks);
+
+        $flagged = $this->flagged($job);
+
+        $this->assertNotNull($flagged);
+        $this->assertSame("Paid, waiting for the customer's design", $flagged['issue']);
+        $this->assertStringNotContainsString('proof not sent', $flagged['issue']);
     }
 
     /**

@@ -16,7 +16,19 @@
                         draggable="true"
                         data-job="{{ $job->id }}"
                     >
-                        <div class="board-ref">{{ $job->reference }}</div>
+                        <div class="board-ref">
+                            {{ $job->reference }}
+                            {{-- The same fact the queue shows, in the one place a
+                                 shop looks while it works. Green when the file is
+                                 here; amber only before the proof, because after
+                                 that the file is locked and its absence is no
+                                 longer something to chase. --}}
+                            @if ($job->artworks_count > 0)
+                                <span class="board-art" title="The customer sent a design">design</span>
+                            @elseif (in_array($job->status, ['quoted', 'awaiting_proof'], true))
+                                <span class="board-art is-missing" title="No design from the customer yet">no design</span>
+                            @endif
+                        </div>
                         <div class="board-what">
                             {{ $job->service?->name ?? '—' }} · {{ $job->sizeLabel() }}
                         </div>

@@ -1,0 +1,130 @@
+# Render Blueprint for the free compute plan.
+#
+# Read docs/DEPLOY-RENDER.md before using this. The free plan gives you one web
+# service and nothing else, and three things this application needs are not
+# available at any price on that plan: a queue worker, a scheduler, and a disk
+# that survives a restart. The blueprint configures around each of them rather
+# than pretending they are there.
+#
+# What is deliberately absent:
+#   * a `worker` service      — free plans cannot run background workers.
+#                               QUEUE_CONNECTION=sync settles the PayMongo
+#                               webhook inside the request instead.
+#   * a `cron` job            — free plans cannot run cron jobs. `billing:issue`
+#                               therefore never fires; see the doc.
+#   * a `databases` block     — Render does not offer MySQL at all, free or paid.
+#
+# `sync: false` means "no value here on purpose" — Render prompts for it in the
+# dashboard and stores it as a secret. Never commit a real key to this file.
+
+services:
+  - type: web
+    name: tarpalink
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /up
+    envVars:
+      - key: APP_NAME
+        value: TarpaLink
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        sync: false
+      # Set this to the onrender.com URL once the service exists, or emailed
+      # links point at localhost. It cannot be derived from the blueprint: the
+      # subdomain is assigned at creation.
+      - key: APP_URL
+        sync: false
+      - key: APP_TIMEZONE
+        value: Asia/Manila
+      - key: DB_TIMEZONE
+        value: "+08:00"
+
+      # Render terminates TLS at its load balancer and forwards plain HTTP, so
+      # without this every generated URL is http:// and every session cookie is
+      # issued for the wrong scheme. `*` is acceptable here and nowhere else:
+      # the container is not reachable except through Render's proxy.
+      - key: TRUSTED_PROXIES
+        value: "*"
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
+
+      # An external MySQL. Render offers Postgres only, and its free Postgres is
+      # deleted 44 days after creation. docs/DEPLOY-RENDER.md lists the options.
+      - key: DB_CONNECTION
+        value: mysql
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_DATABASE
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      # Only for a database that insists on TLS with its own CA, such as TiDB
+      # Cloud. config/database.php already passes this through to PDO.
+      - key: MYSQL_ATTR_SSL_CA
+        sync: false
+
+      # The filesystem is wiped on every redeploy, restart and spin-down, so
+      # file sessions would log every user out after 15 idle minutes. Both of
+      # these live in the database, which survives.
+      - key: SESSION_DRIVER
+        value: database
+      - key: CACHE_STORE
+        value: database
+
+      # No worker on a free plan. `sync` runs the job inside the webhook request,
+      # which is the only way settlement happens without one.
+      - key: QUEUE_CONNECTION
+        value: sync
+
+      # Logs go to the platform's log stream; there is no shell to read a file.
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: warning
+
+      # Uploaded proofs still land on the ephemeral disk and are lost on the
+      # next spin-down. Move this to S3/R2 before accepting real artwork.
+      - key: FILESYSTEM_DISK
+        value: local
+      - key: PROOF_DISK_DRIVER
+        value: local
+
+      # No shell and no one-off jobs on a free plan, so migrations and the
+      # reference data ride on the boot. ProductionSeeder is updateOrCreate
+      # throughout, so re-seeding on every start changes nothing.
+      - key: RUN_MIGRATIONS
+        value: "true"
+      - key: RUN_SEEDER
+        value: "true"
+      - key: ADMIN_NAME
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+
+      # Render blocks outbound SMTP (25, 465, 587) on every plan, so the mailer
+      # has to be an HTTP API or `log`. See the doc.
+      - key: MAIL_MAILER
+        value: log
+      - key: MAIL_FROM_ADDRESS
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: TarpaLink
+
+      - key: PAYMONGO_PUBLIC_KEY
+        sync: false
+      - key: PAYMONGO_SECRET_KEY
+        sync: false
+      - key: PAYMONGO_WEBHOOK_SECRET
+        sync: false

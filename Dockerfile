@@ -107,8 +107,10 @@ RUN mkdir -p \
 
 EXPOSE 80
 
+# Shell form, not exec form: ${PORT} has to be expanded at run time, because the
+# port is chosen by whatever platform starts the container.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-    CMD curl -fsS http://127.0.0.1/up || exit 1
+    CMD curl -fsS "http://127.0.0.1:${PORT:-80}/up" || exit 1
 
 ENTRYPOINT ["/usr/local/bin/entrypoint"]
 CMD ["web"]

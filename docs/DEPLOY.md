@@ -7,6 +7,11 @@ This stack has been built and run end to end once — see
 [Verification status](#verification-status) for exactly what was and was not
 exercised.
 
+Free hosting is a different deployment with different rules; it cannot run this
+compose file. See [DEPLOY-RENDER.md](DEPLOY-RENDER.md) for what Render's free plan
+can and cannot do with this application — the short version is no worker, no cron,
+and no disk that survives a restart.
+
 ---
 
 ## What runs

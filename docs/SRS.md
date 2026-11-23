@@ -1,6 +1,6 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.13 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.14 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
 > profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
@@ -43,6 +43,11 @@
 > listed "the artwork file you upload" as collected data, the terms made the customer
 > responsible for it, and the shop-facing pitch promised jobs arriving "with the artwork
 > attached" — while the only way to tell a shop anything was a 500-character notes field.
+> Version 1.14 corrects four things that only appeared when the pages were opened. The job
+> page printed one instruction twice, the progress rail called the shop's proof the customer's
+> "design file", and a job cancelled before any artwork still asked for one in yellow. The
+> fourth was a test that had been passing for the wrong reason, and had started deleting a
+> live file to keep passing.
 
 ---
 
@@ -80,7 +85,8 @@ marketplace-wide promotions, and any form of stock control.
 | **Centavo** | The unit of money in the database. All amounts are integer centavos; ₱2,036.80 is stored as `203680`. |
 | **Basis point** | The unit of a rate. `300` = 3%. Commission rates are basis points, never decimals. |
 | **Settlement** | Paying the shop. Tracked separately from the customer paying us — see §6.5. |
-| **Proof** | The artwork file the shop uploads for the customer to approve before printing. |
+| **Artwork** | The file the customer wants printed, sent to the shop that will print it. Append-only: a corrected file is a new row, and the newest one is current. |
+| **Proof** | The file the shop sends back showing what it is about to print. The customer approves or rejects it. |
 
 ---
 
@@ -422,9 +428,12 @@ and neither is a bug; v1.12 adds a third that is a business rule rather than a d
   setting, not a code path.
 - **Proof storage defaults to the container's disk.** Proofs have a disk of their own
   (`PROOF_DISK_DRIVER`) so moving artwork to object storage is a configuration change
-  rather than a code change, and the read and write paths both go through it. The default
-  is still `local`, which is lost on rebuild — a deployment must set it to `s3` before a
-  shop uploads anything it needs back.
+  rather than a code change, and the read and write paths both go through it. Customer
+  artwork follows the same setting (`ARTWORK_DISK_DRIVER` overrides it), because the two
+  files travel together and a deployment that moved one and not the other would be storing
+  a job's input and its output in two places with two lifetimes. The default is still
+  `local`, which is lost on rebuild — a deployment must set it to `s3` before a shop
+  uploads anything it needs back.
 
 Version 1.12 made subscription revenue collectable, and that leaves a third gap which is a
 business rule rather than a defect: **nothing enforces payment.** A shop can be invoiced every

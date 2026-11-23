@@ -90,15 +90,38 @@
                     </div>
                 </div>
 
-                @if ($artwork)
-                    <div class="card job-panel">
-                        <div class="job-panel-head">
-                            <h4>Your design</h4>
+                {{-- One card, not two. The empty state and the upload form used to
+                     be separate panels saying the same thing twice; a customer
+                     read "Not sent yet" and then "Send your design" and had to
+                     work out they were one instruction. --}}
+                <div class="card job-panel">
+                    <div class="job-panel-head">
+                        <h4>Your design</h4>
+                        @if ($artwork === null)
+                            {{-- "Not sent yet" promises a next step. A closed job has
+                                 none, so it says "Not sent" in a neutral tag instead of
+                                 leaving a yellow to-do the customer can never clear. --}}
+                            <span class="tag {{ $job->acceptsArtwork() ? 'tag-y' : 'tag-n' }}">
+                                {{ $job->acceptsArtwork() ? 'Not sent yet' : 'Not sent' }}
+                            </span>
+                        @else
                             <span class="tag {{ $job->acceptsArtwork() ? 'tag-c' : 'tag-g' }}">
                                 {{ $artworks->count() === 1 ? 'Sent' : $artworks->count().' files' }}
                             </span>
-                        </div>
+                        @endif
+                    </div>
 
+                    @if ($artwork === null)
+                        <p class="small">
+                            @if ($job->acceptsArtwork())
+                                {{ $job->shop->name }} prints the file you send — PNG, JPEG, WebP or PDF, up to 20 MB.
+                                Export your design to PDF if you work in Canva, Illustrator or Photoshop.
+                            @else
+                                This order closed before you sent a design, so there is no file here to print.
+                                Place a new order if you still need this made.
+                            @endif
+                        </p>
+                    @else
                         <p class="small">
                             {{ $job->acceptsArtwork()
                                 ? 'This is what '.$job->shop->name.' will print. You can replace it until you approve a proof.'
@@ -124,33 +147,14 @@
                                 </div>
                             @endforeach
                         </div>
-                    </div>
-                @else
-                    {{-- The card renders with nothing in it rather than not at all:
-                         a job page with no artwork card reads as "nothing to do
-                         here", and the customer never learns the shop is stuck. --}}
-                    <div class="card job-panel">
-                        <div class="job-panel-head">
-                            <h4>Your design</h4>
-                            <span class="tag tag-y">Not sent yet</span>
-                        </div>
-                        <p class="small">
-                            {{ $job->shop->name }} prints the file you send — PNG, JPEG, WebP or PDF, up to 20 MB.
-                            Export your design to PDF if you work in Canva, Illustrator or Photoshop.
-                        </p>
-                    </div>
-                @endif
+                    @endif
 
-                @if ($job->acceptsArtwork())
-                    <div class="card job-panel">
-                        <div class="job-panel-head">
-                            <h4>{{ $artwork ? 'Replace the file' : 'Send your design' }}</h4>
-                        </div>
-
-                        <form method="POST" action="{{ route('jobs.artwork.store', $job) }}" enctype="multipart/form-data">
+                    @if ($job->acceptsArtwork())
+                        <form method="POST" action="{{ route('jobs.artwork.store', $job) }}" enctype="multipart/form-data"
+                              style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line-2)">
                             @csrf
                             <label style="display:block">
-                                <span class="lbl">Design file</span>
+                                <span class="lbl">{{ $artwork ? 'Send a replacement' : 'Design file' }}</span>
                                 <input type="file" name="file" class="inp" required
                                        accept=".png,.jpg,.jpeg,.webp,.pdf,image/png,image/jpeg,image/webp,application/pdf"
                                        style="padding:9px 11px">
@@ -168,15 +172,13 @@
                                 Only you and {{ $job->shop->name }} can open this file.
                             </p>
                         </form>
-                    </div>
-                @elseif ($artwork)
-                    <div class="card" style="padding:14px 16px">
-                        <p class="tiny" style="line-height:1.55">
+                    @elseif ($artwork)
+                        <p class="tiny" style="margin-top:12px;line-height:1.55">
                             The artwork is locked — you approved a proof, so what the shop printed is what you signed off.
                             Ask the shop for a new proof if something needs changing.
                         </p>
-                    </div>
-                @endif
+                    @endif
+                </div>
 
                 @if ($proof)
                     <div class="card job-panel">

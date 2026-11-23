@@ -35,7 +35,7 @@
                 </div>
                 <div class="shop-id-meta">
                     <span class="st">★ {{ number_format($shop->rating, 1) }}</span>
-                    <span>{{ $shop->jobs_done }} reviews</span>
+                    <span>{{ $shop->jobs_done }} jobs printed</span>
                     <span>·</span>
                     <span>{{ $shop->address }}, {{ $shop->city }}</span>
                     <span>·</span>

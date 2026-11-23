@@ -13,7 +13,6 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -88,7 +87,7 @@ class CheckoutController extends Controller
                 'jobsDone' => (int) $shop->jobs_done,
                 'turnaround' => $shop->turnaroundLabel(),
                 'initials' => $this->initials($shop->name),
-                'readyAt' => Carbon::now()->addDays(2)->setTime(17, 0)->format('D, d M · g:i A'),
+                'readyAt' => $shop->estimatedReadyAt()->format('D, d M · g:i A'),
             ],
             'service' => ['name' => $service?->name ?? 'Job'],
             // `options` is sent to the server as a string, exactly as the old
@@ -254,7 +253,9 @@ class CheckoutController extends Controller
                     'pickup_city' => $shop->city,
                     'fulfillment' => $data['fulfillment'] ?? 'pickup',
                     'notes' => $data['notes'] ?? null,
-                    'due_at' => Carbon::now()->addDays(2)->setTime(17, 0),
+                    // The shop's published turnaround, not a constant: see
+                    // Shop::estimatedReadyAt().
+                    'due_at' => $shop->estimatedReadyAt(),
                 ]);
 
                 foreach ($quote['lines'] as $line) {
@@ -302,7 +303,7 @@ class CheckoutController extends Controller
 
         return redirect()
             ->route('jobs.show', $job)
-            ->with('status', 'Job '.$job->reference.' created. The shop will send a proof before printing.');
+            ->with('status', 'Job '.$job->reference.' created. Send your design next — '.$shop->name.' cannot start without it.');
     }
 
     /**

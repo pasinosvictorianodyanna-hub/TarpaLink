@@ -159,7 +159,10 @@ class CustomerNavTest extends TestCase
 
         $this->assertTrue($this->isOff($bar, 'Checkout'));
         $this->assertStringContainsString('Open a shop first', $bar);
-        $this->assertStringContainsString('Build an order first', $bar);
+        // Two different reasons, because they lead to two different actions:
+        // no shop yet, versus a shop but no size chosen. "Build an order first"
+        // covered both and told the customer nothing they could act on.
+        $this->assertStringContainsString('Set your size first', $bar);
     }
 
     public function test_the_bar_points_at_the_shop_the_customer_is_looking_at(): void
@@ -172,8 +175,52 @@ class CustomerNavTest extends TestCase
 
         $this->assertSame(route('shops.show', $shop), $this->linkFor($bar, 'Shop profile'));
         $this->assertSame(route('shops.builder', $shop), $this->linkFor($bar, 'Order builder'));
-        $this->assertSame(route('checkout.show', $shop), $this->linkFor($bar, 'Checkout'));
         $this->assertStringNotContainsString('Open a shop first', $bar);
+    }
+
+    /**
+     * Checkout prices a spec. With no spec on the URL it opens at the shop's
+     * default size and quantity — a real price for an order nobody configured.
+     * The bar used to offer it anyway, so "Checkout" on a shop page led to a
+     * phantom 3×4 ft job at the shop's default rate.
+     */
+    public function test_checkout_is_dimmed_until_a_size_has_been_chosen(): void
+    {
+        $shop = Shop::active()->firstOrFail();
+
+        $onProfile = $this->bar(
+            $this->actingAs($this->customer())->get('/shops/'.$shop->slug)->assertOk()->getContent()
+        );
+
+        $this->assertTrue($this->isOff($onProfile, 'Checkout'));
+        $this->assertStringContainsString('Set your size first', $onProfile);
+
+        $onBuilder = $this->bar(
+            $this->actingAs($this->customer())->get('/shops/'.$shop->slug.'/build')->assertOk()->getContent()
+        );
+
+        $this->assertSame(route('checkout.show', $shop), $this->linkFor($onBuilder, 'Checkout'));
+    }
+
+    /**
+     * "Order status" pointed at the most urgent job even while the customer was
+     * reading a different one, so a highlighted item moved them somewhere else.
+     */
+    public function test_order_status_points_at_the_job_being_viewed(): void
+    {
+        $customer = $this->customer();
+        $jobs = $customer->jobs()->with('shop')->take(2)->get();
+
+        $this->assertGreaterThanOrEqual(2, $jobs->count(), 'The seed needs two jobs for this customer.');
+
+        [$viewing, $other] = [$jobs[0], $jobs[1]];
+
+        $bar = $this->bar(
+            $this->actingAs($customer)->get(route('jobs.show', $viewing))->assertOk()->getContent()
+        );
+
+        $this->assertSame(route('jobs.show', $viewing), $this->linkFor($bar, 'Order status'));
+        $this->assertNotSame(route('jobs.show', $other), $this->linkFor($bar, 'Order status'));
     }
 
     public function test_the_chip_names_the_proof_waiting_on_the_customer(): void

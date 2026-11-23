@@ -7,6 +7,8 @@
     $peso = fn ($cents) => '₱'.number_format($cents / 100, 2);
     $proof = $job->latestProof();
     $steps = $job->progressSteps();
+    $artworks = $job->artworks;
+    $artwork = $artworks->first();
     $maps = 'https://www.google.com/maps/search/?api=1&query='.urlencode($job->shop->address.', '.$job->shop->city);
 @endphp
 
@@ -43,6 +45,21 @@
                     <div class="meta">Nothing goes to press until you approve. Check the logo, the spelling and the size.</div>
                 </div>
             </div>
+        @elseif ($job->acceptsArtwork() && $artwork === null)
+            {{-- The order exists and the shop cannot start it. Without this the
+                 page looked finished: a paid job, a progress rail, and no hint
+                 that the one thing the shop is waiting for has not arrived. --}}
+            <div class="jobs-alert">
+                <span class="ico">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/><path d="M10.3 3.9L2.6 17a2 2 0 001.7 3h15.4a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/>
+                    </svg>
+                </span>
+                <div>
+                    <b>{{ $job->shop->name }} is waiting for your design</b>
+                    <div class="meta">Send the file below and they can start. Nothing is printed until you approve a proof.</div>
+                </div>
+            </div>
         @endif
 
         <div class="job-grid">
@@ -72,6 +89,94 @@
                         @endforeach
                     </div>
                 </div>
+
+                @if ($artwork)
+                    <div class="card job-panel">
+                        <div class="job-panel-head">
+                            <h4>Your design</h4>
+                            <span class="tag {{ $job->acceptsArtwork() ? 'tag-c' : 'tag-g' }}">
+                                {{ $artworks->count() === 1 ? 'Sent' : $artworks->count().' files' }}
+                            </span>
+                        </div>
+
+                        <p class="small">
+                            {{ $job->acceptsArtwork()
+                                ? 'This is what '.$job->shop->name.' will print. You can replace it until you approve a proof.'
+                                : 'What '.$job->shop->name.' printed. Locked once you approved the proof.' }}
+                        </p>
+
+                        <div style="margin-top:12px;display:grid;gap:8px">
+                            @foreach ($artworks as $index => $file)
+                                <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--line-2);border-radius:9px;{{ $index === 0 ? '' : 'opacity:.62' }}">
+                                    <span class="ico" style="flex:none;width:26px;height:26px;display:grid;place-items:center;border-radius:6px;background:var(--tint-y)">
+                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5"/>
+                                        </svg>
+                                    </span>
+                                    <div style="min-width:0;flex:1">
+                                        <b style="display:block;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ $file->shortName() }}</b>
+                                        <span class="tiny">
+                                            {{ $file->sizeLabel() }} · {{ $file->created_at->format('d M, g:i A') }}
+                                            @if ($index === 0 && $artworks->count() > 1) · current @endif
+                                        </span>
+                                    </div>
+                                    <a class="btn btn-ghost btn-sm" style="flex:none" href="{{ route('jobs.artwork.file', [$job, $file]) }}">Download</a>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @else
+                    {{-- The card renders with nothing in it rather than not at all:
+                         a job page with no artwork card reads as "nothing to do
+                         here", and the customer never learns the shop is stuck. --}}
+                    <div class="card job-panel">
+                        <div class="job-panel-head">
+                            <h4>Your design</h4>
+                            <span class="tag tag-y">Not sent yet</span>
+                        </div>
+                        <p class="small">
+                            {{ $job->shop->name }} prints the file you send — PNG, JPEG, WebP or PDF, up to 20 MB.
+                            Export your design to PDF if you work in Canva, Illustrator or Photoshop.
+                        </p>
+                    </div>
+                @endif
+
+                @if ($job->acceptsArtwork())
+                    <div class="card job-panel">
+                        <div class="job-panel-head">
+                            <h4>{{ $artwork ? 'Replace the file' : 'Send your design' }}</h4>
+                        </div>
+
+                        <form method="POST" action="{{ route('jobs.artwork.store', $job) }}" enctype="multipart/form-data">
+                            @csrf
+                            <label style="display:block">
+                                <span class="lbl">Design file</span>
+                                <input type="file" name="file" class="inp" required
+                                       accept=".png,.jpg,.jpeg,.webp,.pdf,image/png,image/jpeg,image/webp,application/pdf"
+                                       style="padding:9px 11px">
+                            </label>
+
+                            @error('file')
+                                <div class="alert alert-err" role="alert" style="margin-top:10px">{{ $message }}</div>
+                            @enderror
+
+                            <button class="btn btn-primary btn-sm" type="submit" style="margin-top:10px">
+                                {{ $artwork ? 'Send replacement' : 'Send to '.$job->shop->name }}
+                            </button>
+
+                            <p class="tiny" style="margin-top:9px">
+                                Only you and {{ $job->shop->name }} can open this file.
+                            </p>
+                        </form>
+                    </div>
+                @elseif ($artwork)
+                    <div class="card" style="padding:14px 16px">
+                        <p class="tiny" style="line-height:1.55">
+                            The artwork is locked — you approved a proof, so what the shop printed is what you signed off.
+                            Ask the shop for a new proof if something needs changing.
+                        </p>
+                    </div>
+                @endif
 
                 @if ($proof)
                     <div class="card job-panel">

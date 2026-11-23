@@ -73,7 +73,7 @@
                     @endif
                 </div>
                 <div class="tiny" style="text-align:right">
-                    Matrix v{{ $job->matrix_version }}<br>price locked at order time
+                    Price locked at order time
                 </div>
             </div>
         </div>

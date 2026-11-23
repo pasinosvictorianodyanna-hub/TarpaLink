@@ -107,7 +107,7 @@ const actionStyle = (action) => ({
             <div v-if="empty" class="card" style="padding:48px 24px;text-align:center">
                 <b>{{ empty.title }}</b>
                 <p class="small" style="margin-top:6px">{{ empty.body }}</p>
-                <a class="btn btn-primary btn-sm" style="margin-top:16px" :href="routes.shops">Browse shops</a>
+                <a v-if="empty.cta" class="btn btn-primary btn-sm" style="margin-top:16px" :href="empty.cta.url">{{ empty.cta.label }}</a>
             </div>
 
             <div v-if="account" class="acct-foot">

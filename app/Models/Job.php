@@ -86,6 +86,37 @@ class Job extends Model
         return $this->hasMany(Proof::class)->orderByDesc('version');
     }
 
+    /**
+     * The files the customer sent us to print, newest first.
+     *
+     * `id` is the tie-break, not `created_at`: two uploads a second apart are
+     * normal when somebody sends the wrong file and corrects it immediately, and
+     * without it "the current artwork" changes between page loads.
+     */
+    public function artworks(): HasMany
+    {
+        return $this->hasMany(Artwork::class)->orderByDesc('id');
+    }
+
+    /** The file the shop should print, or null if the customer has not sent one. */
+    public function latestArtwork(): ?Artwork
+    {
+        return $this->artworks()->first();
+    }
+
+    /**
+     * Whether the customer can still send or replace a design.
+     *
+     * Once a proof is approved the artwork is locked — the job page already says
+     * so, and a file that changed after approval would mean the shop printed
+     * something the customer never signed off. Cancelled jobs take no more files
+     * either: there is nothing left to print.
+     */
+    public function acceptsArtwork(): bool
+    {
+        return ! in_array($this->status, ['approved', 'in_production', 'ready', 'collected', 'cancelled'], true);
+    }
+
     public function payment(): HasOne
     {
         return $this->hasOne(Payment::class);

@@ -8,6 +8,15 @@ cd /var/www/html
 
 echo "[entrypoint] starting as: ${1:-web}"
 
+# Platforms that route to a port of their own choosing (Render sets PORT, and
+# only *usually* detects a bound port) need nginx to listen where the router is
+# looking. Rewriting the one directive keeps the image identical everywhere:
+# PORT unset means port 80, which is what compose publishes.
+if [ -n "${PORT:-}" ] && [ "${PORT}" != "80" ]; then
+    echo "[entrypoint] nginx will listen on port ${PORT}"
+    sed -i "s/listen 80;/listen ${PORT};/" /etc/nginx/http.d/default.conf
+fi
+
 # Composer ran with --no-scripts during the build (artisan cannot boot without
 # an environment), so package discovery is done here instead. Without it the
 # Filament and Livewire providers are never registered.
@@ -26,6 +35,15 @@ php artisan storage:link >/dev/null 2>&1 || true
 if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
     echo "[entrypoint] running migrations"
     php artisan migrate --force
+fi
+
+# Platforms with no shell and no one-off jobs (Render's free tier has neither)
+# cannot be seeded by hand, so the seed rides on the boot. Safe on every start:
+# ProductionSeeder is updateOrCreate throughout and changes nothing on a second
+# run. Off by default, because a compose deploy seeds deliberately.
+if [ "${RUN_SEEDER:-false}" = "true" ]; then
+    echo "[entrypoint] seeding reference data"
+    php artisan db:seed --class=ProductionSeeder --force
 fi
 
 # Caches are built at start rather than at build time because config:cache bakes

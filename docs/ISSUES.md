@@ -1290,6 +1290,79 @@ take" — was wrong, and the test that said the card existed was right.
 
 ---
 
+## #104 — The job page dated work that had not been scheduled
+
+Found by opening a quoted job after #102 and reading the two cards side by side. A quote is
+unpaid, has no artwork, and has not been accepted by the shop. The page gave it a pickup date
+anyway, in three places, next to a shop advertising 24 hours:
+
+| Where | What it said |
+|---|---|
+| Progress card header | `Est. ready Mon, 23 Nov · 7:32 PM` |
+| Pickup details | `Ready  Mon, 7:32 PM` |
+| Progress rail, "Ready for pickup" | `23 Nov · 7:32 PM` |
+
+`due_at` on a quote is the date checkout pencilled in when the order was created. Nothing has
+been paid and no file has been sent, so the shop has promised nothing — and in the seeded data
+the date was already in the past, because the job was due at the minute it was placed.
+
+The fix is one rule in three places: **a quote gets the shop's turnaround, not a date.**
+
+| Where | Quote | Scheduled job |
+|---|---|---|
+| Progress header | `Ready within 24 hours once you pay and send your design` | `Est. ready Mon, 23 Nov · 7:32 PM` |
+| Pickup details | `Not scheduled yet` | the date |
+| Rail step 4 | no timestamp | the date |
+
+`Shop::turnaroundPhrase()` exists because `turnaroundLabel()` is a badge — "Same day" — and
+drops into a sentence badly: *"Ready Same day after you pay"*. The phrase form is
+"the same day" / "within 24 hours" / "within 2–3 days".
+
+The first correction touched only the Progress header. The screenshot after it still showed
+`Ready Mon, 7:32 PM` in the side card two inches away — the same fact written twice, fixed
+once. `JobPageTest` now asserts against the whole document for a quote, not one card, so the
+twins cannot drift apart again.
+
+### The bug underneath, found while trying to fix the data
+
+The obvious way to make the seeded dates honest was to derive them from each shop's
+turnaround, which produced five jobs with `created_at == due_at`. The cause was real:
+
+```php
+return ($from ?? Carbon::now())->addHours($hours);   // Shop::estimatedReadyAt()
+```
+
+`addHours()` mutates in place and returns the same instance, so the method advanced **the
+caller's own date** as well as returning the answer. `$placedAt` and `$dueAt` were the same
+object. Checkout never noticed because it passes nothing and gets a fresh `Carbon::now()`.
+
+Fixed by copying: `($from?->copy() ?? Carbon::now())`. `DataIntegrityTest` now holds it —
+`estimatedReadyAt()` must not move the date it is given.
+
+### Also fixed
+
+The seeder stamped `collected_at` at 16:00 on the due date, so a job due today was **collected
+in the future** whenever the seed ran in the morning, and on-time rate is measured from that
+stamp. Bounded by now, with an invariant in `DataIntegrityTest`.
+
+### Left alone, deliberately
+
+33 of 39 seeded jobs have a `due_at` further out than their shop's turnaround — up to 163
+hours for a 24-hour shop. This is **not** fixed, because `due_at` is the date the job is
+*wanted* and a customer may legitimately ask for a date later than the shop's typical
+turnaround. The two numbers are allowed to differ. What was wrong was presenting that date as
+an estimate on a job that had not been scheduled, which is what this pass fixes. The seeder
+says so in a comment where the date is computed.
+
+### Verified
+
+`543 passed (2562 assertions)`. `JobPageTest` is new — four tests over what the page promises,
+including that a quote's date appears nowhere in the document and that the rail step carries no
+timestamp. Checked in a browser on a real quoted job: the header, the side card and the rail
+now agree.
+
+---
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

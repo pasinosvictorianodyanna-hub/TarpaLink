@@ -13,6 +13,7 @@ use App\Models\Service;
 use App\Models\Shop;
 use App\Models\Subscription;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -208,5 +209,38 @@ class DataIntegrityTest extends TestCase
                 "Job {$job->reference} is with shop {$job->shop_id} but prices a service from shop {$job->service->shop_id}.",
             );
         }
+    }
+
+    public function test_no_job_was_collected_in_the_future(): void
+    {
+        // The seeder stamped `collected_at` at 16:00 on the due date, so a job
+        // due today was collected in the future whenever the seed ran in the
+        // morning — and "on time" is measured from that stamp.
+        $future = Job::whereNotNull('collected_at')
+            ->where('collected_at', '>', Carbon::now())
+            ->pluck('reference');
+
+        $this->assertSame([], $future->all(), 'These jobs are collected after now: '.$future->implode(', '));
+    }
+
+    public function test_estimated_ready_does_not_move_the_date_it_is_given(): void
+    {
+        // `addHours()` mutates in place, so the old implementation advanced the
+        // caller's own date as well as returning the answer. Checkout never
+        // noticed because it passes nothing; anything holding both ends of a
+        // window got the same timestamp twice.
+        $shop = Shop::firstOrFail();
+        $from = Carbon::parse('2026-03-02 09:00:00');
+        $frozen = $from->copy();
+
+        $ready = $shop->estimatedReadyAt($from);
+
+        $this->assertSame(
+            $frozen->toDateTimeString(),
+            $from->toDateTimeString(),
+            'estimatedReadyAt() moved the date it was given.',
+        );
+
+        $this->assertTrue($ready->greaterThan($from), 'The estimate should be after the date it starts from.');
     }
 }

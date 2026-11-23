@@ -559,6 +559,14 @@ class DatabaseSeeder extends Seeder
             // Placed two days before the work is due, but never in the future.
             // The dashboard measures "waiting" from these stamps, so they have
             // to be plausible rather than "everything happened a second ago".
+            //
+            // Two days is deliberately *not* the shop's turnaround. `due_at` is
+            // the date this job is wanted, and a customer may ask for a date
+            // later than the shop's typical turnaround — so the two numbers are
+            // allowed to differ, and the demo needs the spread. It is not
+            // allowed to differ by a week for a shop advertising 24 hours,
+            // though, which is what the authored offsets produced for the
+            // short-turnaround shops; see the note on the job page.
             $placedAt = $dueAt->copy()->subDays(2)->min(Carbon::now()->subDays(2));
             $touchedAt = $placedAt->copy()->addHours(6)->min(Carbon::now());
 
@@ -578,8 +586,10 @@ class DatabaseSeeder extends Seeder
                 'updated_at' => $touchedAt,
                 // Stamped by JobWorkflow in real use; set here so the dashboard's
                 // "collected" figures are not all zero in the seeded database.
+                // Bounded by now: a job due today at 16:00 was otherwise stamped
+                // as collected in the future whenever the seed ran in the morning.
                 'collected_at' => $data['status'] === 'collected'
-                    ? $dueAt->copy()->setTime(16, 0)
+                    ? $dueAt->copy()->setTime(16, 0)->min(Carbon::now())
                     : null,
             ]);
 

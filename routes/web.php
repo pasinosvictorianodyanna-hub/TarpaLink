@@ -166,32 +166,6 @@ Route::get('/register', [RegisteredUserController::class, 'show'])->name('regist
 Route::post('/register', [RegisteredUserController::class, 'store']);
 Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
 
-// TEMPORARY diagnostic for #123. Removed as soon as the bucket answers.
-Route::get('/_s3diag', function () {
-    abort_unless(auth()->user()?->email === 'jomar@tarpalink.ph', 404);
-
-    config()->set('filesystems.disks.artwork.throw', true);
-    \Illuminate\Support\Facades\Storage::forgetDisk('artwork');
-
-    try {
-        $disk = \Illuminate\Support\Facades\Storage::disk('artwork');
-        $path = 'artwork/diag-'.bin2hex(random_bytes(6)).'.txt';
-        $disk->put($path, 'ok');
-        $exists = $disk->exists($path);
-        $disk->delete($path);
-
-        return response()->json(['put' => true, 'exists' => $exists]);
-    } catch (\Throwable $e) {
-        $previous = $e->getPrevious();
-
-        return response()->json([
-            'error' => get_class($e),
-            'message' => $e->getMessage(),
-            'previous' => $previous ? get_class($previous).': '.$previous->getMessage() : null,
-        ]);
-    }
-})->middleware('auth');
-
 // Footer pages. Declared last and constrained to a known list, so it can never
 // shadow a real route — a bare `/{slug}` would swallow everything.
 Route::get('/{slug}', PageController::class)

@@ -106,6 +106,36 @@ class StorageDiskTest extends TestCase
         }
     }
 
+    public function test_object_storage_disks_do_not_prefix_keys_with_a_local_path(): void
+    {
+        // Read the config file the way the deployment does, with the driver
+        // switched to s3. A local root is a directory; on S3 it becomes part of
+        // every object key, so it must not leak into the bucket.
+        $previous = $_ENV['PROOF_DISK_DRIVER'] ?? null;
+        $_ENV['PROOF_DISK_DRIVER'] = 's3';
+        $_SERVER['PROOF_DISK_DRIVER'] = 's3';
+
+        try {
+            $disks = (require config_path('filesystems.php'))['disks'];
+
+            foreach ([Artwork::DISK, Proof::DISK] as $name) {
+                $this->assertSame('s3', $disks[$name]['driver']);
+                $this->assertSame(
+                    '',
+                    $disks[$name]['root'],
+                    "{$name} must store objects under `{$name}/…`, not under an absolute server path"
+                );
+            }
+        } finally {
+            if ($previous === null) {
+                unset($_ENV['PROOF_DISK_DRIVER'], $_SERVER['PROOF_DISK_DRIVER']);
+            } else {
+                $_ENV['PROOF_DISK_DRIVER'] = $previous;
+                $_SERVER['PROOF_DISK_DRIVER'] = $previous;
+            }
+        }
+    }
+
     public function test_a_design_that_cannot_be_stored_is_refused_and_not_recorded(): void
     {
         $job = $this->quoted();

@@ -74,11 +74,19 @@ return [
         | `proofs/...`, so nothing in the database changes.
         */
         'proofs' => [
-            'driver' => env('PROOF_DISK_DRIVER', 'local'),
+            'driver' => $proofDriver = env('PROOF_DISK_DRIVER', 'local'),
             // `?:` rather than a default argument: an env line left as
             // `PROOF_DISK_ROOT=` resolves to an empty string, and a local disk
             // rooted at "" would write into the project root.
-            'root' => env('PROOF_DISK_ROOT') ?: storage_path('app/private'),
+            //
+            // On S3 the root is an *object-key prefix*, not a directory. Leaving
+            // the local default in place makes every key begin with the absolute
+            // path `/var/www/html/storage/app/private`, so a proof written here
+            // can never be found by the `proofs/…` path stored on the row. An
+            // object store needs no root to keep the private bucket private.
+            'root' => $proofDriver === 's3'
+                ? ''
+                : (env('PROOF_DISK_ROOT') ?: storage_path('app/private')),
             'key' => env('AWS_ACCESS_KEY_ID'),
             'secret' => env('AWS_SECRET_ACCESS_KEY'),
             'region' => env('AWS_DEFAULT_REGION', 'ap-southeast-1'),
@@ -105,8 +113,13 @@ return [
         | `proofs/...` keys.
         */
         'artwork' => [
-            'driver' => env('ARTWORK_DISK_DRIVER', env('PROOF_DISK_DRIVER', 'local')),
-            'root' => env('ARTWORK_DISK_ROOT') ?: (env('PROOF_DISK_ROOT') ?: storage_path('app/private')),
+            'driver' => $artworkDriver = env('ARTWORK_DISK_DRIVER', env('PROOF_DISK_DRIVER', 'local')),
+            // Same rule as `proofs`: a local root is a directory, an S3 root is
+            // a key prefix. The upload service passes `artwork/…` itself, so
+            // prefixing that with storage_path() would change every object key.
+            'root' => $artworkDriver === 's3'
+                ? ''
+                : (env('ARTWORK_DISK_ROOT') ?: (env('PROOF_DISK_ROOT') ?: storage_path('app/private'))),
             'key' => env('AWS_ACCESS_KEY_ID'),
             'secret' => env('AWS_SECRET_ACCESS_KEY'),
             'region' => env('AWS_DEFAULT_REGION', 'ap-southeast-1'),

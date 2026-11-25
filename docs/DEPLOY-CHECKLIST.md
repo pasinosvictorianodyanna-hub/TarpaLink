@@ -314,7 +314,11 @@ which looks exactly like a broken bucket from the outside.
 
 If it says *Not writable*, check in this order — each is a silent failure if missed:
 
-1. `AWS_ENDPOINT` — must be `https://<account-id>.r2.cloudflarestorage.com`, not a bucket URL.
+1. `AWS_ENDPOINT` — must be the **real** `https://<32-hex-account-id>.r2.cloudflarestorage.com`
+   from **R2 → Manage R2 API Tokens → Account ID**. The angle-bracket string in this checklist and
+   in `render.yaml` is notation, not a value. Pasting it literally produces a hostname curl
+   rejects with `cURL error 3: URL rejected: Bad hostname` — the write fails, and an upload shows
+   "That file could not be stored just now" rather than 500 after #123.
 2. `AWS_USE_PATH_STYLE_ENDPOINT` — must be `true`; R2 does not serve virtual-hosted buckets.
 3. `AWS_DEFAULT_REGION` — must be `auto`; any other region fails signature validation.
 4. The token's permission — *Object Read & Write*, and scoped to this bucket.

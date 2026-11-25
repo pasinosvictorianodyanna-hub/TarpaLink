@@ -321,7 +321,13 @@ If it says *Not writable*, check in this order — each is a silent failure if m
    "That file could not be stored just now" rather than 500 after #123.
 2. `AWS_USE_PATH_STYLE_ENDPOINT` — must be `true`; R2 does not serve virtual-hosted buckets.
 3. `AWS_DEFAULT_REGION` — must be `auto`; any other region fails signature validation.
-4. The token's permission — *Object Read & Write*, and scoped to this bucket.
+4. The token's permission — *Object Read & Write*, and scoped to this bucket. A token with only
+   *Object Read* passes a signed-in GET and still refuses every upload with `403 AccessDenied`;
+   `GET /client/v4/accounts/{id}/tokens` lists the token's permission groups if you need to check.
+5. The account itself — `10042: Please enable R2 through the Cloudflare Dashboard` means R2 has not
+   been activated on the account. There is no public API for that step. R2's free tier (10 GB-month,
+   1M Class A and 10M Class B operations, no egress) is enough for this application; create the
+   bucket with **Standard** storage class and no paid subscription.
 
 ---
 

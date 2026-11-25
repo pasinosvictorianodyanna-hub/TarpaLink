@@ -1927,14 +1927,29 @@ Two separate faults are visible in that one URL:
 The diagnostic route was merged for exactly one deploy, gated to a single seeded account, and is
 removed by this change. Its only output was the exception above.
 
-The real endpoint and credentials were then written to the deployment through the Render API and
-the service was redeployed. The upload still failed; the storage probe — improved to report the
-SDK's own message rather than only "Not writable" — showed
-`cURL error 35: SSL routines::ssl/tls alert handshake failure` against the correct R2 hostname.
-The Cloudflare API independently answered `10042: Please enable R2 through the Cloudflare Dashboard`
-for the account, and offers no public endpoint to do it: the supplied API token can list the
-account but cannot create a bucket (`10000: Authentication error`) or another token (`403`). That
-is where the deployment stopped — a dashboard step, not a code change.
+The real endpoint and credentials were written to the deployment through the Render API and the
+service was redeployed. The upload still failed; the storage probe — improved to report the SDK's
+own message rather than only "Not writable" — showed
+`cURL error 35: SSL routines::ssl/tls alert handshake failure`. The Cloudflare API independently
+answered `10042: Please enable R2 through the Cloudflare Dashboard`. There is no public endpoint
+for that; the account's R2 activation is a dashboard step.
+
+A second token, with `Workers R2 Storage Write` and `Account API Tokens Write`, then created the
+**free Standard bucket** `tarpalink-files` through the documented Cloudflare API. The first pair of
+S3 credentials derived from a read-only token (`Workers R2 Storage Read`) and failed with
+`403 AccessDenied` on `CreateBucket` — the reason the token matters at all.
+
+Verified end to end on the free tier:
+
+| Check | Result |
+|---|---|
+| Admin → Integrations → Storage | **Writable**, driver `s3`, disk `proofs` |
+| `POST /jobs/TL-13920/artwork` with a 70-byte PNG | 302, "sent to Northline Print", row `artwork/1` |
+| `GET /jobs/TL-13920/artwork/1/file` | 200 `image/png`, 70 bytes, byte-identical to the upload |
+| `POST /console/jobs/TL-14521/proof` | 302, "Proof sent to Dyanna Pasinos", job moved to `awaiting_proof` |
+
+The one-shot provisioning route existed for a single deploy and is removed by this change. No paid
+Cloudflare subscription was created: the account remains on `standard` with zero subscriptions.
 
 `567 passed (2644 assertions)` — up from `563 passed (2626 assertions)` at #121. Four tests and
 eighteen assertions. One fails against the old `composer.json`, one against the old disk config,

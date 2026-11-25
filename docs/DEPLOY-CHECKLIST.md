@@ -306,6 +306,12 @@ whole value of doing them separately.
 The storage probe is the one that pays for itself: it writes and deletes a test object on the
 proof disk, so it reports a misconfigured bucket in two seconds instead of after a failed upload.
 
+If the probe page itself returns 500 rather than a verdict, the S3 driver cannot be built; the
+image must contain `league/flysystem-aws-s3-v3` (`composer require league/flysystem-aws-s3-v3`).
+Without it, every `Storage::disk('proofs')` and `Storage::disk('artwork')` call dies with
+`Class "League\Flysystem\AwsS3V3\PortableVisibilityConverter" not found` before any request to R2,
+which looks exactly like a broken bucket from the outside.
+
 If it says *Not writable*, check in this order — each is a silent failure if missed:
 
 1. `AWS_ENDPOINT` — must be `https://<account-id>.r2.cloudflarestorage.com`, not a bucket URL.

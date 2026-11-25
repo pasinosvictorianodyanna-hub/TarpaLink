@@ -8,6 +8,7 @@ use App\Models\Job;
 use App\Models\JobActivity;
 use App\Models\User;
 use App\Support\Notifier;
+use App\Support\Uploads;
 use Illuminate\Http\UploadedFile;
 
 /**
@@ -33,7 +34,11 @@ final class ArtworkIntake
         // the logo from the poster.
         $artwork = $job->artworks()->create([
             'uploaded_by' => $by?->id,
-            'file_path' => $file->store('artwork', Artwork::DISK),
+            // `Uploads::store()` refuses a write that failed rather than
+            // returning the `false` the disk hands back, because a row here
+            // would tell the customer their design had arrived when there is
+            // nothing on the bucket for the shop to print.
+            'file_path' => Uploads::store($file, 'artwork', Artwork::DISK),
             'original_name' => $file->getClientOriginalName(),
             'mime' => $file->getClientMimeType() ?: 'application/octet-stream',
             'bytes' => (int) $file->getSize(),

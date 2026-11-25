@@ -1834,6 +1834,71 @@ institution — are blank, because they are not facts this repository holds.
 
 `563 passed (2626 assertions)` — documentation only, no behaviour change.
 
+## #123 — The deployment could not open either file disk
+
+The final document said uploads went to R2. The deployment said `500 Server Error` the moment
+anyone tried. Both statements were about the same request, and neither was wrong — the first
+described the configuration, the second described a driver that was never installed.
+
+### Reproduced before guessing
+
+Signed in as the seeded customer and walked the exact path the "Send design" chip points at. The
+job page itself was fine; everything that touched a file was not:
+
+| Request | Result |
+|---|---|
+| `GET /jobs/TL-13920` | 200 — the page renders |
+| `POST /jobs/TL-13920/artwork` | 500 — and the job still says "send your design", so no row was written |
+| `GET /jobs/TL-69006/proofs/30017/file` | 500 |
+| `GET /jobs/TL-72275/proofs/30002/file` | 500 |
+
+Read and write, customer and shop: one cause, not three.
+
+### The missing package
+
+`league/flysystem-aws-s3-v3` appeared in `composer.lock` only inside `laravel/framework`'s
+`suggest` block. A suggestion installs nothing. With `PROOF_DISK_DRIVER=s3` on the deployment, the
+first call to `Storage::disk('proofs')` tried to build the driver and died before it reached the
+bucket:
+
+```
+Error :: Class "League\Flysystem\AwsS3V3\PortableVisibilityConverter" not found
+```
+
+The same command locally with `PROOF_DISK_DRIVER=s3` produced the same error, which is what made
+this a missing dependency rather than a theory about R2, credentials or the TiDB certificate. The
+`'throw' => false` on both disks could not help either: that option governs Flysystem failures,
+and this one happened while constructing the driver, outside that handling.
+
+Requiring `league/flysystem-aws-s3-v3` brings in the AWS SDK and makes both disks build their
+`AwsS3V3Adapter`. The lock keeps the canonical GitHub dist URLs, so the Docker build does not
+depend on the mirror used to fetch the package here.
+
+### Why the whole suite missed it
+
+Every existing file test runs on `local` or `Storage::fake()`. No test had ever asked Laravel to
+build an `s3` disk, so the suite could stay green while the deployment failed on its first upload.
+`StorageDiskTest` now configures both disks with fake R2 credentials and asserts the adapter class.
+Building an S3 client makes no network call, so this needs no bucket and no secret.
+
+### The second half: a failed write must not be recorded
+
+With the driver present, the next failure is a quieter one. Both disks say `throw => false`, so an
+unreachable bucket makes `store()` return `false`. The artwork path was writing that `false` into
+an `artworks` row — the customer would be told the design had arrived, and the shop would find no
+file to print. The proof path passed the same `false` to `ProofExchange::send(string $path)`, which
+turned it into a `TypeError` and another 500.
+
+`App\Support\Uploads::store()` now makes the check in one place and raises a validation error on
+`file` when the write fails. Both forms already render `@error('file')`, so the customer gets "that
+file could not be stored, try again" instead of a 500 or a false confirmation. Tests cover both
+directions with a disk that refuses every write, and assert that no row and no status change
+survives it.
+
+`566 passed (2640 assertions)` — up from `563 passed (2626 assertions)` at #121. Three tests and
+fourteen assertions. The driver test fails against the old `composer.json`; the other two fail
+against the old upload code.
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

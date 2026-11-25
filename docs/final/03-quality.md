@@ -152,5 +152,5 @@ A requirement is done when all four hold:
    chapter 21.
 
 Two further conditions apply to the project as a whole rather than to a single requirement: the
-suite passes in full (563 tests, 2,626 assertions), and the production image boots against the
+suite passes in full (567 tests, 2,644 assertions), and the production image boots against the
 database and storage it is configured for, which is a claim no unit test can make (chapter 22).

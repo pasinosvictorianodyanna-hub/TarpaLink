@@ -86,6 +86,14 @@ involved. Three values make R2 rather than S3, and each one fails silently if mi
 | `AWS_USE_PATH_STYLE_ENDPOINT` | `true` | R2 does not serve virtual-hosted-style buckets |
 | `AWS_DEFAULT_REGION` | `auto` | What R2 answers to |
 
+Two further details are easy to miss. Laravel lists `league/flysystem-aws-s3-v3` only as a
+*suggestion*, which installs nothing; without an explicit requirement every disk call dies while
+building the driver, before any request reaches the bucket. And
+`https://<account-id>.r2.cloudflarestorage.com` is notation, not a value — pasting it literally
+into the dashboard produces `cURL error 3: URL rejected: Bad hostname`. Both disks keep `root`
+empty when their driver is `s3`, because on an object store that setting is an object-key prefix,
+not a directory.
+
 The administrative panel carries a probe that writes, reads and deletes a file on the configured
 disk and reports the result. It is the fastest way to tell a bucket from a misconfiguration, and it
 is the only storage check available on a plan with no shell.
@@ -110,6 +118,14 @@ every boot flag — and the following were observed rather than assumed:
 that follows, the ephemeral disk, the blocked SMTP ports and the container's egress are documented
 behaviour, not observed behaviour. The document that records this distinction is
 `docs/DEPLOY-RENDER.md`, and the runbook that a person follows is `docs/DEPLOY-CHECKLIST.md`.
+
+The live service was probed later, on a signed-in customer session: the job page rendered, and
+design uploads and proof downloads failed with 500s that the local suite could not see. That led to
+the adapter and key-prefix fixes above. The upload now refuses a write with a clear message rather
+than a 500. An actual object in R2 has still not been written end to end: the deployment's S3
+endpoint and credentials were real, but the Cloudflare account rejected the TLS handshake, and the
+Cloudflare API reported that R2 was not enabled on the account. That is a dashboard step, not a
+code change.
 
 One measurement worth reading correctly: the two TiDB test files took seventeen minutes, roughly
 fifty seconds per test. That is a laptop in Manila talking to a cluster in Singapore, where every
@@ -155,7 +171,7 @@ send me?" is a question with an answer; and the shop's proof is separate from th
 because they travel in opposite directions and have different lifetimes.
 
 The system is 89 functional requirements, 10 business rules, 10 non-functional requirements, 19
-tables and 16 policies, proven by 563 tests and 2,626 assertions, and it runs on a free hosting tier
+tables and 16 policies, proven by 567 tests and 2,644 assertions, and it runs on a free hosting tier
 by moving each missing capability's work somewhere that survives rather than by pretending the
 capability is there.
 

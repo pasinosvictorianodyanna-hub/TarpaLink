@@ -1927,6 +1927,15 @@ Two separate faults are visible in that one URL:
 The diagnostic route was merged for exactly one deploy, gated to a single seeded account, and is
 removed by this change. Its only output was the exception above.
 
+The real endpoint and credentials were then written to the deployment through the Render API and
+the service was redeployed. The upload still failed; the storage probe — improved to report the
+SDK's own message rather than only "Not writable" — showed
+`cURL error 35: SSL routines::ssl/tls alert handshake failure` against the correct R2 hostname.
+The Cloudflare API independently answered `10042: Please enable R2 through the Cloudflare Dashboard`
+for the account, and offers no public endpoint to do it: the supplied API token can list the
+account but cannot create a bucket (`10000: Authentication error`) or another token (`403`). That
+is where the deployment stopped — a dashboard step, not a code change.
+
 `567 passed (2644 assertions)` — up from `563 passed (2626 assertions)` at #121. Four tests and
 eighteen assertions. One fails against the old `composer.json`, one against the old disk config,
 and two against the old upload code.

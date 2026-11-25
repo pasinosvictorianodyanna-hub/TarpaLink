@@ -130,7 +130,7 @@ chapter 13; the fifth is specific to this project's claim about deployment.
 | 4 | The screen matches `design/prototype.html`, or the difference is written down | met — the differences are recorded in chapter 21 |
 | 5 | The application boots on a free hosting tier with no worker, no scheduler and no persistent disk | met — verified by booting the production image; chapter 22 states what was and was not observed |
 
-The suite stands at **563 tests and 2,626 assertions, zero failures**, run on SQLite. Two files of
+The suite stands at **567 tests and 2,644 assertions, zero failures**, run on SQLite. Two files of
 it — `ReportsTest` and `AdminDashboardTest` — were additionally run against the live TiDB cluster
 that the deployment uses, because they are the two that would break first on a database that is
 not MySQL 8.

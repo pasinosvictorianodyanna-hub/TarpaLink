@@ -14,6 +14,7 @@ use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Throwable;
 use UnitEnum;
 
@@ -194,14 +195,24 @@ class Integrations extends Page
         $disk = Proof::DISK;
 
         $writable = false;
+        $error = null;
+
+        // The disks say `throw => false` so a failed customer upload becomes a
+        // friendly message instead of a 500. A probe is a diagnostic: it needs
+        // to know *why* the bucket refused the write, so resolve a disk with
+        // exceptions enabled for this one check. Nothing else in the request
+        // sees that setting — this page only reads the outcome.
+        config()->set('filesystems.disks.'.$disk.'.throw', true);
+        Storage::forgetDisk($disk);
 
         try {
             $probe = 'healthcheck/'.uniqid().'.txt';
             Storage::disk($disk)->put($probe, 'ok');
             $writable = Storage::disk($disk)->exists($probe);
             Storage::disk($disk)->delete($probe);
-        } catch (Throwable) {
+        } catch (Throwable $e) {
             $writable = false;
+            $error = $e->getMessage();
         }
 
         $driver = (string) config('filesystems.disks.'.$disk.'.driver');
@@ -218,6 +229,10 @@ class Integrations extends Page
                 'Disk' => $disk,
                 'Driver' => $driver,
                 'Writable' => $writable ? 'yes' : 'no',
+                // The SDK's own words, not "not writable". "Bad hostname",
+                // "InvalidAccessKeyId" and "NotImplemented" need three
+                // different fixes, and only one of them is in this repo.
+                ...($error === null ? [] : ['Error' => Str::limit($error, 400)]),
             ],
             'source' => 'from the environment',
             'editable' => null,

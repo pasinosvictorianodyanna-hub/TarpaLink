@@ -9,6 +9,7 @@ use App\Services\JobNudge;
 use App\Services\JobWorkflow;
 use App\Services\ProofExchange;
 use App\Support\Money;
+use App\Support\Uploads;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -127,7 +128,11 @@ class JobController extends ConsoleController
             'note' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $path = $request->file('file')->store('proofs', Proof::DISK);
+        // `ProofExchange::send()` takes a string, so a failed write used to
+        // arrive there as `false` and blow up as a TypeError — a 500 for what
+        // is really "the bucket did not answer". The helper raises it as a
+        // validation error on `file` instead, which the form already reports.
+        $path = Uploads::store($request->file('file'), 'proofs', Proof::DISK);
 
         app(ProofExchange::class)->send($job, $path, $data['note'] ?? null, $this->user());
 

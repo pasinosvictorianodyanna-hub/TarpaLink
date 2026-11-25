@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 300" width="680" height="300" role="img" aria-label="Entity relationship diagram of the billing chain and the standalone content and configuration tables">
+  <defs>
+    <marker id="ar-er2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="680" height="300" fill="#ffffff"/>
+
+  <!-- billing chain -->
+  <g stroke="#333" stroke-width="1.1" fill="#ffffff">
+    <rect x="20" y="40" width="190" height="80"/>
+    <rect x="245" y="40" width="190" height="80"/>
+    <rect x="470" y="40" width="190" height="80"/>
+  </g>
+  <g stroke="#333" stroke-width="1.1" fill="#ececec">
+    <rect x="20" y="40" width="190" height="19"/>
+    <rect x="245" y="40" width="190" height="19"/>
+    <rect x="470" y="40" width="190" height="19"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="8.6" fill="#1a1a1a">
+    <text x="28" y="54" font-size="10" font-weight="bold">plans</text>
+    <text x="28" y="76">code: starter | growth | pro</text>
+    <text x="28" y="89">price · centavos</text>
+    <text x="28" y="102">commission_rate · basis points</text>
+
+    <text x="253" y="54" font-size="10" font-weight="bold">subscriptions</text>
+    <text x="253" y="76">shop_id · plan_id</text>
+    <text x="253" y="89">status · started_at</text>
+    <text x="253" y="102">ends_at</text>
+
+    <text x="478" y="54" font-size="10" font-weight="bold">invoices</text>
+    <text x="478" y="76">number (unique) · amount</text>
+    <text x="478" y="89">period_start · period_end</text>
+    <text x="478" y="102">status · due_at · paid_by</text>
+  </g>
+  <g stroke="#333" stroke-width="1" fill="none">
+    <path d="M 210 80 L 239 80" marker-end="url(#ar-er2)"/>
+    <path d="M 435 80 L 464 80" marker-end="url(#ar-er2)"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="7.4" fill="#333" text-anchor="middle">
+    <text x="222" y="74">1</text>
+    <text x="230" y="94">N</text>
+    <text x="447" y="74">1</text>
+    <text x="455" y="94">N</text>
+  </g>
+
+  <!-- standalone tables -->
+  <g stroke="#333" stroke-width="1.1" fill="#fafafa">
+    <rect x="20" y="180" width="190" height="76"/>
+    <rect x="245" y="180" width="190" height="76"/>
+    <rect x="470" y="180" width="190" height="76"/>
+  </g>
+  <g stroke="#333" stroke-width="1.1" fill="#ececec">
+    <rect x="20" y="180" width="190" height="19"/>
+    <rect x="245" y="180" width="190" height="19"/>
+    <rect x="470" y="180" width="190" height="19"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="8.6" fill="#1a1a1a">
+    <text x="28" y="194" font-size="10" font-weight="bold">page_sections</text>
+    <text x="28" y="216">key (unique) · title · body</text>
+    <text x="28" y="229">visible · position</text>
+
+    <text x="253" y="194" font-size="10" font-weight="bold">site_settings</text>
+    <text x="253" y="216">key · value</text>
+    <text x="253" y="229">never a secret</text>
+
+    <text x="478" y="194" font-size="10" font-weight="bold">integrations</text>
+    <text x="478" y="216">key · payload (encrypted)</text>
+    <text x="478" y="229">updated_by</text>
+  </g>
+
+  <g font-family="Arial, Helvetica, sans-serif" font-size="7.6" fill="#777">
+    <text x="20" y="284">The lower three are keyed by string and reference no other table. Content is edited in the panel; credentials are reached only through it.</text>
+  </g>
+</svg>

@@ -1780,6 +1780,60 @@ that a SQLite test could exercise.
 
 ---
 
+---
+
+## #121 — One document, and the artefacts it was missing
+
+The course asks for an SRS with five named sections and six design artefacts. The repository had a
+specification written for a maintainer: no objectives section, no diagram of any kind, and a
+structure that followed the order issues were adopted. It also had three `.docx` snapshots, one of
+which — the design document — existed nowhere else, so its sources were already gone.
+
+`docs/final/TarpaLink-Final-Documentation.pdf` is one document in two parts, built from sources that
+stay in the repository. Part I is the requirements, restructured to the order a reader expects and
+carrying the missing **objectives** chapter: seven objectives, each naming the requirements that
+answer it and the evidence that it was met. Part II is the design, and it carries the six artefacts
+as real diagrams — context, use case, architecture, ER, schema and wireframes — rather than
+descriptions of diagrams.
+
+### What the diagrams cost
+
+Each is hand-written SVG in `docs/diagrams/`, monochrome and print-safe, because a screenshot of a
+whiteboard is not a figure and an ASCII diagram is not one either. The ER diagram was drawn twice:
+the first version put all nineteen tables on one canvas, which at page width reduced the column text
+to about five points — technically present and practically unreadable. It is now two figures, the
+fifteen-table core and a four-table satellite group, which is also the honest shape of the model.
+
+The wireframes are drawn from the implementation rather than from the prototype, and each difference
+is written down beside the figure. That is acceptance condition 4, and the two differences that
+matter are real: the directory shows a starting price rather than a range, because a range promised a
+ceiling the shop had not; and the board carries a design badge, because without it a shop had to open
+every job to find out whether the customer's file had arrived (FR-114).
+
+### The build
+
+`build.py` turns six markdown files into one A4 HTML with every diagram inlined, and `pdf.mjs` prints
+it through the DevTools protocol so pages carry a running header and a real page count. Chrome's
+`--print-to-pdf` cannot do either, and it prints the file URL into the footer, which is why the
+protocol route was worth the sixty lines.
+
+The table of contents has page numbers because `toc_pages.py` prints the document first, reads back
+which page each heading landed on, and writes a map that the second build consumes. There is no way
+to resolve a cross-reference to a page number in Chrome, so the only way to put one in a contents
+page is to measure it. Two passes, and the map is stable.
+
+### One correction, and one thing left undone
+
+`docs/SRS.md` §8 said "seventeen domain tables, sixteen models". It has said so since the nineteenth
+table was added. It is nineteen and eighteen, and the final document asserts the true figures — so
+the source of truth was corrected in the same pass rather than left to disagree with its own
+snapshot.
+
+Left undone on purpose: the three fields on the document-control page — author, instructor and
+institution — are blank, because they are not facts this repository holds.
+
+`563 passed (2626 assertions)` — documentation only, no behaviour change.
+
 ## Creating these on GitHub
 
 All of these are on GitHub at

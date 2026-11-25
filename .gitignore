@@ -36,3 +36,14 @@ Thumbs.db
 # Chinese HTML renders, and the scripts that assemble them. The .docx it produces
 # are the artifact and live in docs/deliverables; this is the machinery (#111).
 /output
+
+# The TiDB check environment (#121). Contains a password; never commit it.
+.env.tidb
+
+# The final documentation's build output. The sources are docs/final/*.md and
+# docs/diagrams/*.svg; the PDF beside them is the artefact.
+/docs/final/TarpaLink-Final-Documentation.html
+/docs/final/toc-pages.json
+
+# A certificate bundle downloaded for a database check. Never a build input.
+/tidb-ca.pem

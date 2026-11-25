@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 400" width="680" height="400" role="img" aria-label="Wireframe: the administrative dashboard with platform money tiles, a payments table and the shop request queue">
+  <rect x="0" y="0" width="680" height="400" fill="#ffffff"/>
+
+  <!-- topbar -->
+  <g stroke="#333" stroke-width="1.2" fill="#f2f2f2">
+    <rect x="16" y="16" width="648" height="32"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="30" y="37" font-size="10.5" font-weight="bold" fill="#1a1a1a">TarpaLink · Administration</text>
+    <text x="556" y="36" font-size="8" fill="#555">admin@tarpalink.ph</text>
+  </g>
+
+  <!-- sidebar -->
+  <g stroke="#333" stroke-width="1.2" fill="#f7f7f7">
+    <rect x="16" y="48" width="124" height="336"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="8.5" fill="#555">
+    <text x="28" y="70" fill="#1a1a1a" font-weight="bold">Dashboard</text>
+    <text x="28" y="92">Shops</text>
+    <text x="28" y="114">Shop requests</text>
+    <text x="28" y="136">Users</text>
+    <text x="28" y="158">Invoices</text>
+    <text x="28" y="180">Content</text>
+    <text x="28" y="202">Integrations</text>
+  </g>
+  <g stroke="#333" stroke-width="1" fill="#ffffff">
+    <circle cx="112" cy="110" r="7"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="7.5" fill="#1a1a1a" text-anchor="middle">
+    <text x="112" y="113">2</text>
+  </g>
+
+  <!-- money tiles -->
+  <g stroke="#333" stroke-width="1.2" fill="#ffffff">
+    <rect x="152" y="60" width="164" height="54" rx="2"/>
+    <rect x="324" y="60" width="164" height="54" rx="2"/>
+    <rect x="496" y="60" width="164" height="54" rx="2"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="162" y="76" font-size="7.5" fill="#555">Collected this month</text>
+    <text x="162" y="96" font-size="13" font-weight="bold" fill="#1a1a1a">₱148,200.00</text>
+    <text x="162" y="108" font-size="7" fill="#777">38 jobs collected</text>
+    <text x="334" y="76" font-size="7.5" fill="#555">Commission earned</text>
+    <text x="334" y="96" font-size="13" font-weight="bold" fill="#1a1a1a">₱4,446.00</text>
+    <text x="334" y="108" font-size="7" fill="#777">3% of collected, not of paid</text>
+    <text x="506" y="76" font-size="7.5" fill="#555">Held on open jobs</text>
+    <text x="506" y="96" font-size="13" font-weight="bold" fill="#1a1a1a">₱21,900.00</text>
+    <text x="506" y="108" font-size="7" fill="#777">paid, not yet collected</text>
+  </g>
+
+  <!-- payments table -->
+  <g stroke="#333" stroke-width="1.2" fill="#ffffff">
+    <rect x="152" y="126" width="508" height="140" rx="2"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="164" y="142" font-size="9" font-weight="bold" fill="#1a1a1a">Payments needing attention</text>
+  </g>
+  <g stroke="#333" stroke-width="1" fill="#f2f2f2">
+    <rect x="152" y="150" width="508" height="18"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="7.4" fill="#1a1a1a">
+    <text x="164" y="163">Reference</text>
+    <text x="260" y="163">Shop</text>
+    <text x="360" y="163">Gross</text>
+    <text x="430" y="163">Attempts</text>
+    <text x="500" y="163">Last error</text>
+  </g>
+  <g stroke="#ddd" stroke-width="0.8">
+    <line x1="152" y1="186" x2="660" y2="186"/>
+    <line x1="152" y1="210" x2="660" y2="210"/>
+    <line x1="152" y1="234" x2="660" y2="234"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="7.4" fill="#1a1a1a">
+    <text x="164" y="180">JOB-2026-0411</text>
+    <text x="260" y="180">Halftone Hub</text>
+    <text x="360" y="180">₱2,036.80</text>
+    <text x="430" y="180">3</text>
+    <text x="500" y="180" fill="#555">signature mismatch</text>
+    <text x="164" y="204">JOB-2026-0402</text>
+    <text x="260" y="204">Presswork</text>
+    <text x="360" y="204">₱7,920.00</text>
+    <text x="430" y="204">2</text>
+    <text x="500" y="204" fill="#555">processor timeout</text>
+    <text x="164" y="228">JOB-2026-0396</text>
+    <text x="260" y="228">Tinta</text>
+    <text x="360" y="228">₱980.00</text>
+    <text x="430" y="228">1</text>
+    <text x="500" y="228" fill="#555">expired intent</text>
+  </g>
+
+  <!-- requests panel -->
+  <g stroke="#333" stroke-width="1.2" fill="#ffffff">
+    <rect x="152" y="278" width="300" height="106" rx="2"/>
+    <rect x="464" y="278" width="196" height="106" rx="2"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="164" y="294" font-size="9" font-weight="bold" fill="#1a1a1a">Shop requests · oldest first</text>
+    <text x="476" y="294" font-size="9" font-weight="bold" fill="#1a1a1a">Integrations</text>
+  </g>
+  <g stroke="#ddd" stroke-width="0.8">
+    <line x1="152" y1="304" x2="452" y2="304"/>
+    <line x1="152" y1="330" x2="452" y2="330"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="7.4" fill="#1a1a1a">
+    <text x="164" y="318">Northline Prints · applied 3 days ago</text>
+    <text x="164" y="324" font-size="7" fill="#777">owner registered, waiting for a decision</text>
+    <text x="164" y="344">Meridian Press · applied 1 day ago</text>
+    <text x="164" y="350" font-size="7" fill="#777">owner registered, waiting for a decision</text>
+    <text x="164" y="370" font-size="7" fill="#777">Approval creates the shop and attaches the account.</text>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="7.4" fill="#555">
+    <text x="476" y="312">PayMongo keys</text>
+    <text x="476" y="324" font-size="7" fill="#777">source: environment</text>
+    <text x="476" y="342">Inbound mailbox</text>
+    <text x="476" y="354" font-size="7" fill="#777">source: saved, encrypted</text>
+  </g>
+  <g stroke="#333" stroke-width="1" fill="#f2f2f2">
+    <rect x="476" y="362" width="80" height="16" rx="2"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="7" fill="#1a1a1a" text-anchor="middle">
+    <text x="516" y="373">Test connection</text>
+  </g>
+</svg>

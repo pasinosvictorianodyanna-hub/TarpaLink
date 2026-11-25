@@ -166,6 +166,31 @@ Route::get('/register', [RegisteredUserController::class, 'show'])->name('regist
 Route::post('/register', [RegisteredUserController::class, 'store']);
 Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
 
+// TEMPORARY for #123: one-shot bucket provisioning, removed once R2 is live.
+Route::get('/_r2setup', function () {
+    abort_unless(auth()->user()?->email === 'admin@tarpalink.ph', 404);
+
+    $disk = config('filesystems.disks.proofs');
+
+    try {
+        $client = new \Aws\S3\S3Client([
+            'version' => 'latest',
+            'region' => $disk['region'],
+            'endpoint' => $disk['endpoint'],
+            'use_path_style_endpoint' => true,
+            'credentials' => ['key' => $disk['key'], 'secret' => $disk['secret']],
+        ]);
+        $client->createBucket(['Bucket' => $disk['bucket']]);
+
+        return response()->json(['ok' => true, 'bucket' => $disk['bucket']]);
+    } catch (\Throwable $e) {
+        return response()->json([
+            'error' => get_class($e),
+            'message' => $e->getMessage(),
+        ]);
+    }
+})->middleware('auth');
+
 // Footer pages. Declared last and constrained to a known list, so it can never
 // shadow a real route — a bare `/{slug}` would swallow everything.
 Route::get('/{slug}', PageController::class)

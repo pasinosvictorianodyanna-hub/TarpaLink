@@ -24,14 +24,18 @@ prints the document first, reads back which page each heading landed on, and reb
 
 ```bash
 python docs/final/build.py
-node   docs/final/pdf.mjs docs/final/TarpaLink-Final-Documentation.html \
+node   docs/final/pdf.mjs "$PWD/docs/final/TarpaLink-Final-Documentation.html" \
                             docs/final/TarpaLink-Final-Documentation.pdf TarpaLink
 python docs/final/toc_pages.py docs/final/TarpaLink-Final-Documentation.pdf \
                                docs/final/toc-pages.json
 python docs/final/build.py --toc-pages docs/final/toc-pages.json
-node   docs/final/pdf.mjs docs/final/TarpaLink-Final-Documentation.html \
+node   docs/final/pdf.mjs "$PWD/docs/final/TarpaLink-Final-Documentation.html" \
                             docs/final/TarpaLink-Final-Documentation.pdf TarpaLink
 ```
+
+The HTML path passed to `pdf.mjs` must be absolute: Chrome is given a `file://` URL, and a relative
+path resolves against the browser's own directory, producing a one-page `ERR_FILE_NOT_FOUND` PDF
+that still looks like a successful build.
 
 Three fields on the document-control page are deliberately blank — author, instructor and
 institution — because they are not facts this repository holds.

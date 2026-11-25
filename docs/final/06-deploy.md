@@ -119,13 +119,14 @@ that follows, the ephemeral disk, the blocked SMTP ports and the container's egr
 behaviour, not observed behaviour. The document that records this distinction is
 `docs/DEPLOY-RENDER.md`, and the runbook that a person follows is `docs/DEPLOY-CHECKLIST.md`.
 
-The live service was probed later, on a signed-in customer session: the job page rendered, and
-design uploads and proof downloads failed with 500s that the local suite could not see. That led to
-the adapter and key-prefix fixes above. The upload now refuses a write with a clear message rather
-than a 500. An actual object in R2 has still not been written end to end: the deployment's S3
-endpoint and credentials were real, but the Cloudflare account rejected the TLS handshake, and the
-Cloudflare API reported that R2 was not enabled on the account. That is a dashboard step, not a
-code change.
+The live service was probed later, on a signed-in customer session: the job page rendered, while
+design uploads and proof downloads returned 500s that the local suite could not see. That led to
+the adapter and key-prefix fixes above. Enabling R2 on the Cloudflare account — a dashboard step,
+not an API call — removed the TLS failure; a write-enabled token then created one private
+**Standard** bucket on the free tier. The deployment now passes the check no unit test can make:
+the admin storage probe reports *Writable* on the `s3` disk, a 70-byte PNG uploaded by a customer
+downloads back byte-identical through the private bucket, and a shop proof upload moves its job to
+`awaiting_proof`. The account remains on the free plan with no paid subscription.
 
 One measurement worth reading correctly: the two TiDB test files took seventeen minutes, roughly
 fifty seconds per test. That is a laptop in Manila talking to a cluster in Singapore, where every

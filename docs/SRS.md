@@ -1,6 +1,6 @@
 # Software Requirements Specification — TarpaLink
 
-**Version 1.19 · Web Systems and Technologies 2 · System Integration and Architecture 1**
+**Version 1.20 · Web Systems and Technologies 2 · System Integration and Architecture 1**
 
 > **Written against:** current `main`. Version 1.0 was written against `main` plus the
 > profile island (#16), before the shop dashboard was merged. Version 1.1 recorded the
@@ -76,6 +76,9 @@
 > connect — and a bare `array_filter` discarded `false` on the way in, which is precisely the
 > value the switch needs to carry. One pass, two lines of configuration, and a verification
 > that a TLS-only server actually negotiates TLS.
+> Version 1.20 is documentation only: `docs/final/` assembles this specification and the design
+> record into one submission document carrying the six required design artefacts, and corrects
+> the table count in §8, which had said seventeen since the nineteenth table was added.
 
 ---
 
@@ -387,7 +390,7 @@ counted, but as **held**, and shown as such.
 
 ## 8. Data requirements
 
-Seventeen domain tables, sixteen models (`shop_users` is a pivot with no model of its
+Nineteen domain tables, eighteen models (`shop_users` is a pivot with no model of its
 own), sixteen policies. The full dictionary, enumerations and invariants are in
 [SCHEMA.md](SCHEMA.md).
 

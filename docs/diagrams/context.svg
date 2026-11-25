@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 480" width="680" height="480" role="img" aria-label="System context diagram: three kinds of user and four external services around one Laravel application">
+  <defs>
+    <marker id="ar-ctx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="680" height="480" fill="#ffffff"/>
+
+  <!-- the application -->
+  <g stroke="#333" stroke-width="1.4" fill="#f2f2f2">
+    <rect x="255" y="55" width="170" height="335" rx="4"/>
+  </g>
+  <g fill="#1a1a1a" font-family="Arial, Helvetica, sans-serif" text-anchor="middle">
+    <text x="340" y="92" font-size="17" font-weight="bold">TarpaLink</text>
+    <text x="340" y="110" font-size="9.5" fill="#555">one Laravel 12 application</text>
+  </g>
+  <g stroke="#777" stroke-width="1" fill="none" stroke-dasharray="4 3">
+    <rect x="271" y="126" width="138" height="104" rx="3"/>
+  </g>
+  <g fill="#1a1a1a" font-family="Arial, Helvetica, sans-serif" text-anchor="middle" font-size="10.5">
+    <text x="340" y="150" font-size="9" fill="#555">surfaces</text>
+    <text x="340" y="172">Storefront</text>
+    <text x="340" y="194">Shop console</text>
+    <text x="340" y="216">Admin panel</text>
+  </g>
+  <g fill="#555" font-family="Arial, Helvetica, sans-serif" text-anchor="middle" font-size="9">
+    <text x="340" y="258">5 domain services</text>
+    <text x="340" y="274">19 tables · 16 policies</text>
+    <text x="340" y="290">2 signed webhooks</text>
+  </g>
+  <g fill="#555" font-family="Arial, Helvetica, sans-serif" text-anchor="middle" font-size="9">
+    <text x="340" y="330">one price engine</text>
+    <text x="340" y="346">one lifecycle</text>
+    <text x="340" y="362">one money model</text>
+  </g>
+
+  <!-- left: the people -->
+  <g stroke="#333" stroke-width="1.2" fill="#ffffff">
+    <rect x="25" y="59" width="150" height="48" rx="3"/>
+    <rect x="25" y="198" width="150" height="48" rx="3"/>
+    <rect x="25" y="337" width="150" height="48" rx="3"/>
+  </g>
+  <g fill="#1a1a1a" font-family="Arial, Helvetica, sans-serif" text-anchor="middle">
+    <text x="100" y="80" font-size="11" font-weight="bold">Customer</text>
+    <text x="100" y="95" font-size="8.5" fill="#555">browses, orders, pays</text>
+    <text x="100" y="219" font-size="11" font-weight="bold">Shop owner</text>
+    <text x="100" y="234" font-size="8.5" fill="#555">prices, queue, payout</text>
+    <text x="100" y="358" font-size="11" font-weight="bold">Shop staff</text>
+    <text x="100" y="373" font-size="8.5" fill="#555">queue and board only</text>
+  </g>
+
+  <!-- right: the services -->
+  <g stroke="#333" stroke-width="1.2" fill="#ffffff">
+    <rect x="505" y="59" width="150" height="48" rx="3"/>
+    <rect x="505" y="198" width="150" height="48" rx="3"/>
+    <rect x="505" y="337" width="150" height="48" rx="3"/>
+  </g>
+  <g fill="#1a1a1a" font-family="Arial, Helvetica, sans-serif" text-anchor="middle">
+    <text x="580" y="80" font-size="11" font-weight="bold">Administrator</text>
+    <text x="580" y="95" font-size="8.5" fill="#555">approvals, content, keys</text>
+    <text x="580" y="219" font-size="11" font-weight="bold">PayMongo</text>
+    <text x="580" y="234" font-size="8.5" fill="#555">payment processor</text>
+    <text x="580" y="358" font-size="11" font-weight="bold">SMTP relay</text>
+    <text x="580" y="373" font-size="8.5" fill="#555">notifications out</text>
+  </g>
+
+  <!-- bottom: geocoder and storage -->
+  <g stroke="#333" stroke-width="1.2" fill="#ffffff">
+    <rect x="140" y="430" width="165" height="40" rx="3"/>
+    <rect x="375" y="430" width="165" height="40" rx="3"/>
+  </g>
+  <g fill="#1a1a1a" font-family="Arial, Helvetica, sans-serif" text-anchor="middle">
+    <text x="222" y="447" font-size="10.5" font-weight="bold">Nominatim · OSM tiles</text>
+    <text x="222" y="461" font-size="8.5" fill="#555">address to coordinates</text>
+    <text x="457" y="447" font-size="10.5" font-weight="bold">Cloudflare R2</text>
+    <text x="457" y="461" font-size="8.5" fill="#555">proofs and artwork</text>
+  </g>
+
+  <!-- edges -->
+  <g stroke="#333" stroke-width="1.1" fill="none">
+    <line x1="175" y1="83" x2="255" y2="83" marker-end="url(#ar-ctx)" marker-start="url(#ar-ctx)"/>
+    <line x1="175" y1="222" x2="255" y2="222" marker-end="url(#ar-ctx)" marker-start="url(#ar-ctx)"/>
+    <line x1="175" y1="361" x2="255" y2="361" marker-end="url(#ar-ctx)" marker-start="url(#ar-ctx)"/>
+    <line x1="505" y1="83" x2="425" y2="83" marker-end="url(#ar-ctx)" marker-start="url(#ar-ctx)"/>
+    <line x1="505" y1="222" x2="425" y2="222" marker-end="url(#ar-ctx)" marker-start="url(#ar-ctx)"/>
+    <line x1="505" y1="361" x2="425" y2="361" marker-end="url(#ar-ctx)" marker-start="url(#ar-ctx)"/>
+    <path d="M 340 390 L 340 410" />
+    <path d="M 222 410 L 397 410" />
+    <path d="M 222 410 L 222 424" marker-end="url(#ar-ctx)"/>
+    <path d="M 397 410 L 397 424" marker-end="url(#ar-ctx)"/>
+  </g>
+
+  <!-- numbered edge references, keyed to the table in chapter 14 -->
+  <g fill="#ffffff" stroke="#333" stroke-width="1.1">
+    <circle cx="215" cy="83" r="9"/>
+    <circle cx="215" cy="222" r="9"/>
+    <circle cx="215" cy="361" r="9"/>
+    <circle cx="465" cy="83" r="9"/>
+    <circle cx="465" cy="222" r="9"/>
+    <circle cx="465" cy="361" r="9"/>
+    <circle cx="290" cy="410" r="8"/>
+    <circle cx="350" cy="410" r="8"/>
+  </g>
+  <g fill="#1a1a1a" font-family="Arial, Helvetica, sans-serif" text-anchor="middle" font-size="9">
+    <text x="215" y="86">1</text>
+    <text x="215" y="225">2</text>
+    <text x="215" y="364">3</text>
+    <text x="465" y="86">4</text>
+    <text x="465" y="225">5</text>
+    <text x="465" y="364">6</text>
+    <text x="290" y="413">7</text>
+    <text x="350" y="413">8</text>
+  </g>
+</svg>

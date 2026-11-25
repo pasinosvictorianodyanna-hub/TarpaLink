@@ -9,6 +9,33 @@ step with the markdown in `docs/`.
 | `TarpaLink-SDD.docx` | The software design document — the only copy of it in this repository |
 | `Guide-to-Writing-the-SRS-and-SDD.docx` | The writing guide the two documents above follow |
 
+## The submission document
+
+`docs/final/TarpaLink-Final-Documentation.pdf` supersedes all three for submission. It is one
+document in two parts — requirements, then design — and it carries the six design artefacts the
+course asks for: use case diagram, ER diagram, context diagram, architecture diagram, database
+schema and wireframes.
+
+It is **built**, not written. The sources are `docs/final/*.md` and `docs/diagrams/*.svg`; the
+build is `docs/final/build.py` (markdown to A4 HTML, with each diagram inlined) followed by
+`docs/final/pdf.mjs` (Chrome, through the DevTools protocol, so the pages carry a running header
+and a real page count). The table of contents has page numbers because `docs/final/toc_pages.py`
+prints the document first, reads back which page each heading landed on, and rebuilds:
+
+```bash
+python docs/final/build.py
+node   docs/final/pdf.mjs docs/final/TarpaLink-Final-Documentation.html \
+                            docs/final/TarpaLink-Final-Documentation.pdf TarpaLink
+python docs/final/toc_pages.py docs/final/TarpaLink-Final-Documentation.pdf \
+                               docs/final/toc-pages.json
+python docs/final/build.py --toc-pages docs/final/toc-pages.json
+node   docs/final/pdf.mjs docs/final/TarpaLink-Final-Documentation.html \
+                            docs/final/TarpaLink-Final-Documentation.pdf TarpaLink
+```
+
+Three fields on the document-control page are deliberately blank — author, instructor and
+institution — because they are not facts this repository holds.
+
 ## They do not update themselves
 
 Change `docs/SRS.md` and `TarpaLink-SRS.docx` still says what it said the day it was rendered.

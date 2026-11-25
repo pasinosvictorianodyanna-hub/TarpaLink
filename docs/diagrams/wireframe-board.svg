@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 420" width="680" height="420" role="img" aria-label="Wireframe: the shop console production board with four status columns">
+  <rect x="0" y="0" width="680" height="420" fill="#ffffff"/>
+
+  <!-- sidebar -->
+  <g stroke="#333" stroke-width="1.2" fill="#f2f2f2">
+    <rect x="16" y="16" width="132" height="388"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="28" y="40" font-size="10.5" font-weight="bold" fill="#1a1a1a">Inkwell Press</text>
+    <text x="28" y="53" font-size="7.5" fill="#555">Quezon City · Starter</text>
+  </g>
+  <g stroke="#ccc" stroke-width="1">
+    <line x1="16" y1="64" x2="148" y2="64"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="8.5" fill="#555">
+    <text x="28" y="84">Dashboard</text>
+    <text x="28" y="106">Jobs</text>
+    <text x="28" y="150">Prices</text>
+    <text x="28" y="172">Reports</text>
+    <text x="28" y="194">Billing</text>
+  </g>
+  <g stroke="#333" stroke-width="1.2" fill="#ffffff">
+    <rect x="20" y="118" width="124" height="22" rx="2"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="8.5" fill="#1a1a1a">
+    <text x="28" y="133" font-weight="bold">Production board</text>
+  </g>
+  <g stroke="#ccc" stroke-width="1">
+    <line x1="16" y1="212" x2="148" y2="212"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="7.5" fill="#777">
+    <text x="28" y="230">Prices and billing are</text>
+    <text x="28" y="241">hidden from staff.</text>
+    <text x="28" y="384">signed in as owner</text>
+  </g>
+
+  <!-- topbar -->
+  <g stroke="#333" stroke-width="1.2" fill="#ffffff">
+    <rect x="148" y="16" width="516" height="40"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="162" y="41" font-size="11" font-weight="bold" fill="#1a1a1a">Production board</text>
+    <text x="470" y="40" font-size="8" fill="#555">Switch shop</text>
+  </g>
+  <g stroke="#bbb" stroke-width="1" fill="#f7f7f7">
+    <rect x="536" y="26" width="114" height="20" rx="2"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="8" fill="#1a1a1a">
+    <text x="544" y="40">Inkwell Press ▾</text>
+  </g>
+
+  <!-- columns -->
+  <g stroke="#333" stroke-width="1.1" fill="#f7f7f7">
+    <rect x="156" y="66" width="120" height="322" rx="2"/>
+    <rect x="284" y="66" width="120" height="322" rx="2"/>
+    <rect x="412" y="66" width="120" height="322" rx="2"/>
+    <rect x="540" y="66" width="120" height="322" rx="2"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="8.5" fill="#1a1a1a">
+    <text x="164" y="82" font-weight="bold">Quoted · 2</text>
+    <text x="292" y="82" font-weight="bold">Awaiting proof · 3</text>
+    <text x="420" y="82" font-weight="bold">In production · 2</text>
+    <text x="548" y="82" font-weight="bold">Ready · 1</text>
+  </g>
+
+  <!-- cards -->
+  <g stroke="#333" stroke-width="1" fill="#ffffff">
+    <rect x="164" y="90" width="104" height="56" rx="2"/>
+    <rect x="164" y="154" width="104" height="56" rx="2"/>
+    <rect x="292" y="90" width="104" height="56" rx="2"/>
+    <rect x="292" y="154" width="104" height="56" rx="2"/>
+    <rect x="420" y="90" width="104" height="56" rx="2"/>
+    <rect x="420" y="154" width="104" height="56" rx="2"/>
+    <rect x="548" y="90" width="104" height="56" rx="2"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="7.4" fill="#1a1a1a">
+    <text x="170" y="102" font-weight="bold">JOB-2026-0418</text>
+    <text x="170" y="113" fill="#555">Reyes · tarpaulin</text>
+    <text x="170" y="124" fill="#555">₱4,440.00</text>
+    <text x="170" y="140">design ✓</text>
+    <text x="170" y="166" font-weight="bold">JOB-2026-0419</text>
+    <text x="170" y="177" fill="#555">Cruz · stickers</text>
+    <text x="170" y="188" fill="#555">₱1,250.00</text>
+    <text x="170" y="204">design ✓</text>
+    <text x="298" y="102" font-weight="bold">JOB-2026-0412</text>
+    <text x="298" y="113" fill="#555">Lim · flyers</text>
+    <text x="298" y="124" fill="#555">₱3,200.00</text>
+    <text x="298" y="140">design ✓</text>
+    <text x="298" y="166" font-weight="bold">JOB-2026-0414</text>
+    <text x="298" y="177" fill="#555">Tan · tarpaulin</text>
+    <text x="298" y="188" fill="#555">₱2,036.80</text>
+    <text x="298" y="204" fill="#555">no design yet</text>
+    <text x="426" y="102" font-weight="bold">JOB-2026-0405</text>
+    <text x="426" y="113" fill="#555">Go · DTF shirts</text>
+    <text x="426" y="124" fill="#555">₱5,600.00</text>
+    <text x="426" y="140">proof ✓</text>
+    <text x="426" y="166" font-weight="bold">JOB-2026-0407</text>
+    <text x="426" y="177" fill="#555">Sy · tarpaulin</text>
+    <text x="426" y="188" fill="#555">₱7,920.00</text>
+    <text x="426" y="204">proof ✓</text>
+    <text x="554" y="102" font-weight="bold">JOB-2026-0399</text>
+    <text x="554" y="113" fill="#555">Uy · stickers</text>
+    <text x="554" y="124" fill="#555">₱980.00</text>
+    <text x="554" y="140" fill="#555">waiting 2 days</text>
+  </g>
+
+  <g font-family="Arial, Helvetica, sans-serif" font-size="7.2" fill="#777">
+    <text x="156" y="404">A card carries the design badge from FR-114, so a shop never opens a job to find out whether artwork arrived.</text>
+  </g>
+</svg>

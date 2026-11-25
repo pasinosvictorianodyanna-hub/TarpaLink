@@ -1,0 +1,193 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 520" width="680" height="520" role="img" aria-label="Entity relationship diagram of the fifteen core tables: identity, tenancy, catalogue, the job, money and the audit trail">
+  <rect x="0" y="0" width="680" height="520" fill="#ffffff"/>
+
+  <!-- ============ column 1: identity ============ -->
+  <g stroke="#333" stroke-width="1.1" fill="#ffffff">
+    <rect x="12" y="40" width="152" height="80"/>
+    <rect x="12" y="132" width="152" height="80"/>
+    <rect x="12" y="224" width="152" height="80"/>
+    <rect x="12" y="316" width="152" height="80"/>
+  </g>
+  <g stroke="#333" stroke-width="1.1" fill="#ececec">
+    <rect x="12" y="40" width="152" height="19"/>
+    <rect x="12" y="132" width="152" height="19"/>
+    <rect x="12" y="224" width="152" height="19"/>
+    <rect x="12" y="316" width="152" height="19"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="8.6" fill="#1a1a1a">
+    <text x="20" y="54" font-size="10" font-weight="bold">users</text>
+    <text x="20" y="76">id · email (unique)</text>
+    <text x="20" y="89">name · phone · city</text>
+    <text x="20" y="102">role · one per account</text>
+    <text x="20" y="115">password_changed_at</text>
+
+    <text x="20" y="146" font-size="10" font-weight="bold">shop_users</text>
+    <text x="20" y="168">shop_id · user_id</text>
+    <text x="20" y="181">role: owner | staff</text>
+    <text x="20" y="194">(pivot, no model)</text>
+
+    <text x="20" y="238" font-size="10" font-weight="bold">shop_requests</text>
+    <text x="20" y="260">email · shop_name · city</text>
+    <text x="20" y="273">status · reason</text>
+    <text x="20" y="286">user_id · shop_id</text>
+    <text x="20" y="299">approved_by</text>
+
+    <text x="20" y="330" font-size="10" font-weight="bold">password_reset_tokens</text>
+    <text x="20" y="352">email (primary)</text>
+    <text x="20" y="365">token (hashed)</text>
+    <text x="20" y="378">created_at</text>
+  </g>
+
+  <!-- ============ column 2: shop and catalogue ============ -->
+  <g stroke="#333" stroke-width="1.1" fill="#ffffff">
+    <rect x="180" y="40" width="152" height="80"/>
+    <rect x="180" y="132" width="152" height="80"/>
+    <rect x="180" y="224" width="152" height="80"/>
+    <rect x="180" y="316" width="152" height="80"/>
+    <rect x="180" y="408" width="152" height="80"/>
+  </g>
+  <g stroke="#333" stroke-width="1.1" fill="#ececec">
+    <rect x="180" y="40" width="152" height="19"/>
+    <rect x="180" y="132" width="152" height="19"/>
+    <rect x="180" y="224" width="152" height="19"/>
+    <rect x="180" y="316" width="152" height="19"/>
+    <rect x="180" y="408" width="152" height="19"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="8.6" fill="#1a1a1a">
+    <text x="188" y="54" font-size="10" font-weight="bold">shops</text>
+    <text x="188" y="76">id · slug (unique)</text>
+    <text x="188" y="89">status · plan</text>
+    <text x="188" y="102">commission_rate · bp</text>
+    <text x="188" y="115">approved_by · city</text>
+
+    <text x="188" y="146" font-size="10" font-weight="bold">services</text>
+    <text x="188" y="168">shop_id · name</text>
+    <text x="188" y="181">unit: sqft | pc</text>
+    <text x="188" y="194">active</text>
+
+    <text x="188" y="238" font-size="10" font-weight="bold">price_tiers</text>
+    <text x="188" y="260">service_id · label</text>
+    <text x="188" y="273">min/max width · height</text>
+    <text x="188" y="286">unit_price · centavos</text>
+
+    <text x="188" y="330" font-size="10" font-weight="bold">price_options</text>
+    <text x="188" y="352">service_id · name</text>
+    <text x="188" y="365">price · centavos</text>
+
+    <text x="188" y="422" font-size="10" font-weight="bold">quantity_discounts</text>
+    <text x="188" y="444">shop_id · min_qty</text>
+    <text x="188" y="457">percent (whole percent)</text>
+  </g>
+
+  <!-- ============ column 3: the job ============ -->
+  <g stroke="#333" stroke-width="1.1" fill="#ffffff">
+    <rect x="348" y="40" width="152" height="80"/>
+    <rect x="348" y="132" width="152" height="80"/>
+    <rect x="348" y="224" width="152" height="80"/>
+    <rect x="348" y="316" width="152" height="80"/>
+  </g>
+  <g stroke="#333" stroke-width="1.1" fill="#e0e0e0">
+    <rect x="348" y="40" width="152" height="19"/>
+  </g>
+  <g stroke="#333" stroke-width="1.1" fill="#ececec">
+    <rect x="348" y="132" width="152" height="19"/>
+    <rect x="348" y="224" width="152" height="19"/>
+    <rect x="348" y="316" width="152" height="19"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="8.6" fill="#1a1a1a">
+    <text x="356" y="54" font-size="10" font-weight="bold">jobs</text>
+    <text x="356" y="76">reference (unique)</text>
+    <text x="356" y="89">shop_id · user_id</text>
+    <text x="356" y="102">service_id · status</text>
+    <text x="356" y="115">total · matrix_version</text>
+
+    <text x="356" y="146" font-size="10" font-weight="bold">job_lines</text>
+    <text x="356" y="168">job_id · label</text>
+    <text x="356" y="181">qty · unit_price</text>
+    <text x="356" y="194">amount · centavos</text>
+
+    <text x="356" y="238" font-size="10" font-weight="bold">proofs</text>
+    <text x="356" y="260">job_id · version</text>
+    <text x="356" y="273" font-size="7.8">status: sent|approved|rejected</text>
+    <text x="356" y="286">file_path · approved_at</text>
+
+    <text x="356" y="330" font-size="10" font-weight="bold">artworks</text>
+    <text x="356" y="352">job_id · uploaded_by</text>
+    <text x="356" y="365">original_name · mime</text>
+    <text x="356" y="378">bytes · append-only</text>
+  </g>
+
+  <!-- ============ column 4: money and the trail ============ -->
+  <g stroke="#333" stroke-width="1.1" fill="#ffffff">
+    <rect x="516" y="40" width="152" height="80"/>
+    <rect x="516" y="132" width="152" height="80"/>
+  </g>
+  <g stroke="#333" stroke-width="1.1" fill="#ececec">
+    <rect x="516" y="40" width="152" height="19"/>
+    <rect x="516" y="132" width="152" height="19"/>
+  </g>
+  <g font-family="Arial, Helvetica, sans-serif" font-size="8.6" fill="#1a1a1a">
+    <text x="524" y="54" font-size="10" font-weight="bold">payments</text>
+    <text x="524" y="76" font-size="7.8">job_id · intent_id (unique)</text>
+    <text x="524" y="89">amount · commission</text>
+    <text x="524" y="102">processing_fee · refunded</text>
+    <text x="524" y="115">status · payout_status</text>
+
+    <text x="524" y="146" font-size="10" font-weight="bold">job_activities</text>
+    <text x="524" y="168">job_id · user_id</text>
+    <text x="524" y="181">kind · source</text>
+    <text x="524" y="194">from_status · to_status</text>
+  </g>
+
+  <!-- ============ relationships ============ -->
+  <g stroke="#333" stroke-width="1" fill="none">
+    <!-- users to shop_users -->
+    <path d="M 88 120 L 88 132"/>
+    <!-- shops to shop_users -->
+    <path d="M 180 58 L 170 58 L 170 172 L 164 172"/>
+    <!-- shops to services -->
+    <path d="M 256 120 L 256 132"/>
+    <!-- services to its three catalogue tables -->
+    <path d="M 332 152 L 340 152 L 340 448"/>
+    <path d="M 340 264 L 332 264"/>
+    <path d="M 340 356 L 332 356"/>
+    <!-- shops to quantity_discounts -->
+    <path d="M 180 80 L 176 80 L 176 448 L 180 448"/>
+    <!-- shops and users to jobs, routed over the top -->
+    <path d="M 256 40 L 256 26 L 424 26 L 424 40"/>
+    <path d="M 88 40 L 88 34 L 448 34 L 448 40"/>
+    <!-- services to jobs -->
+    <path d="M 424 132 L 424 120"/>
+    <!-- jobs to job_lines -->
+    <path d="M 460 120 L 460 132"/>
+    <!-- jobs to proofs, artworks and the trail -->
+    <path d="M 500 60 L 508 60 L 508 356"/>
+    <path d="M 508 264 L 500 264"/>
+    <path d="M 508 356 L 500 356"/>
+    <path d="M 508 140 L 516 140"/>
+    <!-- jobs to payments -->
+    <path d="M 500 80 L 516 80"/>
+    <!-- a request becomes a shop -->
+    <path d="M 164 264 L 168 264 L 168 126 L 256 126 L 256 120"/>
+    <!-- an account files a request -->
+    <path d="M 12 80 L 6 80 L 6 264 L 12 264"/>
+  </g>
+
+  <!-- cardinality, on the principal edges only -->
+  <g font-family="Arial, Helvetica, sans-serif" font-size="7.4" fill="#333" text-anchor="middle">
+    <text x="94" y="129">1</text>
+    <text x="94" y="148">N</text>
+    <text x="166" y="70">1</text>
+    <text x="176" y="168">N</text>
+    <text x="262" y="128">1</text>
+    <text x="262" y="146">N</text>
+    <text x="506" y="74">1</text>
+    <text x="522" y="74">N</text>
+    <text x="506" y="134">1</text>
+    <text x="522" y="134">N</text>
+  </g>
+
+  <g font-family="Arial, Helvetica, sans-serif" font-size="7.6" fill="#777">
+    <text x="12" y="508">Every connector is one-to-many from the parent. The marks 1 and N appear at the ends of the principal edges only.</text>
+  </g>
+</svg>

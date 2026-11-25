@@ -1852,7 +1852,8 @@ job page itself was fine; everything that touched a file was not:
 | `GET /jobs/TL-69006/proofs/30017/file` | 500 |
 | `GET /jobs/TL-72275/proofs/30002/file` | 500 |
 
-Read and write, customer and shop: one cause, not three.
+Read and write, customer and shop — the same disk driver, and the same 500. There were more
+causes behind it, found in order below.
 
 ### The missing package
 
@@ -1895,9 +1896,40 @@ file could not be stored, try again" instead of a 500 or a false confirmation. T
 directions with a disk that refuses every write, and assert that no row and no status change
 survives it.
 
-`566 passed (2640 assertions)` — up from `563 passed (2626 assertions)` at #121. Three tests and
-fourteen assertions. The driver test fails against the old `composer.json`; the other two fail
-against the old upload code.
+### What the driver revealed once it could run
+
+After the adapter was installed, the upload stopped 500-ing and started showing the new validation
+error instead. That was the guard working, not the bug fixed. A short authenticated diagnostic
+route — added, used once, and removed in the same issue — asked the disk for the underlying
+exception:
+
+```
+UnableToWriteFile at location: artwork/diag-….txt
+Error executing "PutObject" on
+"https://<account-id>.r2.cloudflarestorage.com/tarpalink-files//var/www/html/storage/app/private/artwork/diag-….txt"
+cURL error 3: URL rejected: Bad hostname
+```
+
+Two separate faults are visible in that one URL:
+
+1. **`AWS_ENDPOINT` on the deployment is the literal placeholder** from the docs and
+   `render.yaml`, `https://<account-id>.r2.cloudflarestorage.com`, not a real account hostname.
+   Nothing in the application can invent the account id; it has to be pasted into Render from the
+   Cloudflare R2 dashboard. This is a deployment value, deliberately `sync: false`, and it is the
+   last thing standing between the code and a working bucket.
+2. **The object key had `/var/www/html/storage/app/private` in it.** On a local disk `root` is a
+   directory; on S3 it is a key prefix. `config/filesystems.php` was applying the local default to
+   the S3 adapter, so even with a real endpoint the objects would have been written under an
+   absolute path that the `artwork/…` and `proofs/…` rows can never read back. Both disks now set
+   `root` to an empty string whenever their driver is `s3`; a test re-reads the config file with
+   `PROOF_DISK_DRIVER=s3` to hold that in place.
+
+The diagnostic route was merged for exactly one deploy, gated to a single seeded account, and is
+removed by this change. Its only output was the exception above.
+
+`567 passed (2644 assertions)` — up from `563 passed (2626 assertions)` at #121. Four tests and
+eighteen assertions. One fails against the old `composer.json`, one against the old disk config,
+and two against the old upload code.
 
 ## Creating these on GitHub
 
